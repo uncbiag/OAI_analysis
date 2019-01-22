@@ -1,0 +1,6 @@
+numpy
+scikit-learn
+tensorboardX
+tensorflow-tensorboard
+torch
+torchvision
