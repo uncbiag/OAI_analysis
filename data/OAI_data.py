@@ -23,7 +23,7 @@ import SimpleITK as sitk
 
 class OAIData:
     def __init__(self, data_sheet=None, raw_data_root=''):
-        self.images = list()
+        self.images = list() # a list of OAIImage objects
         self.visit_description = {-1: 'SCREENING',  # only exists in Xray images
                                   0: 'ENROLLMENT',
                                   12: '12 MONTH',
@@ -36,7 +36,7 @@ class OAIData:
         if data_sheet and raw_data_root:
             self.load_raw_data_sheet(data_sheet, raw_data_root=raw_data_root)
 
-    def load_raw_data_sheet(self, data_sheet, raw_data_root=''):
+    def load_raw_data_sheet(self, data_sheet, raw_data_root='', proceesed_data_root=''):
         """
         load images info from a data sheet
         raw_data_root is the root path of raw OAI images
@@ -50,10 +50,17 @@ class OAIData:
         self.df = pd.read_csv(data_sheet)
 
         for df_line in self.df.itertuples(index=False):
-            self.images.append(OAIImage(df_line, raw_data_root))
-        pass
+            image = OAIImage(df_line, raw_data_root)
+            self.images.append(image)
+            self.patient_set.add(image.patient_id)
 
-    def build_repositories(self, processed_root_path):
+    def set_processed_data_paths(self, proceesed_data_root=''):
+        """Set the root folder where the processed data are saved"""
+        self.root_path = proceesed_data_root
+        for image in self.images:
+            image.set_processed_data_paths(proceesed_data_root)
+
+    def build_repositories(self):
         """
         Build nested repositories for patients to save processed OAI data
         e.g. intermediate results and add preprocessed images
@@ -67,33 +74,32 @@ class OAIData:
                             - segmentation results: cartilage_FC_TC_mask,
                             - meshes of cartilages:
         """
-        self.root_path = processed_root_path
+
         for image in self.images:
-            image.folder = os.path.join(processed_root_path, str(image.patient_id), image.modality, image.part, self.visit_description[image.visit_month])
             if not os.path.exists(image.folder):
                 os.makedirs(image.folder, exist_ok=True)
 
-    def preprocess_images(self, old_normalized_image_folder=None, overwrite=False):
-        """preprocess raw images and save them into corresponding folders"""
-        images = self.get_images()
-        for image in images:
-            image.normalized_image_path = os.path.join(image.folder, "image_normalized.nii.gz")
-
-            os.makedirs(image.folder, exist_ok=True)
-            if overwrite or (not os.path.isfile(image.normalized_image_path)) :
-                # if there were processed image saved in a single folder, copy them into the folder
-                if old_normalized_image_folder:
-                    old_normalized_image_file_name = "{}_{}_{}_{}_image.nii.gz".format(image.patient_id,
-                                                                                image.study_date,
-                                                                                image.series_description,
-                                                                                image.bar_code)
-                    old_normalized_image_file_path = os.path.join(old_normalized_image_folder, old_normalized_image_file_name)
-                    print("Copying {} to {}".format(old_normalized_image_file_path, image.normalized_image_path))
-                    copyfile(old_normalized_image_file_path, image.normalized_image_path)
-                else:
-                    # TODO: load images from raw folders and do preprocessing
-                    # preprocess(visit['raw_folder'], tmp_new_image_path)
-                    pass
+    # def preprocess_images(self, old_normalized_image_folder=None, overwrite=False):
+    #     """preprocess raw images and save them into corresponding folders"""
+    #     images = self.get_images()
+    #     for image in images:
+    #         image.preprocessed_image_file = os.path.join(image.folder, "image_normalized.nii.gz")
+    #
+    #         os.makedirs(image.folder, exist_ok=True)
+    #         if overwrite or (not os.path.isfile(image.preprocessed_image_file)) :
+    #             # if there were processed image saved in a single folder, copy them into the folder
+    #             if old_normalized_image_folder:
+    #                 old_normalized_image_file_name = "{}_{}_{}_{}_image.nii.gz".format(image.patient_id,
+    #                                                                             image.study_date,
+    #                                                                             image.series_description,
+    #                                                                             image.bar_code)
+    #                 old_normalized_image_file_path = os.path.join(old_normalized_image_folder, old_normalized_image_file_name)
+    #                 print("Copying {} to {}".format(old_normalized_image_file_path, image.preprocessed_image_file))
+    #                 copyfile(old_normalized_image_file_path, image.preprocessed_image_file)
+    #             else:
+    #                 # TODO: load images from raw folders and do preprocessing
+    #                 # preprocess(visit['raw_folder'], tmp_new_image_path)
+    #                 pass
 
 
     def clean_data(self):
@@ -136,7 +142,7 @@ class OAIData:
         assert isinstance(image_series, list), "input has to be a list"
         resolutions = set()
         for image in image_series:
-            image_path = image.normalized_image_path
+            image_path = image.preprocessed_image_path
             tmp_img = sitk.Image()
             if os.path.isdir(image_path):
                 reader = sitk.ImageSeriesReader()
@@ -217,42 +223,6 @@ class OAIData:
         #     image_paths[visit_num] = self.images[patient_id][modality][part][visit_num][attribute]
         # return image_paths
 
-    @staticmethod
-    def factor_description(study_description: str, series_description: str):
-        """
-        factorize image descriptions in OAI data sheets and return its modality, visit months, and imaging part
-        :param study_description:
-        :param series_description:
-        :return:
-        """
-        study_factors = study_description.rstrip().replace('Thigh', 'THIGH').split(
-            '^')  # clean descriptions capitalization
-
-        part = study_factors[-1]
-
-        # visit_counts = study_factors[2]
-        if study_factors[2] == 'SCREENING':
-            visit_counts = -1
-        elif study_factors[2] == 'ENROLLMENT':
-            visit_counts = 0
-        else:
-            visit_counts = int(study_factors[2].split(' ')[0])
-
-        modality = study_factors[1]
-
-        if modality == "MR":
-            series_factor = series_description.split('_')
-            # add specific modality info
-            if len(series_factor) > 1:
-                modality = '_'.join([modality] + series_factor[:-1])
-            else:
-                modality = '_'.join([modality] + series_factor)
-
-            # LEFT or RIGHT in MR images mean for knee only
-            if part == "LEFT" or part == "RIGHT":
-                part = part + ' KNEE'
-        return [modality, part, visit_counts]
-
     def get_processed_data_frame(self):
         """generate a data frame from processed image info"""
         df_lines = [image.get_dataframe_line() for image in self.images]
@@ -278,14 +248,30 @@ class OAIImage:
         self.modality= None
         self.part = None
         self.visit_month = None
+        self.visit_description = {-1: 'SCREENING',  # only exists in Xray images
+                                  0: 'ENROLLMENT',
+                                  12: '12_MONTH',
+                                  24: '24_MONTH',
+                                  36: '36_MONTH',
+                                  48: '48_MONTH',
+                                  72: '72_MONTH'}
 
-        # attributes in OAI analysis
-        # self.folder = None
-        # self.normalized_image_path = None
-        # self.cartilage_segmentation_path = None
-        # self.FC_mesh_path = None
-        # self.TC_mesh_path = None
-
+        # attributes of analysis file paths
+        self.folder = None
+        self.preprocessed_image_file = None
+        self.FC_probmap_file = None
+        self.TC_probmap_file = None
+        self.FC_mesh_file = None
+        self.TC_mesh_file = None
+        self.affine_transform_file = None
+        self.bspline_transform_file = None
+        self.warped_FC_mesh_file = None
+        self.warped_TC_mesh_file = None
+        self.inv_transform_to_atlas = None
+        self.FC_thickness_mapped_to_atlas_mesh = None
+        self.TC_thickness_mapped_to_atlas_mesh = None
+        self.FC_2D_thickness_grid = None
+        self.TC_2D_thickness_grid = None
 
         if df_line:
             self.patient_id = df_line.ParticipantID
@@ -293,9 +279,37 @@ class OAIImage:
             self.bar_code = df_line.Barcode
             self.modality, self.part, self.visit_month = self.factor_description(df_line.StudyDescription,
                                                                                  df_line.SeriesDescription)
-
             if raw_root:
                 self.raw_folder = os.path.join(raw_root, df_line.Folder)
+    @property
+    def name(self):
+        return "_".join([str(self.patient_id), self.visit_description[self.visit_month], self.part, self.modality])
+
+    def set_processed_data_paths(self, processed_root):
+        """
+        According to the root path of processed data, setup the path of all analysis file
+        :param processed_root:
+        :return:
+        """
+        self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
+                                   self.visit_description[self.visit_month])
+        self.preprocessed_image_file = os.path.join(self.folder, 'image_preprocessed.nii.gz')
+        self.FC_probmap_file = os.path.join(self.folder, 'FC_probmap.nii.gz')
+        self.TC_probmap_file = os.path.join(self.folder, 'TC_probmap.nii.gz')
+        self.FC_mesh_file = os.path.join(self.folder, "FC_mesh_world.ply")
+        self.TC_mesh_file = os.path.join(self.folder, "TC_mesh_world.ply")
+        self.affine_transform_file = os.path.join(self.folder, "affine_transform_to_atlas.txt")
+        self.bspline_transform_file = os.path.join(self.folder, "bspline_control_points_to_atlas.nii.gz")
+        self.warped_FC_mesh_file = os.path.join(self.folder, "FC_mesh_world_to_atlas.ply")
+        self.warped_TC_mesh_file = os.path.join(self.folder, "TC_mesh_world_to_atlas.ply")
+        self.inv_transform_to_atlas = os.path.join(self.folder, "inv_transform_to_atlas.nii.gz")
+        self.FC_thickness_mapped_to_atlas_mesh = os.path.join(self.folder, "atlas_FC_mesh_with_thickness.ply")
+        self.TC_thickness_mapped_to_atlas_mesh = os.path.join(self.folder, "atlas_TC_mesh_with_thickness.ply")
+
+        # TODO: naming the file of 2d thickness grid
+        self.FC_2D_thickness_grid = os.path.join(self.folder, "FC_2d_thickness.png")
+        self.FC_2D_thickness_grid = os.path.join(self.folder, "FC_2d_thickness.png")
+
 
     def get_dataframe_line(self):
         return pd.DataFrame([self.__dict__])
@@ -354,9 +368,39 @@ class OAIImage:
 
             # LEFT or RIGHT in MR images mean for knee only
             if part == "LEFT" or part == "RIGHT":
-                part = part + ' KNEE'
+                part = part + '_'+'KNEE'
         return modality, part, visit_mon
 
+    def __repr__(self):
+        return self.name
+
+class OAIPatients:
+    """
+    interface to visit patient info chart
+
+    useful attributes:
+    'P02RACE': race,
+        e.g. '1: White or Caucasian', '2: Black or African American',
+            '0: Other Non-white', '3: Asian', '.: Missing Form/Incomplete Workbook'
+    'P02SEX': sex,
+        e.g. '1: Male', '2: Female'
+    'V00COHORT': cohort,
+        e.g. '1: Progression', '2: Incidence', '3: Non-exposed control group'
+    """
+    def __init__(self, enrollees_text_file):
+        df = pd.read_table(enrollees_text_file, sep='|')
+        self.df = df.set_index('ID')
+
+    def filter_patient(self, **kwargs):
+        df_bool = reduce(lambda x, y: x & y, [self.df[key] == value for key, value in kwargs.items()],
+               True)
+        return set(self.df.index[df_bool])
+
+    def get_all_attributes(self):
+        return self.df.keys()
+
+    def get_unique_attribute_values(self, attribute):
+        return self.df[attribute].unique()
 
 def oai_data_test():
     """
@@ -371,27 +415,26 @@ def oai_data_test():
     os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     os.environ["CUDA_CACHE_PATH"] = "/playpen/zhenlinx/.cuda_cache"
 
+    # patient infos
+    patients_ASCII_file_path = "/playpen/zhenlinx/Data/OAI/Clinical/Enrollees/Enrollees.txt"
+    # patients_df = pd.read_table(patients_ASCII_file_path, sep='|')
+    # patients_df = patients_df.set_index('ID')
+    # progression_cohort = list(patients_df.index[patients_df['V00COHORT'] == '1: Progression'])
+
+    oai_patients = OAIPatients(patients_ASCII_file_path)
+    progression_cohort = oai_patients.filter_patient(V00COHORT='1: Progression')
+
     image_folder_path = "/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_6sets_rescaled"
-    OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets_40test.csv"
-    # OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets.csv"
+    # OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets_40test.csv"
+    OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets.csv"
+
     OAI_data = OAIData(OAI_data_sheet, '/playpen-raid/data/OAI')
+    OAI_data.set_processed_data_paths()
     ## build repositories and preprocess the raw image data
-    OAI_data.build_repositories('/playpen-raid/zhenlinx/Data/OAI')
+    # OAI_data.build_repositories('/playpen-raid/zhenlinx/Data/OAI')
     images = OAI_data.get_images()
     series = OAI_data.get_image_series()
     df = OAI_data.get_processed_data_frame()
-    # OAI_data.preprocess_images('/playpen-raid/zhenlinx/Data/OAI', old_image_folder=image_folder_path, overwrite=False)
-
-    # segment images and save masks and probability map
-    # checkpoint_path = '../unet_3d/ckpoints/MICCAI_rebuttal/Cascaded_1_AC_residual-1-s1_end2end_multi-out_UNet_bias_' \
-    #                   'Nifti_rescaled_train1_patch_128_128_32_batch_4_sample_0.01-0.02_cross_entropy_lr_0.0005_' \
-    #                   'scheduler_multiStep_04282018_011610/model_best.pth.tar'
-    # cascaded_segmenter = CascadedSegmenter(checkpoint_path)
-    # OAI_data.segment_all_images(cascaded_segmenter, overwrite=False)
-
-    # # extract cartilage surface and compute thickness on them.
-    # OAI_data.extract_surface_and_compute_thickness(cascaded_segmenter.name, overwrite=True)
-
 
 
 if __name__ == '__main__':

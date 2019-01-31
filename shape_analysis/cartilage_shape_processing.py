@@ -9,23 +9,23 @@ import SimpleITK as sitk
 import numpy as np
 import os
 
+import time
 from functools import partial
 from multiprocessing import Pool
 from sklearn.cluster import KMeans
+import matplotlib as mpl
 from skimage import measure
 
-import visvis as vv
 import pymesh
 
 import sys
 
-sys.path.append('../data')
-sys.path.append('../utils')
+sys.path.append('..')
 # from datasets import *
 # from transforms import *
 import glob
 from numpy.linalg import norm
-from tools import sitk_read_image
+from misc.image_transforms import sitk_read_image
 
 
 def fix_mesh(mesh, detail="normal"):
@@ -164,7 +164,7 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
     :param face_labels: The binary labeling have to be -1 or 1
     :param smooth_rings: size of smoothing rings(kernal size on mesh graph)
     :param max_rings: if max_rings is given, the smooth_rings keeps growing until the smoothed mesh has no additional
-    disconnected meshes or reaching 88return: smoothed labels
+    disconnected meshes or reaching maximum iterations
     :returns inner_mesh(label -1, surface touching bones), outer_mesh(label 1),
     inner_face_list(face indices of inner mesh), outer_face_list(face indices of outer mesh)
     """
@@ -228,7 +228,7 @@ def split_femoral_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_work
     for k in range(mesh.num_faces):
         connect_direction = center - face_centroid[k, :]
 
-        if np.dot(connect_direction[1:], face_normal[k, 1:]) > 0:
+        if np.dot(connect_direction[1:], face_normal[k, 1:]) < 0:
             inner_outer_label_list[k] = 1
         else:
             inner_outer_label_list[k] = -1
@@ -286,11 +286,15 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
 
     # split the cartilage into inner surface that interfacing the bone and the outer surface
     if cartilage == 'FC':
-        inner_mesh, outer_mesh, _, _ = split_femoral_cartilage_surface(mesh, smooth_rings=smooth_rings,
-                                                                       max_rings=max_rings, n_workers=n_workers)
+        inner_mesh, outer_mesh, inner_face_list, outer_face_list = split_femoral_cartilage_surface(mesh,
+                                                                                                   smooth_rings=smooth_rings,
+                                                                                                   max_rings=max_rings,
+                                                                                                   n_workers=n_workers)
     elif cartilage == 'TC':
-        inner_mesh, outer_mesh, _, _ = split_tibial_cartilage_surface(mesh, smooth_rings=smooth_rings,
-                                                                      max_rings=max_rings, n_workers=n_workers)
+        inner_mesh, outer_mesh, inner_face_list, outer_face_list = split_tibial_cartilage_surface(mesh,
+                                                                                                  smooth_rings=smooth_rings,
+                                                                                                  max_rings=max_rings,
+                                                                                                  n_workers=n_workers)
     else:
         ValueError("Cartilage can only be FC or TC")
 
@@ -305,7 +309,7 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
     return thickness
 
 
-def get_cartilage_surface_mesh_from_segmentation_array(segmentation, spacing, thickness=True,
+def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing, thickness=True,
                                                        save_path_FC=None, save_path_TC=None,
                                                        prob=True, transform=None):
     """
@@ -322,12 +326,6 @@ def get_cartilage_surface_mesh_from_segmentation_array(segmentation, spacing, th
     :return: meshes of femoral and tibial cartilage with the additional attribute "distance":
 
     """
-    if prob:
-        FC_prob = segmentation[:, :, :, 1]
-        TC_prob = segmentation[:, :, :, 2]
-    else:
-        FC_prob = (segmentation == 1).astype(float)
-        TC_prob = (segmentation == 2).astype(float)
 
     # Use marching cubes to obtain the surface mesh of shape
     print("Extract surfaces")
@@ -388,7 +386,7 @@ def get_cartilage_surface_mesh_from_segmentation_file(segmentation_file, thickne
                                                       prob=True, coord='voxel'):
     """
     compute cartilage thickness from a segmentation file
-    :param segmentation_file: the image file of the segmentation mask
+    :param segmentation_file: the image file and a tupe of seperated files of the FC/TC segmentation mask/probmaps
     :param save_path_FC:
     :param save_path_TC:
     :param prob: if True, the input segmentation is probability maps, otherwise is segmentation mask
@@ -398,21 +396,47 @@ def get_cartilage_surface_mesh_from_segmentation_file(segmentation_file, thickne
                   'itk': the world space follows ITK convention, used in ITK and simpleITK
     :return:
     """
-    segmentation = sitk_read_image(segmentation_file)
+    if type(segmentation_file) == str:
+        segmentation = sitk_read_image(segmentation_file)
 
-    # the np array from itk are ordered in z,y,x
-    segmentation_np = np.swapaxes(sitk.GetArrayFromImage(segmentation), 0, 2)
+        # the np array from itk are ordered in z,y,x
+        segmentation_np = np.swapaxes(sitk.GetArrayFromImage(segmentation), 0, 2)
 
-    if prob:
-        segmentation_np = segmentation_np[:, :, :, [2, 0, 1]]
+        if prob:
+            FC_prob = segmentation_np[:, :, :, 0]
+            TC_prob = segmentation_np[:, :, :, 1]
+        else:
+            FC_prob = (segmentation == 1).astype(float)
+            TC_prob = (segmentation == 2).astype(float)
 
-    if coord == 'voxel':
-        transform = None
-    elif coord == 'nifti':
-        transform = get_voxel_to_world_transform_nifti(segmentation)
+        if coord == 'voxel':
+            transform = None
+        elif coord == 'nifti':
+            transform = get_voxel_to_world_transform_nifti(segmentation[0])
 
-    return get_cartilage_surface_mesh_from_segmentation_array(segmentation_np,
-                                                              segmentation.GetSpacing(),
+        spacing = segmentation.GetSpacing()
+
+    elif type(segmentation_file) == tuple:
+        if type(segmentation_file[0]) == str and type(segmentation_file[1]) == str:
+            segmentation = [sitk_read_image(file) for file in segmentation_file]
+            FC_prob = np.swapaxes(sitk.GetArrayFromImage(segmentation[0]), 0, 2).astype(float)
+            TC_prob = np.swapaxes(sitk.GetArrayFromImage(segmentation[1]), 0, 2).astype(float)
+
+            if coord == 'voxel':
+                transform = None
+            elif coord == 'nifti':
+                transform = get_voxel_to_world_transform_nifti(segmentation[0])
+            spacing = segmentation[0].GetSpacing()
+        else:
+            TypeError("The segmentation files must be a tuple of strings, but a tuple of ({}, {}) is given".format(
+                type(segmentation_file[0]), type(segmentation_file[1])))
+
+    else:
+        TypeError("The segmentation file must be a str type or a tuple of strings, but {} is given".format(type(segmentation_file)))
+
+
+    return get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob,
+                                                              spacing=spacing,
                                                               thickness=thickness,
                                                               save_path_TC=save_path_TC,
                                                               save_path_FC=save_path_FC,
@@ -454,7 +478,7 @@ def get_voxel_to_world_transform_nifti(reference_image):
                   [2 * b * c + 2 * a * d, a * a + c * c - b * b - d * d, 2 * c * d - 2 * a * b],
                   [2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a + d * d - c * c - b * b]])
     T = np.array([float(reference_image.GetMetaData('qoffset_x')), float(reference_image.GetMetaData('qoffset_y')),
-                 float(reference_image.GetMetaData('qoffset_z'))])
+                  float(reference_image.GetMetaData('qoffset_z'))])
     return R, T
 
 
@@ -496,6 +520,7 @@ def get_points_from_mesh(input_mesh, output_points_file=None, transform=None):
 
     return points
 
+
 def mesh_to_nifti_world_coord(mesh_file, reference_image, output_points_file=None, inWorld=False):
     """
     Transfer the vertices coordinates of a mesh (defined in image space) into the world coordinate system
@@ -512,6 +537,7 @@ def mesh_to_nifti_world_coord(mesh_file, reference_image, output_points_file=Non
         transform = get_voxel_to_world_transform_nifti(reference_image)
     points = get_points_from_mesh(mesh_file, output_points_file, transform)
     return points
+
 
 def modify_mesh_with_new_vertices(mesh, points, output_mesh_file=None):
     """
@@ -541,17 +567,63 @@ def modify_mesh_with_new_vertices(mesh, points, output_mesh_file=None):
     return new_mesh
 
 
+def map_thickness_to_atlas_mesh(atlas_mesh, source_mesh, atlas_mapped_file=None):
+    """
+    Map thickness of a registered mesh to the atlas mesh
+    :param atlas_mesh: atlas mesh which the source mesh was registered to
+    :param source_mesh: the mesh with thickness that has been registered to atlas space
+    :param atlas_mapped_file: the file to save the atlas mesh with mapped thickness
+    :return: atlas mesh with mapped thickness
+    """
+    if type(atlas_mesh) == str:
+        atlas_mesh = pymesh.load_mesh(atlas_mesh)
+    elif isinstance(atlas_mesh) == pymesh.Mesh:
+        atlas_mesh = atlas_mesh.copy()
+    else:
+        TypeError("atlas mesh is either a mesh file or a pymesh.mesh ")
+
+    if type(source_mesh) == str:
+        source_mesh = pymesh.load_mesh(source_mesh)
+
+    pymesh.map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness')
+    if type(atlas_mapped_file) == str:
+        pymesh.save_mesh(atlas_mapped_file, atlas_mesh, 'vertex_thickness', ascii=True)
+
+    return atlas_mesh
+
+
+def surface_distance(source_mesh, target_mesh):
+    """
+    Measure the surface distance from the surface mesh to the target mesh
+    :param source_mesh:
+    :param target_mesh:
+    :return:
+    """
+    if type(source_mesh) == str:
+        source_mesh = pymesh.load_mesh(source_mesh)
+    if type(target_mesh) == str:
+        target_mesh = pymesh.load_mesh(target_mesh)
+
+    distances, _, _ = pymesh.distance_to_mesh(target_mesh, source_mesh.vertices)
+
+    return np.max(distances), np.min(distances), np.median(distances), np.percentile(distances, 95)
+
+
 def test_mesh_points():
+
+    import pymesh
+    from cartilage_shape_processing import get_voxel_to_world_transform_nifti, voxel_to_world_coord
     ref_image = '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI/atlas_step_10.nii.gz'
     mesh_file = 'test_analysis/atlas_TC_mesh.ply'
     points_world_file = 'test_analysis/atlas_TC_points.txt'
     mesh_world = modify_mesh_with_new_vertices(mesh_file, points_world_file, 'atlas_TC_mesh.ply')
-
     pass
+
 
 def plot_mesh_segmentation(mesh1, mesh2):
     # mesh1, mesh2, _, _ = split_femoral_cartilage_surface(mesh, smooth_rings=10,
     #                                                      max_rings=None, n_workers=20)
+    import visvis as vv
 
     app = vv.use()
     a1 = vv.subplot(111)
@@ -562,48 +634,57 @@ def plot_mesh_segmentation(mesh1, mesh2):
     FC_vis_down.faceColor = 'b'
     app.Run()
 
+
 def main():
+    import visvis as vv
+
     # read a cartilage
     results_dir = "/playpen-raid/zhenlinx/Code/OAI_segmentation/unet_3d/results/ACRNN_withPreModelNifti_corrected_cropped_rescaled_patch_128_128_32_batch_1_sample_0.01-0.02_lr_0.0001_01022018_183359"
     cartilage_prop_filenames = glob.glob(os.path.join(results_dir, "*prediction_step3_16_reflect_probmap.nii.gz"))
     # cartilage_prop_filename = "9085290_20040915_SAG_3D_DESS_LEFT_016610243503_prediction_step3_16_reflect_probmap.nii.gz"
     # label_map_filename = "9085290_20040915_SAG_3D_DESS_LEFT_016610243503_prediction_step3_16_reflect.nii.gz"
-    for cartilage_prop_filename in cartilage_prop_filenames:
+    for cartilage_prop_filename in cartilage_prop_filenames[:1]:
         cartilage_prop = sitk_read_image(cartilage_prop_filename, results_dir)
         # label_map = read_image(label_map_filename, results_dir)
 
         # get numpy array
-        cartilage_prop_np = sitk.GetArrayFromImage(cartilage_prop)[:, :, :, [2, 0, 1]]
+        cartilage_prop_np = sitk.GetArrayFromImage(cartilage_prop)
 
-        FC_mesh_main, TC_mesh_main = get_cartilage_surface_mesh_from_segmentation_array(cartilage_prop_np,
-                                                                                        cartilage_prop.GetSpacing()[::-1]
+        FC_mesh_main, TC_mesh_main = get_cartilage_surface_mesh_from_segmentation_array(cartilage_prop_np[:, :, :, 0],
+                                                                                        cartilage_prop_np[:, :, :, 1],
+                                                                                        cartilage_prop.GetSpacing()[
+                                                                                        ::-1]
                                                                                         )
 
         app = vv.use()
         a1 = vv.subplot(311)
-        FC_vis = vv.mesh((FC_mesh_main.vertices), FC_mesh_main.faces, values=FC_mesh_main.get_attribute('distance'))
-        TC_vis = vv.mesh((TC_mesh_main.vertices), TC_mesh_main.faces, values=TC_mesh_main.get_attribute('distance'))
+        FC_vis = vv.mesh((FC_mesh_main.vertices), FC_mesh_main.faces, values=FC_mesh_main.get_attribute('vertex_thickness'))
+        TC_vis = vv.mesh((TC_mesh_main.vertices), TC_mesh_main.faces, values=TC_mesh_main.get_attribute('vertex_thickness'))
         FC_vis.colormap = vv.CM_JET
         TC_vis.colormap = vv.CM_JET
         vv.colorbar()
         a2 = vv.subplot(312)
         FC_vis_copy = vv.mesh((FC_mesh_main.vertices), FC_mesh_main.faces,
-                              values=FC_mesh_main.get_attribute('distance'))
+                              values=FC_mesh_main.get_attribute('vertex_thickness'))
         FC_vis_copy.colormap = vv.CM_JET
         vv.colorbar()
         a3 = vv.subplot(313)
         TC_vis_copy = vv.mesh((TC_mesh_main.vertices), TC_mesh_main.faces,
-                              values=TC_mesh_main.get_attribute('distance'))
+                              values=TC_mesh_main.get_attribute('vertex_thickness'))
         TC_vis_copy.colormap = vv.CM_JET
         vv.colorbar()
         app.Run()
 
 
-
 if __name__ == '__main__':
     # test_mesh_points()
-    # main()
-    mesh = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply')
-    mesh1, mesh2, _, _ = split_femoral_cartilage_surface(mesh, smooth_rings=0,
-                                                         max_rings=0, n_workers=20)
-    plot_mesh_segmentation(mesh1, mesh2)
+    main()
+    # mesh = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply')
+    # mesh = pymesh.load_mesh('./test_analysis/atlas_FC_mesh_world.ply')
+    # mesh1, mesh2, _, _ = split_femoral_cartilage_surface(mesh, smooth_rings=10,
+    #                                                      max_rings=None, n_workers=20)
+    #
+    # mesh = pymesh.load_mesh('./test_analysis/atlas_TC_mesh_world.ply')
+    # mesh1, mesh2, _, _ = split_tibial_cartilage_surface(mesh, smooth_rings=10,
+    #                                                     max_rings=None, n_workers=20)
+    # plot_mesh_segmentation(mesh1, mesh2)

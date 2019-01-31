@@ -3,16 +3,16 @@
 
 import os
 import sys
+import argparse
 
 sys.path.append(os.path.realpath(".."))
 # import datasets as data3d
 
 from torchvision import transforms
-import utils.transforms as bio_transform
-import utils.datasets as data3d
-from model import *
+import misc.transforms as bio_transform
+import misc.datasets as data3d
+from segmentation.networks import *
 from utils.tools import *
-
 
 def main():
     parser = argparse.ArgumentParser()

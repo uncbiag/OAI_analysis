@@ -4,6 +4,10 @@ import SimpleITK as sitk
 import numpy as np
 import torch
 import math
+import os
+
+def sitk_read_image(name, dir=''):
+    return sitk.ReadImage(os.path.join(os.path.realpath(dir), name))
 
 
 class Resample(object):
@@ -56,6 +60,7 @@ class Resample(object):
 
         return sample
 
+
 class Normalization(object):
     """Normalize an image by setting its mean to zero and variance to one."""
 
@@ -67,25 +72,56 @@ class Normalization(object):
 
         return sample
 
-
 class SitkToTensor(object):
     """Convert sitk image to 4D Tensors with shape(1, D, H, W)"""
 
     def __call__(self, sample):
-        img, seg = sample['image'], sample['segmentation']
-        img_np = sitk.GetArrayFromImage(img)
-        seg_np = sitk.GetArrayFromImage(seg)
+        self.img = sample['image']
+
+        img_np = sitk.GetArrayFromImage(self.img)
         # threshold image intensity to 0~1
         img_np[np.where(img_np > 1.0)] = 1.0
         img_np[np.where(img_np < 0.0)] = 0.0
 
         img_np = np.float32(img_np)
-        seg_np = np.uint8(seg_np)
-        img_np = np.expand_dims(img_np, axis=0)  # expand the channel dimension
+        # img_np = np.expand_dims(img_np, axis=0)  # expand the channel dimension
+        sample['image'] = torch.from_numpy(img_np).unsqueeze(0)
 
-        sample['image'] = torch.from_numpy(img_np)
-        sample['segmentation'] = torch.from_numpy(seg_np)
+        if 'segmentation' in sample.keys():
+            self.seg = sample['segmentation']
+            seg_np = sitk.GetArrayFromImage(self.seg)
+            # seg_np = np.uint8(seg_np)
+            sample['segmentation'] = torch.from_numpy(seg_np).long()
 
+        return sample
+
+
+class CenterCropTensor(object):
+    """
+    crop torch tensor sizes
+    """
+
+    def __init__(self, crop_size):
+        """
+        size to cropped on both side of each dimension
+        e.g. crop_size [10,20,20] will crop a [3,200,200,200] tensor to [3, 180, 160, 160]
+        :param crop_size:
+        """
+        self.crop_size = crop_size
+
+    def __call__(self, sample):
+        img = sample['image']
+        img_size = img.shape
+        sample['image'] = img[:, self.crop_size[0]:(img_size[1] - self.crop_size[0]),
+                          self.crop_size[1]:(img_size[2] - self.crop_size[1]),
+                          self.crop_size[2]:(img_size[3] - self.crop_size[2])
+                          ]
+        if 'segmentation' in sample.keys():
+            seg = sample['segmentation']
+            sample['segmentation'] = seg[:, self.crop_size[0]:(img_size[1] - self.crop_size[0]),
+                                     self.crop_size[1]:(img_size[2] - self.crop_size[1]),
+                                     self.crop_size[2]:(img_size[3] - self.crop_size[2])
+                                     ]
         return sample
 
 
@@ -95,8 +131,8 @@ class RandomBSplineTransform(object):
     check https://itk.org/Doxygen/html/classitk_1_1BSplineTransform.html for details of BSpline Transform
     """
 
-    def __init__(self, mesh_size=(3,3,3), bspline_order=2, deform_scale=1.0, ratio=0.5, interpolator=sitk.sitkLinear,
-                 random_mode = 'Normal'):
+    def __init__(self, mesh_size=(3, 3, 3), bspline_order=2, deform_scale=1.0, ratio=0.5, interpolator=sitk.sitkLinear,
+                 random_mode='Normal'):
         self.mesh_size = mesh_size
         self.bspline_order = bspline_order
         self.deform_scale = deform_scale
@@ -114,7 +150,7 @@ class RandomBSplineTransform(object):
 
             # generate random displacement for control points, the deformation is scaled by deform_scale
             if self.random_mode == 'Normal':
-                control_point_displacements = np.random.normal(0, self.deform_scale/2, len(bspline.GetParameters()))
+                control_point_displacements = np.random.normal(0, self.deform_scale / 2, len(bspline.GetParameters()))
             elif self.random_mode == 'Uniform':
                 control_point_displacements = np.random.random(len(bspline.GetParameters())) * self.deform_scale
 
@@ -129,6 +165,7 @@ class RandomBSplineTransform(object):
             sample['segmentation'] = seg_trans
 
         return sample
+
 
 class RandomRigidTransform(object):
     """
@@ -155,21 +192,20 @@ class RandomRigidTransform(object):
             else:
                 rotation_center = (np.array(image_size) // 2).tolist()
 
-
             rotation_center = img.TransformIndexToPhysicalPoint(rotation_center)
 
-            rotation_radians_x = np.random.normal(0, self.rotation_angles[0]/2) * np.pi/180
-            rotation_radians_y = np.random.normal(0, self.rotation_angles[1]/2) * np.pi/180
-            rotation_radians_z = np.random.normal(0, self.rotation_angles[2]/2) * np.pi/180
+            rotation_radians_x = np.random.normal(0, self.rotation_angles[0] / 2) * np.pi / 180
+            rotation_radians_y = np.random.normal(0, self.rotation_angles[1] / 2) * np.pi / 180
+            rotation_radians_z = np.random.normal(0, self.rotation_angles[2] / 2) * np.pi / 180
 
             random_trans_x = np.random.normal(0, self.translation[0] / 2) * image_spacing[0]
             random_trans_y = np.random.normal(0, self.translation[1] / 2) * image_spacing[1]
             random_trans_z = np.random.normal(0, self.translation[2] / 2) * image_spacing[2]
 
             # initialize a bspline transform
-            rigid_transform = sitk.Euler3DTransform(rotation_center, rotation_radians_x, rotation_radians_y, rotation_radians_z,
+            rigid_transform = sitk.Euler3DTransform(rotation_center, rotation_radians_x, rotation_radians_y,
+                                                    rotation_radians_z,
                                                     (random_trans_x, random_trans_y, random_trans_z))
-
 
             # deform and resample image
 
@@ -189,6 +225,7 @@ class RandomRigidTransform(object):
             sample['segmentation'] = seg_trans
 
         return sample
+
 
 class IdentityTransform(object):
     """Identity transform that do nothing"""
@@ -221,6 +258,7 @@ def resample(image, transform, interpolator=sitk.sitkBSpline, default_value=0.0)
     return sitk.Resample(image, reference_image, transform,
                          interpolator, default_value)
 
+
 class GaussianBlur(object):
     def __init__(self, variance=0.5, maximumKernelWidth=1, maximumError=0.9, ratio=1.0):
         self.ratio = ratio
@@ -236,6 +274,7 @@ class GaussianBlur(object):
                 useImageSpacing=False)
         return sample
 
+
 class BilateralFilter(object):
     def __init__(self, domainSigma=0.5, rangeSigma=0.06, numberOfRangeGaussianSamples=50, ratio=1.0):
         self.domainSigma = domainSigma
@@ -249,6 +288,7 @@ class BilateralFilter(object):
             sample['image'] = sitk.Bilateral(img, domainSigma=self.domainSigma, rangeSigma=self.rangeSigma,
                                              numberOfRangeGaussianSamples=self.numberOfRangeGaussianSamples)
         return sample
+
 
 class RandomCrop(object):
     """Crop randomly the image in a sample. This is usually used for data augmentation
@@ -309,7 +349,7 @@ class RandomCrop(object):
         # center_ind = np.array(seg_crop_np.shape)//2-1
         # if seg_crop_np[center_ind[0], center_ind[1], center_ind[2]] > 0:
         #     contain_label = True
-        if np.sum(seg_crop_np)/seg_crop_np.size > self.threshold:
+        if np.sum(seg_crop_np) / seg_crop_np.size > self.threshold:
             contain_label = True
 
         img_crop = roiFilter.Execute(img)
@@ -349,7 +389,6 @@ class BalancedRandomCrop(object):
 
         self.current_class = 2  # tag that which class should be focused on currently
 
-
     def __call__(self, sample):
         img, seg = sample['image'], sample['segmentation']
         size_old = img.GetSize()
@@ -366,7 +405,8 @@ class BalancedRandomCrop(object):
         contain_label = False
 
         if self.current_class == 0:  # random crop a patch
-            start_i, start_j, start_k = random_3d_coordinates(np.array(size_old) - np.array(size_new), self.random_state)
+            start_i, start_j, start_k = random_3d_coordinates(np.array(size_old) - np.array(size_new),
+                                                              self.random_state)
             roiFilter.SetIndex([start_i, start_j, start_k])
             seg_crop = roiFilter.Execute(seg)
 
@@ -383,7 +423,8 @@ class BalancedRandomCrop(object):
                 seg_crop = roiFilter.Execute(seg)
 
                 seg_crop_np = sitk.GetArrayViewFromImage(seg_crop)
-                if np.sum(seg_crop_np==1) / seg_crop_np.size > self.threshold[0]:  # judge if the patch satisfy condition
+                if np.sum(seg_crop_np == 1) / seg_crop_np.size > self.threshold[
+                    0]:  # judge if the patch satisfy condition
                     contain_label = True
                 i = i + 1
 
@@ -401,12 +442,12 @@ class BalancedRandomCrop(object):
                 seg_crop = roiFilter.Execute(seg)
 
                 seg_crop_np = sitk.GetArrayViewFromImage(seg_crop)
-                if np.sum(seg_crop_np == 2) / seg_crop_np.size > self.threshold[1]:  # judge if the patch satisfy condition
+                if np.sum(seg_crop_np == 2) / seg_crop_np.size > self.threshold[
+                    1]:  # judge if the patch satisfy condition
                     contain_label = True
                 i = i + 1
                 # print(sample['name'], 'case: ', rand_ind, 'trying: ', i)
         # print([start_i, start_j, start_k])
-
 
         roiFilter.SetIndex([start_i, start_j, start_k])
 
@@ -418,15 +459,15 @@ class BalancedRandomCrop(object):
         sample['class'] = self.current_class
 
         # reset class tag
-        self.current_class = self.current_class+1
-        if self.current_class>3:
-            self.current_class=0
+        self.current_class = self.current_class + 1
+        if self.current_class > 3:
+            self.current_class = 0
 
         return sample
 
 
 def random_3d_coordinates(range_3d, random_state=None):
-    assert len(range_3d)==3
+    assert len(range_3d) == 3
     if not random_state:
         random_state = np.random.RandomState()
 
@@ -438,23 +479,24 @@ def random_3d_coordinates(range_3d, random_state=None):
 
 class Partition(object):
     """partition a 3D volume into small 3D patches using the overlap tiling strategy described in paper:
-    "U-net: Convolutional networks for biomedical image segmentation." by Ronneberger, Olaf, Philipp Fischer, 
-    and Thomas Brox. In International Conference on Medical Image Computing and Computer-Assisted Intervention, 
+    "U-net: Convolutional networks for biomedical image segmentation." by Ronneberger, Olaf, Philipp Fischer,
+    and Thomas Brox. In International Conference on Medical Image Computing and Computer-Assisted Intervention,
     pp. 234-241. Springer, Cham, 2015.
-    
+
     Note: BE CAREFUL about the order of dimensions for image:
             The simpleITK image are in order x, y, z
-            The numpy array/torch tensor are in order z, y, x 
-            
-    
-    :param tile_size (tuple of 3 or 1x3 np array): size of partitioned patches 
+            The numpy array/torch tensor are in order z, y, x
+
+
+    :param tile_size (tuple of 3 or 1x3 np array): size of partitioned patches
     :param self.overlap_size (tuple of 3 or 1x3 np array): the size of overlapping region at both end of each dimension
     :param padding_mode (tuple of 3 or 1x3 np array): the mode of numpy.pad when padding extra region for image
     :param mode: "pred": only image is partitioned; "eval": both image and segmentation are partitioned
     """
 
-    def __init__(self, tile_size, overlap_size, padding_mode='reflect', mode="pred"):
-        self.tile_size = np.flipud(np.asarray(tile_size))  # flip the size order to match the numpy array(check the note)
+    def __init__(self, tile_size, overlap_size, padding_mode='reflect', mode="eval"):
+        self.tile_size = np.flipud(
+            np.asarray(tile_size))  # flip the size order to match the numpy array(check the note)
         self.overlap_size = np.flipud(np.asarray(overlap_size))
         self.padding_mode = padding_mode
         self.mode = mode
@@ -464,18 +506,16 @@ class Partition(object):
         :param image: (simpleITK image) 3D Image to be partitioned
         :param seg: (simpleITK image) 3D segmentation label mask to be partitioned
         :return: N partitioned image and label patches
-            {'image': torch.Tensor Nx1xDxHxW, 'label': torch.Tensor Nx1xDxHxW, 'name': str } 
+            {'image': torch.Tensor Nx1xDxHxW, 'label': torch.Tensor Nx1xDxHxW, 'name': str }
         """
         # get numpy array from simpleITK images
         image_np = sitk.GetArrayFromImage(sample['image'])
-        seg_np = sitk.GetArrayFromImage(sample['segmentation'])
         self.image = sample['image']
         self.name = sample['name']
         self.image_size = np.array(image_np.shape)  # size of input image
         self.effective_size = self.tile_size - self.overlap_size * 2  # size effective region of tiles after cropping
         self.tiles_grid_size = np.ceil(self.image_size / self.effective_size).astype(int)  # size of tiles grid
-        self.padded_size = self.effective_size * self.tiles_grid_size + self.overlap_size * 2 - self.image_size # size difference of padded image with original image
-
+        self.padded_size = self.effective_size * self.tiles_grid_size + self.overlap_size * 2 - self.image_size  # size difference of padded image with original image
 
         image_padded = np.pad(image_np,
                               pad_width=((self.overlap_size[0], self.padded_size[0] - self.overlap_size[0]),
@@ -483,37 +523,43 @@ class Partition(object):
                                          (self.overlap_size[2], self.padded_size[2] - self.overlap_size[2])),
                               mode=self.padding_mode)
 
-        if self.mode == 'eval':
+        if self.mode == 'train':
+            seg_np = sitk.GetArrayFromImage(sample['segmentation'])
             seg_padded = np.pad(seg_np,
-                                  pad_width=((self.overlap_size[0], self.padded_size[0] - self.overlap_size[0]),
-                                             (self.overlap_size[1], self.padded_size[1] - self.overlap_size[1]),
-                                             (self.overlap_size[2], self.padded_size[2] - self.overlap_size[2])),
-                                  mode=self.padding_mode)
+                                pad_width=((self.overlap_size[0], self.padded_size[0] - self.overlap_size[0]),
+                                           (self.overlap_size[1], self.padded_size[1] - self.overlap_size[1]),
+                                           (self.overlap_size[2], self.padded_size[2] - self.overlap_size[2])),
+                                mode=self.padding_mode)
 
         image_tile_list = []
         seg_tile_list = []
         for i in range(self.tiles_grid_size[0]):
             for j in range(self.tiles_grid_size[1]):
                 for k in range(self.tiles_grid_size[2]):
-                    image_tile_temp = image_padded[i * self.effective_size[0]:i * self.effective_size[0] + self.tile_size[0],
+                    image_tile_temp = image_padded[
+                                      i * self.effective_size[0]:i * self.effective_size[0] + self.tile_size[0],
                                       j * self.effective_size[1]:j * self.effective_size[1] + self.tile_size[1],
                                       k * self.effective_size[2]:k * self.effective_size[2] + self.tile_size[2]]
                     image_tile_list.append(image_tile_temp)
 
-                    if self.mode == 'eval':
-                        seg_tile_temp = seg_padded[i * self.effective_size[0]:i * self.effective_size[0] + self.tile_size[0],
-                                          j * self.effective_size[1]:j * self.effective_size[1] + self.tile_size[1],
-                                          k * self.effective_size[2]:k * self.effective_size[2] + self.tile_size[2]]
+                    if self.mode == 'train':
+                        seg_tile_temp = seg_padded[
+                                        i * self.effective_size[0]:i * self.effective_size[0] + self.tile_size[0],
+                                        j * self.effective_size[1]:j * self.effective_size[1] + self.tile_size[1],
+                                        k * self.effective_size[2]:k * self.effective_size[2] + self.tile_size[2]]
                         seg_tile_list.append(seg_tile_temp)
 
         # sample['image'] = np.stack(image_tile_list, 0)
         # sample['segmentation'] = np.stack(seg_tile_list, 0)
 
         sample['image'] = torch.from_numpy(np.expand_dims(np.stack(image_tile_list, 0), axis=1))
-        if self.mode == 'pred':
-            sample['segmentation'] = torch.from_numpy(np.expand_dims(seg_np, axis=0))
-        else:
+        if self.mode == 'train':
+            # sample['segmentation'] = torch.from_numpy(np.expand_dims(seg_np, axis=0))
+        # else:
             sample['segmentation'] = torch.from_numpy(np.expand_dims(np.stack(seg_tile_list, 0), axis=1))
+        elif self.mode == 'eval':
+            seg_np = sitk.GetArrayFromImage(sample['segmentation'])
+            sample['segmentation'] = torch.from_numpy(seg_np).long()
 
         return sample
 
@@ -529,23 +575,26 @@ class Partition(object):
         tiles = tiles.numpy()
 
         if is_vote:
-            label_class= np.unique(tiles)
-            seg_vote_array = np.zeros(np.insert(self.effective_size * self.tiles_grid_size + self.overlap_size * 2, 0, label_class.size), dtype=int)
+            label_class = np.unique(tiles)
+            seg_vote_array = np.zeros(
+                np.insert(self.effective_size * self.tiles_grid_size + self.overlap_size * 2, 0, label_class.size),
+                dtype=int)
             for i in range(self.tiles_grid_size[0]):
                 for j in range(self.tiles_grid_size[1]):
                     for k in range(self.tiles_grid_size[2]):
                         ind = i * self.tiles_grid_size[1] * self.tiles_grid_size[2] + j * self.tiles_grid_size[2] + k
                         for label in label_class:
-                            local_ind = np.where(tiles[ind]==label)  # get the coordinates in local patch of each class
+                            local_ind = np.where(
+                                tiles[ind] == label)  # get the coordinates in local patch of each class
                             global_ind = (local_ind[0] + i * self.effective_size[0],
                                           local_ind[1] + j * self.effective_size[1],
                                           local_ind[2] + k * self.effective_size[2])  # transfer into global coordinates
                             seg_vote_array[label][global_ind] += 1  # vote for each glass
 
             seg_reassemble = np.argmax(seg_vote_array, axis=0)[
-                                       self.overlap_size[0]:self.overlap_size[0] + self.image_size[0],
-                                       self.overlap_size[1]:self.overlap_size[1] + self.image_size[1],
-                                       self.overlap_size[2]:self.overlap_size[2] + self.image_size[2]].astype(np.uint8)
+                             self.overlap_size[0]:self.overlap_size[0] + self.image_size[0],
+                             self.overlap_size[1]:self.overlap_size[1] + self.image_size[1],
+                             self.overlap_size[2]:self.overlap_size[2] + self.image_size[2]].astype(np.uint8)
 
             # pass
 
@@ -555,12 +604,12 @@ class Partition(object):
                 for j in range(self.tiles_grid_size[1]):
                     for k in range(self.tiles_grid_size[2]):
                         ind = i * self.tiles_grid_size[1] * self.tiles_grid_size[2] + j * self.tiles_grid_size[2] + k
-                        seg_reassemble[i * self.effective_size[0]:(i+1) * self.effective_size[0],
-                        j * self.effective_size[1]:(j+1) * self.effective_size[1],
-                        k * self.effective_size[2]:(k+1) * self.effective_size[2]] = \
-                            tiles[ind][self.overlap_size[0]:self.tile_size[0]-self.overlap_size[0],
-                              self.overlap_size[1]:self.tile_size[1]-self.overlap_size[1],
-                              self.overlap_size[2]:self.tile_size[2]-self.overlap_size[2]]
+                        seg_reassemble[i * self.effective_size[0]:(i + 1) * self.effective_size[0],
+                        j * self.effective_size[1]:(j + 1) * self.effective_size[1],
+                        k * self.effective_size[2]:(k + 1) * self.effective_size[2]] = \
+                            tiles[ind][self.overlap_size[0]:self.tile_size[0] - self.overlap_size[0],
+                            self.overlap_size[1]:self.tile_size[1] - self.overlap_size[1],
+                            self.overlap_size[2]:self.tile_size[2] - self.overlap_size[2]]
             seg_reassemble = seg_reassemble[:self.image_size[0], :self.image_size[1], :self.image_size[2]]
 
         if data_type:
@@ -572,10 +621,47 @@ class Partition(object):
                 seg_reassemble[crop_size[2]:-crop_size[2], crop_size[0]:-crop_size[0], crop_size[1]:-crop_size[1]]
             seg_reassemble = seg_reassemble_crop
 
-
         if if_itk:
             seg_reassemble = sitk.GetImageFromArray(seg_reassemble)
             seg_reassemble.CopyInformation(self.image)
 
         return seg_reassemble
 
+
+class SegMaskToOneHot:
+    def __init__(self, n_classes):
+        self.n_classes = n_classes
+
+    def __call__(self, sample):
+        seg = sample['segmentation']
+        seg_one_hot = self.one_mask_to_one_hot(seg)
+        sample['segmentation_onehot'] = seg_one_hot
+        return sample
+
+    def one_mask_to_one_hot(self, mask):
+        """
+
+        :param mask:1xDxMxN
+        :return: one-hot mask CxDxMxN
+        """
+        one_hot_shape = list(mask.shape)
+        one_hot_shape[0] = self.n_classes
+        mask_one_hot = torch.zeros(one_hot_shape).to(mask.device)
+        mask_one_hot.scatter_(0, mask.long(), 1)
+        return mask_one_hot
+
+
+def mask_to_one_hot(mask, n_classes):
+    """
+    Convert a segmentation mask to one-hot coded tensor
+    :param mask: mask tensor of size Bx1xDxMxN
+    :param n_classes: number of classes
+    :return: one_hot: BxCxDxMxN
+    """
+    one_hot_shape = list(mask.shape)
+    one_hot_shape[1] = n_classes
+    mask_one_hot = torch.zeros(one_hot_shape).to(mask.device)
+
+    mask_one_hot.scatter_(1, mask.long(), 1)
+
+    return mask_one_hot

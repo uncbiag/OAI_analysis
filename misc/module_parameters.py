@@ -2,15 +2,31 @@
 Borrowed from https://github.com/uncbiag/mermaid/ at mermaid/pyreg/module_parameters.py
 
 This package implements a simple way of dealing with parameters, ofproviding
-default parameters and comments, and to keep track of used parameters for 
+default parameters and comments, and to keep track of used parameters for
 registration runs. See the corresponding note for a brief description on how to use it.
 """
 from __future__ import print_function
-
-# from builtins import str
-# from builtins import object
 import json
+import os
 
+def dict_to_ParaDict(dictionary):
+    para = ParameterDict()
+    para.int = dictionary.copy()
+    para.ext = para.int
+    return para
+
+
+def save_dict_to_json(dictionary, json_file):
+    para = dict_to_ParaDict(dictionary)
+    if not os.path.isdir(os.path.dirname(json_file)):
+        os.makedirs(os.path.dirname(json_file))
+    para.write_JSON(json_file)
+
+
+def load_jason_to_dict(json_file):
+    para = ParameterDict()
+    para.load_JSON(json_file)
+    return para.ext
 
 class ParameterDict(object):
     def __init__(self, initDict=None, printSettings=True):

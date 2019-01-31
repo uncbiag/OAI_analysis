@@ -1,20 +1,17 @@
 import SimpleITK as sitk
-import numpy as np
 import os
 import sys
-import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torch.utils.data import Dataset
 
 sys.path.append(os.path.realpath(".."))
-import utils.transforms as bio_transform
+import misc.image_transforms as bio_transform
 
 class NiftiDataset(Dataset):
     """
     a dataset class to load medical image data in Nifti format using simpleITK
     """
 
-    def __init__(self, txt_files, data_dir, mode, preload=False, transform=None, to_right=False):
+    def __init__(self, txt_files, data_dir, mode, preload=False, transform=None, flip_to=False):
         """
         
         :param txt_files: txt file with lines of "image_file, segmentation_file" or a list of such files
@@ -25,20 +22,21 @@ class NiftiDataset(Dataset):
         self.mode = mode
         self.preload = preload
         self.transform = transform
-        self.to_right = to_right
+        self.flip_to = flip_to
 
         if preload:
             print("Preloading data:")
-            self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation(self.data_dir, txt_files)
+            self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation( txt_files,
+                                                                                                    self.data_dir)
             print('Preloaded {} training samples'.format(len(self.image_list)))
-            if self.to_right:
-                l2r = bio_transform.LeftToRight()
-                for i in range(len(self.image_list)):
-                    if 'LEFT' in self.name_list[i]:
-                        self.image_list[i] = l2r.left_to_right_(self.image_list[i])
-                        if self.segmentation_list[i]:
-                            self.segmentation_list[i] = l2r.left_to_right_(self.segmentation_list[i])
-                print("Transform left knees to a right knee orientation")
+            # if self.flip_to:
+            #     l2r = bio_transform.flipLeftRight(self.flip_to)
+            #     for i in range(len(self.image_list)):
+            #         if 'LEFT' in self.name_list[i]:
+            #             self.image_list[i] = l2r.flip_left_right(self.image_list[i])
+            #             if self.segmentation_list[i]:
+            #                 self.segmentation_list[i] = l2r.flip_left_right(self.segmentation_list[i])
+            #     print("Transform knees to a {} knee orientation".format(flip_to))
         else:
             self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation_list(txt_files, self.data_dir)
 
@@ -71,9 +69,9 @@ class NiftiDataset(Dataset):
         image_name = self.name_list[id]
         sample = {'image': image, 'segmentation': segmentation, 'name': image_name}
 
-        if not self.preload and self.to_right:
-            l2r = bio_transform.LeftToRight()
-            sample = l2r(sample)
+        # if not self.preload and self.flip_to:
+        #     l2r = bio_transform.LeftToRight()
+        #     sample = l2r(sample)
 
         if self.transform:
             sample = self.transform(sample)
@@ -171,8 +169,7 @@ class SegDatasetOAIZIB(Dataset):
 
         if preload:
             print("Preloading data:")
-            self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation(self.data_dir,
-                                                                                                   txt_files)
+            self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation(txt_files,self.data_dir)
 
         else:
             self.image_list, self.segmentation_list, self.name_list = self.read_image_segmentation_list(txt_files,

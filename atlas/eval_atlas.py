@@ -8,12 +8,16 @@ Evaluations are run on both images used for constructing the atlas and unseen im
 
 Created by zhenlinx on 10/27/18
 """
-from atlas.atlas import *
+import os
+import sys
+from build_atlas import *
 sys.path.append(os.path.realpath("../"))
-from lib.surface_distance.surface_distance.metrics import *
+sys.path.append(os.path.realpath("../lib"))
+from surface_distance.metrics import *
 from glob import glob
 from registration.registers import NiftyReg
 from segmentation.datasets import NiftiDataset
+from misc.module_parameters import  save_dict_to_json
 
 class EvaluateAtlas():
     def __init__(self, atlas_image, atlas_mask_file, number_class=1):
@@ -191,8 +195,10 @@ class EvaluateAtlas():
 
             if overwrite or (not os.path.isfile(affine_transform_file)):
                 print("\n\nAffine Register {}th image to atlas\n\n".format(i))
-                register.register_affine(self.atlas_image_path, moving_image_path, warped_image_path=affine_warped_image_path,
-                                         out_affine_file=affine_transform_file, **affine_config)
+                register.register_affine(self.atlas_image_path, moving_image_path,
+                                         out_affine_file=affine_transform_file,
+                                         warped_image_path=affine_warped_image_path,
+                                          **affine_config)
             if overwrite or (not os.path.isfile(affine_warped_seg_path)):
                 # warp mask
                 print("\n\nAffine warp segmentation of {}th image to atlas space\n\n".format(i))
@@ -335,4 +341,5 @@ def run_evaluate_segmentations(overwrite=False):
 
 if __name__ == '__main__':
     # run_evaluate_segmentations()
-    run_register_unseen_images_to_atlas()
+    # run_register_unseen_images_to_atlas()
+    pass

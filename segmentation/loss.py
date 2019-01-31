@@ -5,7 +5,7 @@ from torch.autograd import Function
 import torch.nn.functional as F
 from itertools import repeat
 import numpy as np
-from utils.transforms import mask_to_one_hot
+from segmentation.tensor_ops import mask_to_one_hot
 
 # Intersection = dot(A, B)
 # Union = dot(A, A) + dot(B, B)
@@ -13,8 +13,6 @@ from utils.transforms import mask_to_one_hot
 # 1/2 * intersection / union
 #
 # The derivative is 2[(union * target - 2 * intersect * input) / union^2]
-
-# TODO: dice loss for multi-class
 
 
 class DiceLoss(Function):
@@ -422,6 +420,7 @@ class DiceLossMultiClass(nn.Module):
         #         weights * torch.sum(source_volume.float() + target_volume.float(), 1) + 2*self.eps)
 
         return 1 - (weights*scores).sum()/weights.sum()
+
 
 class LogDiceLossMultiClass(nn.Module):
     """Dice loss from two inputs of segmentation masks(different with between a mask and a probability map)"""
@@ -941,7 +940,9 @@ loss_dict = {
     'genDice': GeneralizedDiceLoss,
     'dice': DiceLossMultiClass,
     'L2': L2Loss,
-    'focal':FocalLoss
+    'focal':FocalLoss,
+    'cross_entropy':nn.CrossEntropyLoss,
+    'BCEWithLogitsLoss': nn.BCEWithLogitsLoss,
 }
 
 

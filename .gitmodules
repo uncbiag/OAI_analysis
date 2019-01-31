@@ -1,3 +1,0 @@
-[submodule "lib/surface-distance"]
-	path = lib/surface-distance
-	url = https://github.com/deepmind/surface-distance.git

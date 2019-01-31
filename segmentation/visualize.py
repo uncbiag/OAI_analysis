@@ -15,7 +15,7 @@ import numpy as np
 import scipy.misc
 from skimage import color
 import torchvision.utils as vision_utils
-
+import torch.nn.functional as F
 
 def plot_grad_flow(named_parameters, toFigure=False):
     """
@@ -178,7 +178,7 @@ def make_segmentation_image_summary(images, truths, raw_output, maxoutput=4, ove
     """
     slice_ind = images.size()[2] // 2
     images_2D = images.data[:maxoutput, :, slice_ind, :, :]
-    truths_2D = truths.data[:maxoutput, 0, slice_ind, :, :]
+    truths_2D = truths.data[:maxoutput, slice_ind, :, :]
     predictions_2D = torch.max(raw_output.data, 1)[1][:maxoutput, slice_ind, :, :]
 
     grid_images = vision_utils.make_grid(images_2D, pad_value=1)
@@ -186,6 +186,31 @@ def make_segmentation_image_summary(images, truths, raw_output, maxoutput=4, ove
     grid_preds = vision_utils.make_grid(labels2colors(predictions_2D, images=images_2D, overlap=overlap), pad_value=1)
 
     return torch.cat([grid_images, grid_truths, grid_preds], 1)
+
+
+def make_class_wise_segmentation_image_summary(images, truths, raw_output, maxoutput=4, overlap=True):
+    """make image summary for tensorboard
+
+    :param images: torch.Variable, NxCxDxHxW, 3D image volume (C:channels)
+    :param truths: torch.Variable, Nx1XDxHxW, 3D label masks
+    :param raw_output: torch.Variable, NxCxHxWxD: prediction for each class (C:classes)
+    :param maxoutput: int, number of samples from a batch
+    :param overlap: bool, overlap the image with groundtruth and predictions
+    :return: summary_images: list, a maxoutput-long list with element of tensors of Nx
+    """
+    slice_ind = images.size()[2] // 2
+    images_2D = images.data[:maxoutput, :, slice_ind, :, :]
+    truths_2D = truths.data[:maxoutput, slice_ind, :, :]
+    predictions_classwise = (torch.sigmoid(raw_output) > 0.5)
+
+    prediction_2Ds = [predictions_classwise[:maxoutput, c, slice_ind, :, :]*(c+1) for c in range(raw_output.shape[1])]
+
+    grid_images = vision_utils.make_grid(images_2D, pad_value=1)
+    grid_truths = vision_utils.make_grid(labels2colors(truths_2D, images=images_2D, overlap=overlap), pad_value=1)
+    grid_preds = [vision_utils.make_grid(labels2colors(prediction_2D, images=images_2D, overlap=overlap), pad_value=1)
+                  for prediction_2D in prediction_2Ds]
+
+    return torch.cat([grid_images, grid_truths] + grid_preds, 1)
 
 
 def make_registration_image_summary(source_image, target_image, warped_source_image, disp_field, deform_field,

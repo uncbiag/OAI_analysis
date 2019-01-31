@@ -9,7 +9,6 @@ import subprocess
 import os
 from abc import ABC, abstractmethod
 
-from shape_analysis.cartilage_shape_processing import mesh_to_nifti_world_coord, modify_mesh_with_new_vertices
 from misc.str_ops import replace_extension
 
 
@@ -43,8 +42,9 @@ class NiftyReg(Register):
         super(NiftyReg, self).__init__()
         self.niftyreg_bin_path = niftyreg_bin_path
 
-    def register_affine(self, ref_image_path: str, moving_image_path: str, warped_image_path: str,
+    def register_affine(self, ref_image_path: str, moving_image_path: str,
                         out_affine_file: str = None,
+                        warped_image_path: str = None,
                         init_affine_file: str = None,
                         max_iterations: int = None,
                         num_levels: int = None,
@@ -108,7 +108,8 @@ class NiftyReg(Register):
         process = subprocess.Popen(cmd, shell=True)
         process.wait()
 
-    def register_bspline(self, ref_image_path, moving_image_path, warped_image_path,
+    def register_bspline(self, ref_image_path, moving_image_path,
+                         warped_image_path=None,
                          init_affine_file=None,
                          output_control_point=None,
                          max_iterations=None,
@@ -175,7 +176,7 @@ class NiftyReg(Register):
         """
         self.__reg_transform(land=(transform_file, input_points_file, output_landmark_file), ref=ref_image, omp=num_proc)
 
-    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, inWorld=False):
+    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False, remove=True):
         """
         warp a surface mesh with given transform (affine, bspline et al.)
 
@@ -185,14 +186,15 @@ class NiftyReg(Register):
                 to warp images, it should be the floating image of registration
         :param inWorld: if the mesh lies in the world coordinates.
                     If false, the mesh has to be transformed from voxel coordinates into world coordinates
+        :param remove: if remove the intermediate points files when finished
         :return:
         """
         # set filenames
+        from shape_analysis.cartilage_shape_processing import mesh_to_nifti_world_coord, modify_mesh_with_new_vertices
         mesh_points_file = replace_extension(mesh_file, '_points.txt')
         warped_points_file = replace_extension(mesh_file, '_points_warped_with_{}.txt'.format(inv_transform_file.split(
             '/')[-1].split('.')[0]))
-        warped_mesh_file = replace_extension(mesh_file,
-                                             '_warped_with_{}.ply'.format(inv_transform_file.split('/')[-1].split('.')[0]))
+
         # get vertices coordinates in the world space
         mesh_to_nifti_world_coord(mesh_file, reference_image_file, mesh_points_file, inWorld)
 
@@ -202,6 +204,11 @@ class NiftyReg(Register):
 
         # get warped mesh with warped points
         modify_mesh_with_new_vertices(mesh_file, warped_points_file, warped_mesh_file)
+
+        if remove:
+            os.remove(mesh_points_file)
+            os.remove(warped_points_file)
+
         return warped_mesh_file
 
     def invert_affine(self, affine_transform, inverted_transform, num_proc=None):
@@ -332,6 +339,11 @@ class NiftyReg(Register):
         else:
             return ''
 
+    def __call__(self, moving_image, target_image, affine_config=None, nonrigid_config=None,):
+        pass
+
+    def register_image_to_atlas(self, image, config, atlas_image_path, moving_image_path, output_inv_map_path):
+        pass
 
 def demo_niftyreg():
     test_name = 'nifty_reg_lncc'

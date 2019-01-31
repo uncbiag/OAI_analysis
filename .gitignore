@@ -1,19 +1,13 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### log folders
-data
 .idea/
 /.idea/dictionaries/zhenlinx.xml
-/utils/DataLoad_test.ipynb
 /notebooks/.ipynb_checkpoints/
 
-unet_3d/logs*
-unet_3d/ckpoints*
-unet_3d/results*
-vnet
-notebooks
-OAI_analysis/test_data
-OAI_analysis/test_2d
-OAI_analysis/test_analysis
+atlas/test_data
+test/test_data
+segmentation/log
+segmentation/ckpoints
 
 ### image files
 *.nii.gz
@@ -40,7 +34,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/

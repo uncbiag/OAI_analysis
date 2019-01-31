@@ -249,8 +249,6 @@ def main():
     # vv.colorbar()
     # app.Run()
 
-
-
     # my_face_curvature = get_curvature_parallel(mesh, element='f', kernal_size=8, n_workers=12)
     vertex_mean_curvature[np.isnan(vertex_mean_curvature)] = 0
     vertex_gaussian_curvature[np.isnan(vertex_gaussian_curvature)] = 0
@@ -274,7 +272,6 @@ def main():
     inner_outer_label_list = labels*2-1
 
     mesh.enable_connectivity()
-    n = 0
     inner_mesh, outer_mesh, _, _ = smooth_mesh_segmentation(mesh, inner_outer_label_list, smooth_rings=10, max_rings=10, n_workers=20)
 
 

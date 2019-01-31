@@ -2,12 +2,16 @@
 Script for building atlas from OAI segmentation data
 """
 import os
+import SimpleITK as sitk
+import visvis as vv
+import pymesh
 
-from atlas.atlas import BuildAtlas
+from atlas.build_atlas import BuildAtlas
 from registration.registers import NiftyReg
-from shape_analysis.cartilage_shape_processing import get_cartilage_surface_mesh_from_segmentation_file
 from segmentation.datasets import NiftiDataset
-
+from shape_analysis.cartilage_shape_processing import get_cartilage_surface_mesh_from_segmentation_array, \
+    get_cartilage_surface_mesh_from_segmentation_file, map_thickness_to_atlas_mesh, \
+    split_femoral_cartilage_surface, split_tibial_cartilage_surface
 
 def split_image_by_side(image_list: list):
     """
@@ -22,6 +26,7 @@ def split_image_by_side(image_list: list):
         else:
             right_list_indices.append(i)
     return {"LEFT": left_list_indices, "RIGHT": right_list_indices}
+
 
 def split_image_by_visit_time(image_list: list, visit_counts: int):
     """
@@ -49,6 +54,7 @@ def split_image_by_visit_time(image_list: list, visit_counts: int):
 
     return ind_list
 
+
 def OAI_atlas_lncc(affine_config, bspline_config, data_root, image_list, mask_list=None, name_list=None):
     # affine_config = dict(smooth_moving=-3, smooth_ref=-3, pv=50, pi=50, pad=0)
     atlas_root = "/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas"
@@ -64,7 +70,6 @@ def OAI_atlas_lncc(affine_config, bspline_config, data_root, image_list, mask_li
 
 def build_OAI_atlas(register, atlas_root, affine_config, bspline_config, data_root, image_list,
                     mask_list=None, name_list=None, affine_folder=None):
-
     if not os.path.isdir(atlas_root):
         os.makedirs(atlas_root)
 
@@ -84,7 +89,8 @@ def build_atlas_experiments():
     num_img = 60
     side_of_knee = 'LEFT'
     visiting_time = 0
-    atlas_root = "/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_{}_{}_baseline_NMI".format(num_img, side_of_knee)
+    atlas_root = "/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_{}_{}_baseline_NMI".format(num_img,
+                                                                                                      side_of_knee)
     register = NiftyReg("/playpen/zhenlinx/Code/niftyreg/install/bin")
     image_list_file = os.path.realpath("../data/train1.txt")
     data_root = os.path.realpath("/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_rescaled_LEFT")
@@ -116,7 +122,7 @@ def build_atlas_experiments():
     # candidate_indices = list(set(visit_filter_indices).intersection(side_filter_indices))
     candidate_indices = visit_filter_indices
 
-    if len(candidate_indices) < num_img -1:
+    if len(candidate_indices) < num_img - 1:
         ValueError("Only {} {} knee images at {}th visit but requested {} images!".format(
             len(candidate_indices), side_of_knee, visiting_time, num_img))
 
@@ -219,80 +225,153 @@ def build_OAI_ZIB_atlas():
     build_OAI_atlas(register, atlas_root, affine_config, bspline_config, data_root, image_list[:num_img],
                     mask_list[:num_img], name_list[:num_img], affine_folder)
 
+
 def generate_mesh_for_atlas():
     atlas_folder = '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI'
-    atlas_mask= 'atlas_mask_step_10.nii.gz'
+    atlas_mask = 'atlas_mask_step_10.nii.gz'
 
-    FC_mesh_main, TC_mesh_main = get_cartilage_surface_mesh_from_segmentation_file(os.path.join(atlas_folder, atlas_mask),
-                                                                                   thickness=False,
-                                                                                   save_path_FC='test_analysis/atlas_FC_mesh_world.ply',
-                                                                                   save_path_TC='test_analysis/atlas_TC_mesh_world.ply',
-                                                                                   prob=False, coord='nifti')
+    FC_mesh_main, TC_mesh_main = get_cartilage_surface_mesh_from_segmentation_file(
+        os.path.join(atlas_folder, atlas_mask),
+        thickness=False,
+        save_path_FC='test_data/atlas_FC_mesh_world.ply',
+        save_path_TC='test_data/atlas_TC_mesh_world.ply',
+        prob=False, coord='nifti')
 
+    meshFC_inner, meshFC_outer, _, _ = split_femoral_cartilage_surface(FC_mesh_main, smooth_rings=10,
+                                                                       max_rings=None, n_workers=20)
+    meshTC_inner, meshTC_outer, _, _ = split_tibial_cartilage_surface(TC_mesh_main, smooth_rings=10,
+                                                                      max_rings=None, n_workers=20)
+
+    pymesh.save_mesh("test_data/atlas_FC_inner_mesh_world.ply", meshFC_inner, ascii=True)
+    pymesh.save_mesh("test_data/atlas_TC_inner_mesh_world.ply", meshTC_inner, ascii=True)
+    pymesh.save_mesh("test_data/atlas_FC_outer_mesh_world.ply", meshFC_outer, ascii=True)
+    pymesh.save_mesh("test_data/atlas_TC_outer_mesh_world.ply", meshTC_outer, ascii=True)
+
+    # from cartilage_shape_processing import plot_mesh_segmentation
+    # plot_mesh_segmentation(meshFC1, meshFC2)
+    # plot_mesh_segmentation(meshTC1, meshTC2)
     # segmentation = sitk_read_image(atlas_mask, atlas_folder)
     pass
 
 
+
 def warp_mesh_to_atlas():
-    atlas_image =  '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI/atlas_mask_step_10.nii.gz'
+    atlas_image = '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI/atlas_mask_step_10.nii.gz'
 
     # atlas_mask = ''
-    atlas_mesh = './test_analysis/atlas_FC_mesh_world.ply'
-    moving_image = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_image.nii.gz'
-    moving_mask = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_label_all.nii.gz'
-    moving_mesh_FC = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply'
-    moving_mesh_TC = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC.ply'
-    get_cartilage_surface_mesh_from_segmentation_file(moving_mask, thickness=True, prob=False, coord='nifti',
-                                                      save_path_FC=moving_mesh_FC, save_path_TC=moving_mesh_TC)
 
-    affine_transform = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform.txt'
-    non_rigid_transform = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform.nii.gz'
+    moving_image = '/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_rescaled_LEFT/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_image.nii.gz'
+    moving_mask = '/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_rescaled_LEFT/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_label_all.nii.gz'
+    moving_mesh_file_FC = 'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply'
+    moving_mesh_file_TC = 'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC.ply'
+    get_cartilage_surface_mesh_from_segmentation_file(moving_mask, thickness=True, prob=False, coord='nifti',
+                                                      save_path_FC=moving_mesh_file_FC,
+                                                      save_path_TC=moving_mesh_file_TC)
+
+    affine_transform = '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI/test/affine/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform.txt'
+    non_rigid_transform = '/playpen-raid/zhenlinx/Data/OAI_segmentation/atlas/atlas_60_LEFT_baseline_NMI/test/bspline/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform.nii.gz'
 
     register = NiftyReg("/playpen/zhenlinx/Code/niftyreg/install/bin")
 
-    inv_affine_transform = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.txt'
-    register.invert_affine(affine_transform, inv_affine_transform)
-    register.warp_mesh(moving_mesh_FC, inv_affine_transform, moving_image, inWorld=True)
-    register.warp_mesh(moving_mesh_TC, inv_affine_transform, moving_image, inWorld=True)
+    # inv_affine_transform = 'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.txt'
+    # register.invert_affine(affine_transform, inv_affine_transform)
+    # register.warp_mesh(moving_mesh_file_FC, inv_affine_transform, moving_image, inWorld=True)
+    # register.warp_mesh(moving_mesh_file_TC, inv_affine_transform, moving_image, inWorld=True)
 
-    inv_nonrigid_transform = './test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.nii.gz'
-    register.invert_nonrigid(non_rigid_transform=non_rigid_transform, reference_image=atlas_image, moving_image = moving_image, inverted_transform=inv_nonrigid_transform,)
-    warped_mesh_FC = register.warp_mesh(moving_mesh_FC, inv_nonrigid_transform, moving_image, inWorld=True)
-    warped_mesh_TC = register.warp_mesh(moving_mesh_TC, inv_nonrigid_transform, moving_image, inWorld=True)
+    inv_nonrigid_transform = 'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.nii.gz'
+    register.invert_nonrigid(non_rigid_transform=non_rigid_transform, reference_image=atlas_image,
+                             moving_image=moving_image, inverted_transform=inv_nonrigid_transform, )
+
+    warped_mesh_FC_file = "test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply"
+    warped_mesh_TC_file = "test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply"
+    warped_mesh_FC = register.warp_mesh(moving_mesh_file_FC, inv_nonrigid_transform, moving_image, warped_mesh_FC_file,
+                                        inWorld=True)
+    warped_mesh_TC = register.warp_mesh(moving_mesh_file_TC, inv_nonrigid_transform, moving_image, warped_mesh_TC_file,
+                                        inWorld=True)
 
 
-if __name__ == '__main__':
-    # import pymesh
-    # build_OAI_ZIB_atlas()
-    # generate_mesh_for_atlas()
-    # warp_mesh_to_atlas()
+def test_map_thickness():
+    import visvis as vv
+    import pymesh
 
-    test_map_thickness()
+    # map thickness to atlas mesh
+    warped_mesh_FC_file = "test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply"
+    warped_mesh_TC_file = "test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply"
 
-    # FC_mesh_main = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply')
-    # FC_mesh_main_affine = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.ply')
-    # FC_mesh_main_nr = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply')
-    # TC_mesh_main = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC.ply')
-    # TC_mesh_main_affine = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.ply')
-    # TC_mesh_main_nr = pymesh.load_mesh('./test_analysis/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply')
+    atlas_mesh_FC_inner_file = "test_data/atlas_FC_inner_mesh_world.ply"
+    atlas_mesh_TC_inner_file = "test_data/atlas_TC_inner_mesh_world.ply"
+
+    atlas_mesh_file_FC_mapped = "test_data/atlas_FC_inner_mesh_with_thickness_9007827_20041006_SAG_3D_DESS_LEFT_016610263603.ply"
+    atlas_mesh_file_TC_mapped = "test_data/atlas_TC_inner_mesh_with_thickness_9007827_20041006_SAG_3D_DESS_LEFT_016610263603.ply"
+
+    atlas_mesh_FC_inner_mapped = map_thickness_to_atlas_mesh(atlas_mesh_FC_inner_file, warped_mesh_FC_file,
+                                                             atlas_mesh_file_FC_mapped)
+    atlas_mesh_TC_inner_mapped = map_thickness_to_atlas_mesh(atlas_mesh_TC_inner_file, warped_mesh_TC_file,
+                                                             atlas_mesh_file_TC_mapped)
+
+def plot_mapped_thickness():
+    atlas_mesh_file_FC_mapped = "test_data/atlas_FC_inner_mesh_with_thickness_9007827_20041006_SAG_3D_DESS_LEFT_016610263603.ply"
+    atlas_mesh_file_TC_mapped = "test_data/atlas_TC_inner_mesh_with_thickness_9007827_20041006_SAG_3D_DESS_LEFT_016610263603.ply"
+
+    atlas_mesh_file_FC_mapped = "../test/test_data/atlas_FC_mesh_with_thickness.ply"
+    atlas_mesh_file_TC_mapped = "../test/test_data/atlas_TC_mesh_with_thickness.ply"
+    atlas_mesh_FC_inner_mapped = pymesh.load_mesh(atlas_mesh_file_FC_mapped)
+    atlas_mesh_TC_inner_mapped = pymesh.load_mesh(atlas_mesh_file_TC_mapped)
+
+    app = vv.use()
+    a1 = vv.subplot(211)
+    FC_vis = vv.mesh(atlas_mesh_FC_inner_mapped.vertices, atlas_mesh_FC_inner_mapped.faces, values=atlas_mesh_FC_inner_mapped.get_attribute('vertex_thickness'))
+    FC_vis.colormap = vv.CM_JET
+    vv.colorbar()
+
+    a2 = vv.subplot(212)
+    TC_vis = vv.mesh(atlas_mesh_TC_inner_mapped.vertices, atlas_mesh_TC_inner_mapped.faces,
+                     values=atlas_mesh_TC_inner_mapped.get_attribute('vertex_thickness'))
+    TC_vis.colormap = vv.CM_JET
+
+    vv.colorbar()
+    app.Run()
+
+
+def plot_thickness():
+    FC_mesh_main = pymesh.load_mesh('test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC.ply')
+    # FC_mesh_main_affine = pymesh.load_mesh('test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.ply')
+    FC_mesh_main_nr = pymesh.load_mesh(
+        'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_FC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply')
+    TC_mesh_main = pymesh.load_mesh('test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC.ply')
+    # TC_mesh_main_affine = pymesh.load_mesh('test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_affine_transform_inverted.ply')
+    TC_mesh_main_nr = pymesh.load_mesh(
+        'test_data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_mesh_TC_warped_with_9007827_20041006_SAG_3D_DESS_LEFT_016610263603_bspline_transform_inverted.ply')
     #
-    # app = vv.use()
-    # a1 = vv.subplot(311)
-    # FC_vis = vv.mesh((FC_mesh_main.vertices), FC_mesh_main.faces, values=FC_mesh_main.get_attribute('vertex_thickness'))
-    # TC_vis = vv.mesh((TC_mesh_main.vertices), TC_mesh_main.faces, values=TC_mesh_main.get_attribute('vertex_thickness'))
-    # FC_vis.colormap = vv.CM_JET
-    # TC_vis.colormap = vv.CM_JET
-    # vv.colorbar()
+    app = vv.use()
+    a1 = vv.subplot(211)
+    FC_vis = vv.mesh((FC_mesh_main.vertices), FC_mesh_main.faces, values=FC_mesh_main.get_attribute('vertex_thickness'))
+    TC_vis = vv.mesh((TC_mesh_main.vertices), TC_mesh_main.faces, values=TC_mesh_main.get_attribute('vertex_thickness'))
+    FC_vis.colormap = vv.CM_JET
+    TC_vis.colormap = vv.CM_JET
+    vv.colorbar()
     # a2 = vv.subplot(312)
     # FC_vis = vv.mesh((FC_mesh_main_affine.vertices), FC_mesh_main_affine.faces, values=FC_mesh_main_affine.get_attribute('vertex_thickness'))
     # TC_vis = vv.mesh((TC_mesh_main_affine.vertices), TC_mesh_main_affine.faces, values=TC_mesh_main_affine.get_attribute('vertex_thickness'))
     # FC_vis.colormap = vv.CM_JET
     # TC_vis.colormap = vv.CM_JET
     # vv.colorbar()
-    # a3 = vv.subplot(313)
-    # FC_vis = vv.mesh((FC_mesh_main_nr.vertices), FC_mesh_main_nr.faces, values=FC_mesh_main_nr.get_attribute('vertex_thickness'))
-    # TC_vis = vv.mesh((TC_mesh_main_nr.vertices), TC_mesh_main_nr.faces, values=TC_mesh_main_nr.get_attribute('vertex_thickness'))
-    # FC_vis.colormap = vv.CM_JET
-    # TC_vis.colormap = vv.CM_JET
-    # vv.colorbar()
-    # app.Run()
+    a3 = vv.subplot(212)
+    FC_vis = vv.mesh((FC_mesh_main_nr.vertices), FC_mesh_main_nr.faces,
+                     values=FC_mesh_main_nr.get_attribute('vertex_thickness'))
+    TC_vis = vv.mesh((TC_mesh_main_nr.vertices), TC_mesh_main_nr.faces,
+                     values=TC_mesh_main_nr.get_attribute('vertex_thickness'))
+    FC_vis.colormap = vv.CM_JET
+    TC_vis.colormap = vv.CM_JET
+    vv.colorbar()
+    app.Run()
+
+
+if __name__ == '__main__':
+    # os.mkdir('test_data')
+    # build_OAI_ZIB_atlas()
+    # generate_mesh_for_atlas()
+    # warp_mesh_to_atlas()
+    # test_map_thickness()
+    plot_mapped_thickness()
+
