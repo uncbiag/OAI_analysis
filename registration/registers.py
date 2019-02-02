@@ -53,7 +53,7 @@ class NiftyReg(Register):
                         smooth_moving: int = None,
                         pv=None,
                         pi=None,
-                        platf=None,
+                        platf=0,
                         gpu_id=None,
                         num_threads=32,
                         **kwargs
@@ -118,7 +118,7 @@ class NiftyReg(Register):
                          smooth_ref=None,
                          smooth_moving=None,
                          num_threads=8,
-                         platf=None,
+                         platf=0,
                          gpu_id=None,
                          **kwargs
                          ):
