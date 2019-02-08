@@ -6,10 +6,10 @@
 The analysis interfaces given in [oai_image_analysis.py](./oai_image_analysis.py) include
 
 1. Preprocess image, e.g. Normalized intensties, flip left/right knees to the same orientation.
-2. Segmenting knee cartilage using the trained CNN model 
+2. Segment knee cartilage using the trained CNN model 
 3. Extract the surface mesh and compute the thickness at each vertex
-4. Regiter the image to the atlas 
-5. Used the inverse transformation to warped the surface mesh with thickness map to the atlas space.
+4. Register the image to the atlas 
+5. Use the inverse transformation to warped the surface mesh with thickness map to the atlas space.
 6. Map the thickness on the warped mesh to the atlas mesh
 7. Project thickness from 3D surface to a 2D grid (TODO) 
 

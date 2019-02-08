@@ -594,7 +594,7 @@ def map_thickness_to_atlas_mesh(atlas_mesh, source_mesh, atlas_mapped_file=None)
 
 def surface_distance(source_mesh, target_mesh):
     """
-    Measure the surface distance from the surface mesh to the target mesh
+    Measure the surface distance from the source mesh to the target mesh
     :param source_mesh:
     :param target_mesh:
     :return:

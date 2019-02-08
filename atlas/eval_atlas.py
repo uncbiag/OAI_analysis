@@ -10,7 +10,7 @@ Created by zhenlinx on 10/27/18
 """
 import os
 import sys
-import SimpleITK
+import SimpleITK as sitk
 from build_atlas import *
 sys.path.append(os.path.realpath("../"))
 sys.path.append(os.path.realpath("../lib"))

@@ -206,15 +206,15 @@ class OAIImageAnalysis:
 
     def eval_registration_surface_distance(self, oai_image):
         # messure the surface distance between the warped mesh and the atlas mesh
-            dist_max_FC, dist_min_FC, dist_median_FC, dist_95p_FC = surface_distance(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file)
-            dist_max_TC, dist_min_TC, dist_median_TC, dist_95p_TC = surface_distance(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file)
-            print("{} distance eval(mm):".format(oai_image.name))
-            print("FC distance: max:{:.4f}, avg:{:.4f}, median:{:.4f}, 95 percent {:.4f}".format(dist_max_FC, dist_min_FC, dist_median_FC,
-                                                                             dist_95p_FC))
-            print("TC distance: max:{:.4f}, avg:{:.4f}, median:{:.4f}, 95 percent {:.4f}".format(dist_max_TC, dist_min_TC, dist_median_TC,
-                                                                                dist_95p_TC))
-            self.surface_distance_FC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
-            self.surface_distance_TC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
+        dist_max_FC, dist_min_FC, dist_median_FC, dist_95p_FC = surface_distance(oai_image.warped_FC_mesh_file, self.atlas_FC_mesh_file)
+        dist_max_TC, dist_min_TC, dist_median_TC, dist_95p_TC = surface_distance(oai_image.warped_TC_mesh_file, self.atlas_TC_mesh_file)
+        print("{} distance eval(mm):".format(oai_image.name))
+        print("FC distance: max:{:.4f}, min:{:.4f}, median:{:.4f}, 95 percent {:.4f}".format(dist_max_FC, dist_min_FC, dist_median_FC,
+                                                                         dist_95p_FC))
+        print("TC distance: max:{:.4f}, min:{:.4f}, median:{:.4f}, 95 percent {:.4f}".format(dist_max_TC, dist_min_TC, dist_median_TC,
+                                                                            dist_95p_TC))
+        self.surface_distance_FC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
+        self.surface_distance_TC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
 
     def get_surface_distances_eval(self):
         FC_distances = np.vstack(self.surface_distance_FC)
@@ -223,9 +223,9 @@ class OAIImageAnalysis:
         FC_std = FC_distances.std(axis=0)
         TC_means = TC_distances.mean(axis=0)
         TC_std = TC_distances.std(axis=0)
-        print("FC distance(mm): max:{:.4f} +/- {:.4f}, avg:{:.4f} +/- {:.4f}, median:{:.4f} +/- {:.4f}, 95 percent {} +/- {}".format(
+        print("FC distance(mm): max:{:.4f} +/- {:.4f}, min:{:.4f} +/- {:.4f}, median:{:.4f} +/- {:.4f}, 95 percent {} +/- {}".format(
             *[metric[i] for i in range(4) for metric in [FC_means, FC_std]]))
-        print("TC distance(mm): max:{:.4f} +/- {:.4f}, avg:{:.4f} +/- {:.4f}, median:{:.4f} +/- {:.4f}, 95 percent {} +/- {}".format(
+        print("TC distance(mm): max:{:.4f} +/- {:.4f}, min:{:.4f} +/- {:.4f}, median:{:.4f} +/- {:.4f}, 95 percent {} +/- {}".format(
             *[metric[i] for i in range(4) for metric in [TC_means, TC_std]]))
 
     def project_thickness_to_atlas(self, oai_image, overwrite=False):

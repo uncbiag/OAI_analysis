@@ -30,7 +30,7 @@ def build_default_analyzer(ckpoint_folder=None):
     affine_config = dict(smooth_moving=-1, smooth_ref=-1,
                          max_iterations=10,
                          pv=30, pi=30,
-                         num_threads=32)
+                         num_threads=30)
     bspline_config = dict(
         max_iterations=300,
         # num_levels=3, performed_levels=3,
@@ -82,17 +82,20 @@ def demo_analyze_cohort():
 
     subcohort_images = progression_cohort_images[:600]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer()
-    analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
 
-    for test_image in subcohort_images:
-        analyzer.segment_image_and_save_results(test_image, overwrite=True)
-    analyzer.close_segmenter()
+    # analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
+    # for test_image in subcohort_images:
+    #     analyzer.segment_image_and_save_results(test_image, overwrite=True)
+    # analyzer.close_segmenter()
 
-    for test_image in subcohort_images:
-        analyzer.register_image_to_atlas_NiftyReg(test_image, True)
-        analyzer.extract_surface_mesh(test_image, overwrite=True)
-        analyzer.warp_mesh(test_image, True, True)
-        analyzer.project_thickness_to_atlas(test_image, overwrite=False)
+    for i, test_image in enumerate(subcohort_images):
+        print("\n[{}] {}\n".format(i, test_image.name))
+        # analyzer.register_image_to_atlas_NiftyReg(test_image, False)
+        # analyzer.extract_surface_mesh(test_image, overwrite=True)
+        # analyzer.warp_mesh(test_image, False)
+        analyzer.eval_registration_surface_distance(test_image)
+        # analyzer.project_thickness_to_atlas(test_image, overwrite=False)
+    analyzer.get_surface_distances_eval()
 
 
 if __name__ == '__main__':
