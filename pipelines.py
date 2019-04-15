@@ -19,10 +19,9 @@ ATLAS_FC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/FC_inner_embedded.npy")
 ATLAS_TC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/TC_inner_embedded.npy")
 
 
-def build_default_analyzer(ckpoint_folder=None, use_nifty=True):
+def build_default_analyzer(ckpoint_folder=None, use_nifty=True,avsm_path=None, avsm_output_path=None):
     niftyreg_path = "/playpen/zhenlinx/Code/niftyreg/install/bin"
-    avsm_path = "/playpen/zyshen/reg_clean/demo"
-    avsm_output_path='/playpen/zyshen/debugs/0414'
+    avsm_path = avsm_path + '/demo'
     register = NiftyReg(niftyreg_path) if use_nifty else AVSMReg(avsm_path,avsm_output_path)
     if not ckpoint_folder:
         ckpoint_folder = "./segmentation/ckpoints/UNet_bias_Nifti_rescaled_LEFT_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01272019_212723"
@@ -58,12 +57,12 @@ def build_default_analyzer(ckpoint_folder=None, use_nifty=True):
     return analyzer
 
 
-def demo_analyze_single_image(use_nifti):
+def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     OAI_data_sheet = "./data/SEG_3D_DESS_6visits.csv"
     OAI_data = OAIData(OAI_data_sheet, '/playpen/zhenlinx/data/OAI')
     OAI_data.set_processed_data_paths('/playpen/zyshen/oai_data/OAI_image_analysis',None if use_nifti else 'avsm')
     test_image = OAI_data.get_images(patient_id= [9003380])[0] # 9279291, 9298954,9003380
-    analyzer = build_default_analyzer(use_nifty=use_nifti)
+    analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path, avsm_output_path=avsm_output_path)
     analyzer.preprocess(test_image, overwrite=False)
     # analyzer.segment_image_and_save_results(test_image, overwrite=False)
     # analyzer.close_segmenter()
@@ -110,4 +109,7 @@ def demo_analyze_cohort():
 
 
 if __name__ == '__main__':
-    demo_analyze_single_image(use_nifti=False)
+    use_nifti=False
+    avsm_path = "/playpen/zyshen/reg_clean"
+    avsm_output_path = '/playpen/zyshen/debugs/0414'
+    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
