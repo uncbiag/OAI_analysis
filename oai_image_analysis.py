@@ -13,20 +13,24 @@ import SimpleITK as sitk
 import numpy as np
 
 from segmentation.segmenter import Segmenter3DInPatchClassWise
-from registration.registers import NiftyReg
+from registration.registers import NiftyReg, AVSMReg
 from shape_analysis.cartilage_shape_processing import get_cartilage_surface_mesh_from_segmentation_file, \
-    map_thickness_to_atlas_mesh, surface_distance
+    map_thickness_to_atlas_mesh, surface_distance, map_thickness_to_2D_projection
 from data.pre_process import label2image, image_normalize, reset_sitk_image_coordinates, flip_left_right
 
 class OAIImageAnalysis:
-    def __init__(self):
+    def __init__(self,use_nifti=True):
         self.segmenter = Segmenter3DInPatchClassWise()
-        self.register = NiftyReg(),
+        self.use_nifti = use_nifti
+        self.register = NiftyReg() if use_nifti else AVSMReg()
 
         self.atlas_image_file = None
         # self.atlas_mask_file = None
         self.atlas_FC_mesh_file = None
         self.atlas_TC_mesh_file = None
+
+        self.atlas_FC_2D_map_file = None
+        self.atlas_TC_2D_map_file = None
 
         self.surface_distance_FC = []  # should be Nx4 array, columns are max, min, median, 95%max
         self.surface_distance_TC = []
@@ -36,6 +40,29 @@ class OAIImageAnalysis:
         # self.atlas_mask_file = None
         self.atlas_FC_mesh_file = atlas_FC_mesh_file
         self.atlas_TC_mesh_file = atlas_TC_mesh_file
+
+
+    def compute_atlas_2D_map(self,n_jobs=-1):
+        from sklearn.manifold import MDS
+        import pymesh
+        mds = MDS(2, max_iter=20000, n_init=10, n_jobs=n_jobs)
+        altas_2D_file_list = [self.atlas_FC_2D_map_file,self.atlas_TC_2D_map_file]
+        altas_file_list = [self.atlas_FC_mesh_file,self.atlas_TC_mesh_file]
+        for i, altas_2D_file in enumerate(altas_2D_file_list):
+            if not os.path.isfile(altas_2D_file):
+                os.makedirs(os.path.split(altas_2D_file)[1],exist_ok=True)
+                print("the {} is not exist, now compute the 2d map from atlas, it will take hours, if the default setting out of memory, you may need to use"
+                      "less processers, change 'n_jobs' in MDS ".format(altas_2D_file))
+                mesh = pymesh.load_mesh(altas_file_list[i])
+                vertices = mesh.vertices
+                embedded = mds.fit_transform(vertices)
+                np.save(altas_2D_file, embedded)
+                print("complete, the 2D map is saved into {}".format(altas_2D_file))
+
+    def set_atlas_2D_map(self,atlas_FC_2D_map_file='./atlas/FC_inner_embedded.npy', atlas_TC_2D_map_file='./atlas/TC_inner_embedded.npy'):
+        self.atlas_FC_2D_map_file = atlas_FC_2D_map_file
+        self.atlas_TC_2D_map_file =atlas_TC_2D_map_file
+
 
     def set_segmenter(self, segmenter):
         self.segmenter = segmenter
@@ -138,7 +165,7 @@ class OAIImageAnalysis:
             sitk.WriteImage(TC_probmap, oai_image.TC_probmap_file)
 
 
-    def extract_surface_mesh(self, oai_image, overwrite=False):
+    def extract_surface_mesh(self, oai_image, overwrite=False,coord='nifti'):
         """Extract surface mesh of cartilages with thickness measurements"""
 
         # oai_image.FC_mesh_file = os.path.join(oai_image.folder, "FC_mesh_world.ply")
@@ -150,9 +177,23 @@ class OAIImageAnalysis:
             get_cartilage_surface_mesh_from_segmentation_file((oai_image.FC_probmap_file, oai_image.TC_probmap_file),
                                                               save_path_FC=oai_image.FC_mesh_file,
                                                               save_path_TC=oai_image.TC_mesh_file,
-                                                              thickness=True, prob=True, coord='nifti',
+                                                              thickness=True, prob=True, coord=coord,
                                                               )
         pass
+
+    def register_image_to_atlas(self,oai_image,overwrite=False,gpu_id=0):
+        if self.use_nifti:
+            self.register_image_to_atlas_NiftyReg(oai_image,overwrite)
+        else:
+            self.register_image_to_atlas_AVSM(oai_image,overwrite,gpu_id=gpu_id)
+
+
+    def register_image_to_atlas_AVSM(self,oai_image,overwrite=False, gpu_id=0):
+        if overwrite:
+            self.register.register_image(self.atlas_image_file, oai_image.preprocessed_image_file,
+                                         lmoving_path=None, ltarget_path=None,
+                                         gpu_id=gpu_id,oai_image=oai_image)
+
 
     def register_image_to_atlas_NiftyReg(self, oai_image, overwrite=False):
         """
@@ -241,12 +282,14 @@ class OAIImageAnalysis:
         map_thickness_to_atlas_mesh(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file, oai_image.FC_thickness_mapped_to_atlas_mesh)
         map_thickness_to_atlas_mesh(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file, oai_image.TC_thickness_mapped_to_atlas_mesh)
 
-    def project_thickness_to_2D(self, oai_image):
+    def project_thickness_to_2D(self, oai_image, overwrite=False):
         """
         TODO: implement the method to project thickness from 3D mesh to 2D grid,
          and save the file to oai_image.FC_2D_thickness_grid and oai_image.TC_2D_thickness_grid
         """
         NotImplementedError()
+        map_thickness_to_2D_projection(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file,self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map')
+        map_thickness_to_2D_projection(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file,self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map')
 
     def preprocess_parallel(self, image_list, n_workers=10, overwrite=False):
         with Pool(processes=n_workers) as pool:

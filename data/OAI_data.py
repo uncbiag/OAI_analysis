@@ -54,11 +54,11 @@ class OAIData:
             self.images.append(image)
             self.patient_set.add(image.patient_id)
 
-    def set_processed_data_paths(self, proceesed_data_root=''):
+    def set_processed_data_paths(self, proceesed_data_root='',task_name=None):
         """Set the root folder where the processed data are saved"""
         self.root_path = proceesed_data_root
         for image in self.images:
-            image.set_processed_data_paths(proceesed_data_root)
+            image.set_processed_data_paths(proceesed_data_root,task_name)
 
     def build_repositories(self):
         """
@@ -285,7 +285,7 @@ class OAIImage:
     def name(self):
         return "_".join([str(self.patient_id), self.visit_description[self.visit_month], self.part, self.modality])
 
-    def set_processed_data_paths(self, processed_root):
+    def set_processed_data_paths(self, processed_root,task_name=None):
         """
         According to the root path of processed data, setup the path of all analysis file
         :param processed_root:
@@ -293,22 +293,24 @@ class OAIImage:
         """
         self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
                                    self.visit_description[self.visit_month])
+        task_folder = os.path.join(self.folder,task_name) if task_name else self.folder
+        os.makedirs(task_folder,exist_ok=True)
         self.preprocessed_image_file = os.path.join(self.folder, 'image_preprocessed.nii.gz')
         self.FC_probmap_file = os.path.join(self.folder, 'FC_probmap.nii.gz')
         self.TC_probmap_file = os.path.join(self.folder, 'TC_probmap.nii.gz')
-        self.FC_mesh_file = os.path.join(self.folder, "FC_mesh_world.ply")
-        self.TC_mesh_file = os.path.join(self.folder, "TC_mesh_world.ply")
+        self.FC_mesh_file = os.path.join(task_folder, "FC_mesh_world.ply")
+        self.TC_mesh_file = os.path.join(task_folder, "TC_mesh_world.ply")
         self.affine_transform_file = os.path.join(self.folder, "affine_transform_to_atlas.txt")
         self.bspline_transform_file = os.path.join(self.folder, "bspline_control_points_to_atlas.nii.gz")
-        self.warped_FC_mesh_file = os.path.join(self.folder, "FC_mesh_world_to_atlas.ply")
-        self.warped_TC_mesh_file = os.path.join(self.folder, "TC_mesh_world_to_atlas.ply")
-        self.inv_transform_to_atlas = os.path.join(self.folder, "inv_transform_to_atlas.nii.gz")
-        self.FC_thickness_mapped_to_atlas_mesh = os.path.join(self.folder, "atlas_FC_mesh_with_thickness.ply")
-        self.TC_thickness_mapped_to_atlas_mesh = os.path.join(self.folder, "atlas_TC_mesh_with_thickness.ply")
+        self.warped_FC_mesh_file = os.path.join(task_folder, "FC_mesh_world_to_atlas.ply")
+        self.warped_TC_mesh_file = os.path.join(task_folder, "TC_mesh_world_to_atlas.ply")
+        self.inv_transform_to_atlas = os.path.join(task_folder, "inv_transform_to_atlas.nii.gz")
+        self.FC_thickness_mapped_to_atlas_mesh = os.path.join(task_folder, "atlas_FC_mesh_with_thickness.ply")
+        self.TC_thickness_mapped_to_atlas_mesh = os.path.join(task_folder, "atlas_TC_mesh_with_thickness.ply")
 
         # TODO: naming the file of 2d thickness grid
-        self.FC_2D_thickness_grid = os.path.join(self.folder, "FC_2d_thickness.png")
-        self.FC_2D_thickness_grid = os.path.join(self.folder, "FC_2d_thickness.png")
+        self.FC_2D_thickness_grid = None #os.path.join(self.folder, "FC_2d_thickness.png")
+        self.TC_2D_thickness_grid = None #os.path.join(self.folder, "TC_2d_thickness.png")
 
 
     def get_dataframe_line(self):

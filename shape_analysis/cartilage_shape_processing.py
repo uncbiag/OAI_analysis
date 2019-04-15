@@ -17,7 +17,8 @@ import matplotlib as mpl
 from skimage import measure
 
 import pymesh
-
+from scipy.interpolate import griddata
+import matplotlib.pyplot as plt
 import sys
 
 sys.path.append('..')
@@ -459,6 +460,22 @@ def voxel_to_world_coord(input_points, transform):
     return R.dot(input_points.transpose()).transpose() + T
 
 
+
+def word_to_voxel_coord(input_points, transform):
+    """
+    A function that transfer the voxel coordinates to world coordinates
+    :param input_points: Nx3 array, the points of coordinates in the voxel space
+    :param transform: a tuple of two numpy arrays (R, T) represents the transformation that to map the voxel coordinates
+            of vertices to world coordinates, where R is a 3x3 rotation matrix and T is the translation vetor of length 3
+            The world coordinates are computed by P_w = R x P_v  + T
+    :return: output_points: Nx3 array, the points of coordinates in the world space
+
+    """
+    assert input_points.shape[1] == 3 and len(input_points.shape) == 2
+    R, T = transform
+    return ((np.linalg.inv(R)).dot((input_points-T).transpose())).transpose()
+
+
 def get_voxel_to_world_transform_nifti(reference_image):
     """
     Get the Rotation matrix and the translation vector for transfrom from voxel coordinates to world coordinates
@@ -549,10 +566,10 @@ def modify_mesh_with_new_vertices(mesh, points, output_mesh_file=None):
     :return: new_mesh: mesh with updated vertices
     """
 
-    if type(mesh) == str:
+    if type(mesh) is str:
         mesh = pymesh.load_mesh(mesh)
-
-    points = read_points(points)
+    if type(points) is str:
+        points = read_points(points)
     new_mesh = pymesh.form_mesh(points, mesh.faces)
     attribute_to_save = []
     for attribute in mesh.attribute_names:
@@ -591,6 +608,81 @@ def map_thickness_to_atlas_mesh(atlas_mesh, source_mesh, atlas_mapped_file=None)
 
     return atlas_mesh
 
+
+def __generate_mask(vertice, mask, interx, intery, startx, starty):
+    import math
+    x, y = zip(*vertice)
+    for i in range(len(vertice)):
+        idx = math.floor((x[i] - startx) / interx)
+        idy = math.floor((y[i] - starty) / intery)
+        mask[idy, idx] = False
+        for j in range(idx - 1, idx + 2):
+            for k in range(idy - 1, idy + 2):
+                mask[k, j] = False
+    return mask
+
+def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickness=-1., fpth=None,name=''):
+
+    xmin, xmax, ymin, ymax = min(embedded[:, 0]), max(embedded[:, 0]), min(embedded[:, 1]), max(embedded[:, 1])
+    rangex = xmax - xmin
+    rangey = ymax - ymin
+    interx = rangex / ninter
+    intery = rangey / ninter
+    xi = np.arange(xmin - interx * 5, xmax + interx * 5, interx)
+    yi = np.arange(ymin - intery * 5, ymax + intery * 5, intery)
+    xi, yi = np.meshgrid(xi, yi)
+    mask = np.zeros_like(xi) == 0
+    mask = __generate_mask(embedded, mask, interx, intery, xi.min(), yi.min())
+    x, y = zip(*embedded)
+    if min_thickness>0:
+        thickness[thickness<min_thickness]=min_thickness
+    z = thickness
+    zi = griddata((x, y), z, (xi, yi), method='linear')
+    zi[mask] = 100
+    contour_num = 80
+    maxz = max(z)
+    plt.contourf(xi, yi, zi, np.arange(0.01, maxz + maxz / contour_num, maxz / contour_num))
+    plt.axis('equal')
+    # plt.xlabel('xi', fontsize=16)
+    # plt.ylabel('yi', fontsize=16)
+    plt.axis('off')
+    plt.colorbar().ax.tick_params(labelsize=10)
+    font = {'size': 10}
+    plt.title(name, font)
+    if fpth is not None:
+        plt.savefig(fpth,dpi=300)
+        plt.close('all')
+    else:
+        plt.show()
+        plt.clf()
+
+
+def map_thickness_to_2D_projection(atlas_mesh, source_mesh,altas_2d_map_file=None, map_2d_file=None,name=''):
+    """
+    Map thickness of a registered mesh to the atlas mesh
+    :param atlas_mesh: atlas mesh which the source mesh was registered to
+    :param source_mesh: the mesh with thickness that has been registered to atlas space
+    :param map_2d_file: the file to save the 2d contour with mapped thickness
+    :return: atlas mesh with mapped thickness
+    """
+    if type(atlas_mesh) == str:
+        atlas_mesh = pymesh.load_mesh(atlas_mesh)
+    elif isinstance(atlas_mesh) == pymesh.Mesh:
+        atlas_mesh = atlas_mesh.copy()
+    else:
+        TypeError("atlas mesh is either a mesh file or a pymesh.mesh ")
+
+    if type(source_mesh) == str:
+        source_mesh = pymesh.load_mesh(source_mesh)
+
+    # first : map_thickness_to_atlas_mesh
+    pymesh.map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness')
+    # second: load atlas 2d map
+    embedded = np.load(altas_2d_map_file)
+    # third:  do projection
+    thickness = atlas_mesh.get_attribute("vertex_thickness")
+    thickness = thickness.copy()
+    __map_thickness_to_2D_projection(embedded, thickness, ninter=300, min_thickness=-1,fpth=map_2d_file,name=name)
 
 def surface_distance(source_mesh, target_mesh):
     """
