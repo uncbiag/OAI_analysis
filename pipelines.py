@@ -19,7 +19,7 @@ def build_default_analyzer(ckpoint_folder=None):
     if not ckpoint_folder:
         ckpoint_folder = "./segmentation/ckpoints/UNet_bias_Nifti_rescaled_LEFT_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01272019_212723"
     segmenter_config = dict(
-        ckpoint_path=os.path.join(ckpoint_folder, "checkpoint.pth.tar"),
+        ckpoint_path=os.path.join(ckpoint_folder, "model_best.pth.tar"),
         training_config_file=os.path.join(ckpoint_folder, "train_config.json"),
         device="cuda",
         batch_size=4,
@@ -80,21 +80,21 @@ def demo_analyze_cohort():
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
                                                     part='LEFT_KNEE')
 
-    subcohort_images = progression_cohort_images[:600]  # 100 patients of progression cohort, 6 visiting each
+    subcohort_images = progression_cohort_images[:2]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer()
 
     # analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
-    # for test_image in subcohort_images:
-    #     analyzer.segment_image_and_save_results(test_image, overwrite=True)
-    # analyzer.close_segmenter()
+    for test_image in subcohort_images:
+        analyzer.segment_image_and_save_results(test_image, overwrite=False)
+    analyzer.close_segmenter()
 
     for i, test_image in enumerate(subcohort_images):
         print("\n[{}] {}\n".format(i, test_image.name))
-        # analyzer.register_image_to_atlas_NiftyReg(test_image, False)
-        # analyzer.extract_surface_mesh(test_image, overwrite=True)
-        # analyzer.warp_mesh(test_image, False)
+        analyzer.register_image_to_atlas_NiftyReg(test_image, True)
+        analyzer.extract_surface_mesh(test_image, overwrite=True)
+        analyzer.warp_mesh(test_image, False)
         analyzer.eval_registration_surface_distance(test_image)
-        # analyzer.project_thickness_to_atlas(test_image, overwrite=False)
+        analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.get_surface_distances_eval()
 
 
