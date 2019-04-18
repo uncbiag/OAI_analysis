@@ -13,8 +13,8 @@ ATLAS_IMAGE_PATH = '/playpen/zyshen/OAI_analysis/atlas/atlas_60_LEFT_baseline_NM
 # ATLAS_TC_MESH_PATH = "/playpen/zhenlinx/Code/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas_TC_inner_mesh_world.ply"
 # ATLAS_FC_2D_MAP_PATH = "./data/FC_inner_optional_embedded.npy"
 # ATLAS_TC_2D_MAP_PATH = "./data/TC_inner_optional_embedded.npy"
-ATLAS_FC_MESH_PATH = "/playpen/zyshen/atlas_visual/atlas_FC_inner.ply"
-ATLAS_TC_MESH_PATH = "/playpen/zyshen/atlas_visual/atlas_TC_inner.ply"
+ATLAS_FC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_FC_inner.ply")
+ATLAS_TC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_TC_inner.ply")
 ATLAS_FC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/FC_inner_embedded.npy")
 ATLAS_TC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/TC_inner_embedded.npy")
 
@@ -67,7 +67,7 @@ def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     # analyzer.segment_image_and_save_results(test_image, overwrite=False)
     # analyzer.close_segmenter()
     analyzer.extract_surface_mesh(test_image, overwrite=False)
-    analyzer.register_image_to_atlas(test_image, True)
+    analyzer.register_image_to_atlas(test_image, False)
     analyzer.warp_mesh(test_image, True)
     #analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH,ATLAS_TC_2D_MAP_PATH)
