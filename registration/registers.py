@@ -8,7 +8,8 @@ Date；09/10/2018
 import subprocess
 import os
 from abc import ABC, abstractmethod
-
+import sys
+sys.path.append(os.path.realpath('..'))
 from misc.str_ops import replace_extension
 
 
@@ -123,8 +124,8 @@ class NiftyReg(Register):
                          **kwargs
                          ):
 
-        if not os.path.isdir(os.path.dirname(output_control_point)):
-            os.makedirs(os.path.dirname(output_control_point))
+        if not os.path.isdir(os.path.dirname(os.path.realpath(output_control_point))):
+            os.makedirs(os.path.dirname(os.path.realpath(output_control_point)))
 
         cmd = '{}reg_f3d {} {}'.format(
             (self.niftyreg_bin_path + '/') if self.niftyreg_bin_path else '',
