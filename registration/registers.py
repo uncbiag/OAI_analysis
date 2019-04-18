@@ -10,6 +10,7 @@ import os
 from abc import ABC, abstractmethod
 import sys
 sys.path.append(os.path.realpath('..'))
+import torch
 from misc.str_ops import replace_extension
 
 
@@ -37,6 +38,107 @@ class Register(ABC):
     # @abstractmethod
     # def inverse_nonrigid(self, *args, **kwargs):
     #     pass
+
+
+
+class AVSMReg(Register):
+    def __init__(self,avsm_path=None,output_path=None):
+        super(AVSMReg,self).__init__()
+        self.avsm_path = avsm_path
+        cur_dir = os.getcwd()
+        self.refering_task_path= os.path.join(cur_dir, 'settings/avsm')
+        self.mermaid_setting_path=os.path.join(cur_dir, 'settings/avsm/mermaid_setting.json')
+        self.output_path = output_path
+
+    def register_image(self,target_path, moving_path,lmoving_path=None, ltarget_path=None,gpu_id=0,oai_image=None):
+        cmd = ''
+        cmd +='python single_pair_atlas_registration.py -rt {} \
+        -s  {}  -t {}  -ls {}  -lt {}\
+        -ms {}\
+        -o {}\
+         -g {}'.format(self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,self.output_path,gpu_id)
+        wd = os.getcwd()
+        #subprocess.run('source activate torch4 && {} && source deactivate'.format(cmd),cwd=self.avsm_path, shell=True)
+        process = subprocess.Popen(cmd, cwd=self.avsm_path,shell=True)
+        process.wait()
+        os.chdir(wd)
+        os.rename(os.path.join(self.output_path,'reg/res/records/original_sz/image_preprocessed_atlas_inv_phi.nii.gz'),oai_image.inv_transform_to_atlas)
+
+    def register_affine(self, *args, **kwargs):
+        pass
+
+    def register_bspline(self, *args, **kwargs):
+        pass
+
+    def _get_inv_transfrom_map(self):
+        pass
+
+    def invert_nonrigid(self, non_rigid_transform, moving_image, inverted_transform, reference_image=None,
+                        num_proc=None):
+        pass
+
+    def warp_points(self,points, inv_map,ref_img=None):
+        """
+        in avsm the inv transform coord is from [0,1], so here we need to read mesh in voxel coord and then normalized it to [0,1],
+        the last step is to transform warped mesh into word coord/ voxel coord
+        the transfom map use default [0,1] coord unless the ref img is provided
+        here the transform map can be in inversed (height, width, depth) voxel space or in  inversed physical space (height, width, depth)
+        but the points should be in standard voxel space (depth, height, width)
+        :return:
+        """
+
+        import numpy as np
+        import SimpleITK as sitk
+        import torch.nn.functional as F
+        # first make everything in voxel coordinate, depth, height, width
+        img_sz=  np.array(inv_map.shape[1:])
+        standard_spacing = 1/(img_sz-1)  # height, width, depth
+        standard_spacing = np.flipud(standard_spacing) # depth, height, width
+        img = sitk.ReadImage(ref_img)
+        spacing = img.GetSpacing()
+        spacing = np.array(spacing)
+
+        points = points/spacing*standard_spacing
+        points = points*2-1
+        grid_sz =[1]+ [points.shape[0]]+ [1,1,3] # 1*N*1*1*3
+        grid = points.reshape(*grid_sz)
+        grid = torch.Tensor(grid).cuda()
+        inv_map_sz = [1,3]+list(img_sz)  # height, width, depth
+        inv_map = inv_map.view(*inv_map_sz) # 1*3*X*Y*Z
+        points_wraped=F.grid_sample(inv_map, grid, mode='bilinear', padding_mode='border') # 1*3*N*1*1
+        points_wraped = points_wraped.detach().cpu().numpy()
+        points_wraped = np.transpose(np.squeeze(points_wraped))
+        points_wraped = np.flip(points_wraped,1)/standard_spacing*spacing
+        return points_wraped
+
+
+    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False):
+        """
+        warp a surface mesh with given transform (affine, bspline et al.)
+
+        :param mesh_file: mesh to be warped, should be in voxel coord
+        :param inv_transform_file: the inverse transform of registration, if inverse transform is given, invertT should be False
+        :param reference_image: the image where the transformation is defined on, since we used inverse transformation
+                to warp images, it should be the floating image of registration
+        :param inWorld: if the mesh lies in the world coordinates.
+                    If false, the mesh has to be transformed from voxel coordinates into world coordinates
+        :param remove: if remove the intermediate points files when finished
+        :return:
+        """
+        import nibabel as nib
+        import shape_analysis.cartilage_shape_processing as csp
+        inv_map = nib.load(inv_transform_file)
+        inv_map = inv_map.get_fdata()
+        inv_map = torch.Tensor(inv_map).cuda()
+        points = csp.get_points_from_mesh(mesh_file).copy()
+        transform = csp.get_voxel_to_world_transform_nifti(reference_image_file)
+        points = csp.word_to_voxel_coord(points,transform)
+        warped_points = self.warp_points(points, inv_map, reference_image_file)
+        warped_points = csp.voxel_to_world_coord(warped_points,transform)
+        csp.modify_mesh_with_new_vertices(mesh_file, warped_points, warped_mesh_file)
+        return warped_mesh_file
+
+
 
 class NiftyReg(Register):
     def __init__(self, niftyreg_bin_path=None):

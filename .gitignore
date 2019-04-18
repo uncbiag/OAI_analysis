@@ -14,7 +14,6 @@ segmentation/ckpoints
 *.nii
 
 ### mesh files
-*.ply
 *.obj
 
 ### Python template
