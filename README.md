@@ -50,10 +50,11 @@ pip install -r requirements.txt
 * Download the pretrained model
 ```angular2html
 cd mermaid && mkdir pretrained && cd pretrained
-wget https://drive.google.com/open?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
+gdown https://drive.google.com/uc?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
 ```
 
 Overall the usage is the same as the optimization version.\
+(Make sure the path settings in pipline is correct)
 Several extra settings need to be done in main function in pipeline.py
 ```
 use_nifti=True

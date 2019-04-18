@@ -8,7 +8,7 @@ from oai_image_analysis import OAIImageAnalysis
 from registration.registers import NiftyReg, AVSMReg
 from segmentation.segmenter import Segmenter3DInPatchClassWise
 
-ATLAS_IMAGE_PATH = os.path.join(os.getcwd(), "atlas/atlas_60_LEFT_baseline_NMI/atlas.nii.gz")
+ATLAS_IMAGE_PATH = '/playpen/zyshen/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas.nii.gz'
 # ATLAS_FC_MESH_PATH = "/playpen/zhenlinx/Code/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas_FC_inner_mesh_world.ply"
 # ATLAS_TC_MESH_PATH = "/playpen/zhenlinx/Code/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas_TC_inner_mesh_world.ply"
 # ATLAS_FC_2D_MAP_PATH = "./data/FC_inner_optional_embedded.npy"
@@ -67,8 +67,8 @@ def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     # analyzer.segment_image_and_save_results(test_image, overwrite=False)
     # analyzer.close_segmenter()
     analyzer.extract_surface_mesh(test_image, overwrite=False)
-    analyzer.register_image_to_atlas(test_image, False)
-    analyzer.warp_mesh(test_image, False)
+    analyzer.register_image_to_atlas(test_image, True)
+    analyzer.warp_mesh(test_image, True)
     #analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH,ATLAS_TC_2D_MAP_PATH)
     analyzer.compute_atlas_2D_map(n_jobs=None)

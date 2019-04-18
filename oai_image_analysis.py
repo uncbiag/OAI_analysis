@@ -287,7 +287,6 @@ class OAIImageAnalysis:
         TODO: implement the method to project thickness from 3D mesh to 2D grid,
          and save the file to oai_image.FC_2D_thickness_grid and oai_image.TC_2D_thickness_grid
         """
-        NotImplementedError()
         map_thickness_to_2D_projection(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file,self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map')
         map_thickness_to_2D_projection(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file,self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map')
 
