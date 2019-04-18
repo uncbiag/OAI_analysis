@@ -70,6 +70,9 @@ class AVSMReg(Register):
     def register_bspline(self, *args, **kwargs):
         pass
 
+    def warp_image(self, *args, **kwargs):
+        pass
+
     def _get_inv_transfrom_map(self):
         pass
 

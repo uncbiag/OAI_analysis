@@ -13,8 +13,8 @@ ATLAS_IMAGE_PATH = '/playpen/zyshen/OAI_analysis/atlas/atlas_60_LEFT_baseline_NM
 # ATLAS_TC_MESH_PATH = "/playpen/zhenlinx/Code/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas_TC_inner_mesh_world.ply"
 # ATLAS_FC_2D_MAP_PATH = "./data/FC_inner_optional_embedded.npy"
 # ATLAS_TC_2D_MAP_PATH = "./data/TC_inner_optional_embedded.npy"
-ATLAS_FC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_FC_inner.ply")
-ATLAS_TC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_TC_inner.ply")
+ATLAS_FC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_FC_inner_mesh_world.ply")
+ATLAS_TC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_TC_inner_mesh_world.ply")
 ATLAS_FC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/FC_inner_embedded.npy")
 ATLAS_TC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/TC_inner_embedded.npy")
 
@@ -77,10 +77,10 @@ def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     # analyzer.get_surface_distances_eval()
 
 
-def demo_analyze_cohort():
+def demo_analyze_cohort(use_nifti,avsm_path=None, avsm_output_path=None):
     OAI_data_sheet = "data/SEG_3D_DESS_6visits.csv"
     OAI_data = OAIData(OAI_data_sheet, '/playpen-raid/data/OAI')
-    OAI_data.set_processed_data_paths('/playpen-raid/zhenlinx/Data/OAI_image_analysis')
+    OAI_data.set_processed_data_paths('/playpen/zyshen/oai_data/OAI_image_analysis',None if use_nifti else 'avsm')
 
     patients_ASCII_file_path = "data/Enrollees.txt"
     oai_patients = OAIPatients(patients_ASCII_file_path)
@@ -91,7 +91,7 @@ def demo_analyze_cohort():
                                                     part='LEFT_KNEE')
 
     subcohort_images = progression_cohort_images[:2]  # 100 patients of progression cohort, 6 visiting each
-    analyzer = build_default_analyzer()
+    analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path, avsm_output_path=avsm_output_path)
 
     # analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
     for test_image in subcohort_images:
@@ -100,10 +100,12 @@ def demo_analyze_cohort():
 
     for i, test_image in enumerate(subcohort_images):
         print("\n[{}] {}\n".format(i, test_image.name))
-        analyzer.register_image_to_atlas_NiftyReg(test_image, True)
+        analyzer.register_image_to_atlas(test_image, True)
         analyzer.extract_surface_mesh(test_image, overwrite=True)
         analyzer.warp_mesh(test_image, False)
         analyzer.eval_registration_surface_distance(test_image)
+        analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH, ATLAS_TC_2D_MAP_PATH)
+        analyzer.compute_atlas_2D_map(n_jobs=None)
         analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.get_surface_distances_eval()
 
@@ -112,4 +114,5 @@ if __name__ == '__main__':
     use_nifti=False
     avsm_path = "/playpen/zyshen/reg_clean"
     avsm_output_path = '/playpen/zyshen/debugs/0414'
-    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
+    #demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
+    demo_analyze_cohort(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
