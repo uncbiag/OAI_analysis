@@ -139,6 +139,7 @@ class AVSMReg(Register):
         warped_points = self.warp_points(points, inv_map, reference_image_file)
         warped_points = csp.voxel_to_world_coord(warped_points,transform)
         csp.modify_mesh_with_new_vertices(mesh_file, warped_points, warped_mesh_file)
+        os.remove(inv_transform_file)
         return warped_mesh_file
 
 
