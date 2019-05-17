@@ -57,7 +57,7 @@ def build_default_analyzer(ckpoint_folder=None, use_nifty=True,avsm_path=None, a
     return analyzer
 
 
-def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
+def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None,do_clean=False):
     OAI_data_sheet = "./data/SEG_3D_DESS_6visits.csv"
     OAI_data = OAIData(OAI_data_sheet, '/playpen/zhenlinx/data/OAI')
     OAI_data.set_processed_data_paths('/playpen/zyshen/oai_data/OAI_image_analysis',None if use_nifti else 'avsm')
@@ -68,7 +68,7 @@ def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     # analyzer.close_segmenter()
     analyzer.extract_surface_mesh(test_image, overwrite=False)
     analyzer.register_image_to_atlas(test_image, True)
-    analyzer.warp_mesh(test_image, True)
+    analyzer.warp_mesh(test_image, overwrite=True,do_clean=do_clean)
     #analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH,ATLAS_TC_2D_MAP_PATH)
     analyzer.compute_atlas_2D_map(n_jobs=None)
@@ -77,7 +77,7 @@ def demo_analyze_single_image(use_nifti,avsm_path=None, avsm_output_path=None):
     # analyzer.get_surface_distances_eval()
 
 
-def demo_analyze_cohort(use_nifti,avsm_path=None, avsm_output_path=None):
+def demo_analyze_cohort(use_nifti,avsm_path=None, avsm_output_path=None,do_clean=False):
     OAI_data_sheet = "data/SEG_3D_DESS_6visits.csv"
     OAI_data = OAIData(OAI_data_sheet, '/playpen-raid/data/OAI')
     OAI_data.set_processed_data_paths('/playpen/zyshen/oai_data/OAI_image_analysis',None if use_nifti else 'avsm')
@@ -102,7 +102,7 @@ def demo_analyze_cohort(use_nifti,avsm_path=None, avsm_output_path=None):
         print("\n[{}] {}\n".format(i, test_image.name))
         analyzer.register_image_to_atlas(test_image, True)
         analyzer.extract_surface_mesh(test_image, overwrite=True)
-        analyzer.warp_mesh(test_image, False)
+        analyzer.warp_mesh(test_image, overwrite=True,do_clean=do_clean)
         analyzer.eval_registration_surface_distance(test_image)
         analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH, ATLAS_TC_2D_MAP_PATH)
         analyzer.compute_atlas_2D_map(n_jobs=None)
@@ -114,5 +114,5 @@ if __name__ == '__main__':
     use_nifti=False
     avsm_path = "/playpen/zyshen/reg_for_analysis"
     avsm_output_path = '/playpen/zyshen/debugs/0414'
-    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
+    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path,do_clean=False)
     #demo_analyze_cohort(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)

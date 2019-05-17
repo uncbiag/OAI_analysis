@@ -218,7 +218,7 @@ class OAIImageAnalysis:
                                            output_control_point=oai_image.bspline_transform_file,
                                            **self.bspline_config)
 
-    def warp_mesh(self, oai_image, overwrite=False):
+    def warp_mesh(self, oai_image, overwrite=False, do_clean=False):
 
         # oai_image.warped_FC_mesh = os.path.join(oai_image.folder, "FC_mesh_world_to_atlas.ply")
         # oai_image.warped_TC_mesh = os.path.join(oai_image.folder, "TC_mesh_world_to_atlas.ply")
@@ -237,13 +237,13 @@ class OAIImageAnalysis:
                                     oai_image.inv_transform_to_atlas,
                                     oai_image.preprocessed_image_file,
                                     oai_image.warped_FC_mesh_file,
-                                    inWorld=True)
+                                    inWorld=True,do_clean=do_clean)
         if overwrite or (not os.path.isfile(oai_image.warped_TC_mesh_file)):
             self.register.warp_mesh(oai_image.TC_mesh_file,
                                     oai_image.inv_transform_to_atlas,
                                     oai_image.preprocessed_image_file,
                                     oai_image.warped_TC_mesh_file,
-                                    inWorld=True)
+                                    inWorld=True,do_clean=do_clean)
 
     def eval_registration_surface_distance(self, oai_image):
         # messure the surface distance between the warped mesh and the atlas mesh

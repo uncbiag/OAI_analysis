@@ -115,7 +115,7 @@ class AVSMReg(Register):
         return points_wraped
 
 
-    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False):
+    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False, do_clean=False):
         """
         warp a surface mesh with given transform (affine, bspline et al.)
 
@@ -139,7 +139,8 @@ class AVSMReg(Register):
         warped_points = self.warp_points(points, inv_map, reference_image_file)
         warped_points = csp.voxel_to_world_coord(warped_points,transform)
         csp.modify_mesh_with_new_vertices(mesh_file, warped_points, warped_mesh_file)
-        os.remove(inv_transform_file)
+        if do_clean:
+            os.remove(inv_transform_file)
         return warped_mesh_file
 
 
@@ -283,7 +284,7 @@ class NiftyReg(Register):
         """
         self.__reg_transform(land=(transform_file, input_points_file, output_landmark_file), ref=ref_image, omp=num_proc)
 
-    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False, remove=True):
+    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False, remove=True, do_clean=False):
         """
         warp a surface mesh with given transform (affine, bspline et al.)
 
