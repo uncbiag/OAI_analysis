@@ -54,6 +54,10 @@ pip install -r requirements.txt
 cd mermaid && mkdir pretrained && cd pretrained
 gdown https://drive.google.com/uc?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
 ```
+* Set the model path.\
+Open settings/avsm/cur_task_settings.json 
+Change the 'model_path' into "YOUR_REGISTRATION_NET_FOLDER_PATH/mermaid/pre_trained/pre_trained_model"
+
 
 Overall the usage is the same as the optimization version.\
 (Make sure the path settings in pipline is correct) \

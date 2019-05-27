@@ -114,5 +114,5 @@ if __name__ == '__main__':
     use_nifti=False
     avsm_path = "/playpen/zyshen/reg_for_analysis"
     avsm_output_path = '/playpen/zyshen/debugs/0414'
-    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path,do_clean=False)
+    demo_analyze_single_image(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path,do_clean=True)
     #demo_analyze_cohort(use_nifti=use_nifti,avsm_path=avsm_path,avsm_output_path=avsm_output_path)
