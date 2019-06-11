@@ -12,7 +12,7 @@ import sys
 sys.path.append(os.path.realpath('..'))
 import torch
 from misc.str_ops import replace_extension
-
+import shutil
 
 class Register(ABC):
     @abstractmethod
@@ -42,28 +42,28 @@ class Register(ABC):
 
 
 class AVSMReg(Register):
-    def __init__(self,avsm_path=None,output_path=None):
+    def __init__(self,avsm_path=None):
         super(AVSMReg,self).__init__()
         self.avsm_path = avsm_path
         cur_dir = os.getcwd()
         self.refering_task_path= os.path.join(cur_dir, 'settings/avsm')
         self.mermaid_setting_path=os.path.join(cur_dir, 'settings/avsm/mermaid_setting.json')
-        self.output_path = output_path
 
     def register_image(self,target_path, moving_path,lmoving_path=None, ltarget_path=None,gpu_id=0,oai_image=None):
+        output_path = os.path.join(os.path.split(oai_image.inv_transform_to_atlas)[0],'detailed')
         cmd = ''
         cmd +='python single_pair_atlas_registration.py -rt {} \
         -s  {}  -t {}  -ls {}  -lt {}\
         -ms {}\
         -o {}\
-         -g {}'.format(self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,self.output_path,gpu_id)
+         -g {}'.format(self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,output_path,gpu_id)
         wd = os.getcwd()
         #subprocess.run('source activate torch4 && {} && source deactivate'.format(cmd),cwd=self.avsm_path, shell=True)
         process = subprocess.Popen(cmd, cwd=self.avsm_path,shell=True)
         process.wait()
         os.chdir(wd)
-        os.rename(os.path.join(self.output_path,'reg/res/records/original_sz/image_preprocessed_atlas_inv_phi.nii.gz'),oai_image.inv_transform_to_atlas)
-
+        os.rename(os.path.join(output_path,'reg/res/records/original_sz/image_preprocessed_atlas_inv_phi.nii.gz'),oai_image.inv_transform_to_atlas)
+        shutil.rmtree(output_path)
     def register_affine(self, *args, **kwargs):
         pass
 
