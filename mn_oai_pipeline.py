@@ -11,7 +11,6 @@ import random
 import shutil
 
 ATLAS_IMAGE_PATH = '/playpen/oai/OAI_analysis/atlas/atlas_60_LEFT_baseline_NMI/atlas.nii.gz'
-
 ATLAS_FC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_FC_inner_mesh_world.ply")
 ATLAS_TC_MESH_PATH = os.path.join(os.getcwd(),"data/atlas_TC_inner_mesh_world.ply")
 ATLAS_FC_2D_MAP_PATH = os.path.join(os.getcwd(), "data/FC_inner_embedded.npy")
@@ -113,9 +112,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False):
         analyzer.compute_atlas_2D_map(n_jobs=None)
         analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
         analyzer.project_thickness_to_2D(test_image, overwrite=overwrite)
-
     analyzer.get_surface_distances_eval()
-
 
 if __name__ == '__main__':
     use_nifti=False
