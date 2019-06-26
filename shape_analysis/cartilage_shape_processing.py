@@ -621,7 +621,7 @@ def __generate_mask(vertice, mask, interx, intery, startx, starty):
                 mask[k, j] = False
     return mask
 
-def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickness=-1., fpth=None,name=''):
+def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickness=-1., fpth_np=None, fpth_png=None, name=''):
 
     xmin, xmax, ymin, ymax = min(embedded[:, 0]), max(embedded[:, 0]), min(embedded[:, 1]), max(embedded[:, 1])
     rangex = xmax - xmin
@@ -638,7 +638,12 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
         thickness[thickness<min_thickness]=min_thickness
     z = thickness
     zi = griddata((x, y), z, (xi, yi), method='linear')
-    zi[mask] = 100
+    #zi[mask] = 100
+    zi[mask] = np.nan
+
+    # zi now has the thickness, we can write this out as a numpy file
+    np.save(file=fpth_np,arr=zi)
+
     contour_num = 80
     maxz = max(z)
     plt.contourf(xi, yi, zi, np.arange(0.01, maxz + maxz / contour_num, maxz / contour_num))
@@ -649,22 +654,31 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
     plt.colorbar().ax.tick_params(labelsize=10)
     font = {'size': 10}
     plt.title(name, font)
-    if fpth is not None:
-        plt.savefig(fpth,dpi=300)
+    if fpth_png is not None:
+        plt.savefig(fpth_png,dpi=300)
         plt.close('all')
     else:
         plt.show()
         plt.clf()
 
 
-def map_thickness_to_2D_projection(atlas_mesh, source_mesh,altas_2d_map_file=None, map_2d_file=None,name=''):
+def map_thickness_to_2D_projection(atlas_mesh, source_mesh, atlas_2d_map_file=None, map_2d_base_filename=None, name='', overwrite=False):
     """
     Map thickness of a registered mesh to the atlas mesh
     :param atlas_mesh: atlas mesh which the source mesh was registered to
     :param source_mesh: the mesh with thickness that has been registered to atlas space
-    :param map_2d_file: the file to save the 2d contour with mapped thickness
+    :param map_2d_base_filename: base filename to save the 2d contour with mapped thickness (as png) and the raw values as a numpy array
     :return: atlas mesh with mapped thickness
     """
+
+    map_2d_file_np = map_2d_base_filename # numpy will automatically add .npy as suffix
+    map_2d_file_png = map_2d_base_filename + '.png'
+
+    if overwrite is False:
+        if os.path.exists(map_2d_file_np) and os.path.exists(map_2d_file_png):
+            print('Thickness 2D projection, not recomputing as {} and {} exist.'.format(map_2d_file_np,map_2d_file_png))
+            return
+
     if type(atlas_mesh) == str:
         atlas_mesh = pymesh.load_mesh(atlas_mesh)
     elif isinstance(atlas_mesh) == pymesh.Mesh:
@@ -678,11 +692,11 @@ def map_thickness_to_2D_projection(atlas_mesh, source_mesh,altas_2d_map_file=Non
     # first : map_thickness_to_atlas_mesh
     pymesh.map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness')
     # second: load atlas 2d map
-    embedded = np.load(altas_2d_map_file)
+    embedded = np.load(atlas_2d_map_file)
     # third:  do projection
     thickness = atlas_mesh.get_attribute("vertex_thickness")
     thickness = thickness.copy()
-    __map_thickness_to_2D_projection(embedded, thickness, ninter=300, min_thickness=-1,fpth=map_2d_file,name=name)
+    __map_thickness_to_2D_projection(embedded, thickness, ninter=300, min_thickness=-1,fpth_np=map_2d_file_np,fpth_png=map_2d_file_png, name=name)
 
 def surface_distance(source_mesh, target_mesh):
     """

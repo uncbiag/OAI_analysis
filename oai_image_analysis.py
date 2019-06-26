@@ -51,13 +51,13 @@ class OAIImageAnalysis:
         for i, altas_2D_file in enumerate(altas_2D_file_list):
             if not os.path.isfile(altas_2D_file):
                 os.makedirs(os.path.split(altas_2D_file)[1],exist_ok=True)
-                print("the {} is not exist, now compute the 2d map from atlas, it will take hours, if the default setting out of memory, you may need to use"
+                print("The file {} does not exist, now compute the 2d map from atlas, it will take hours, if the default setting out of memory, you may need to use"
                       "less processers, change 'n_jobs' in MDS ".format(altas_2D_file))
                 mesh = pymesh.load_mesh(altas_file_list[i])
                 vertices = mesh.vertices
                 embedded = mds.fit_transform(vertices)
                 np.save(altas_2D_file, embedded)
-                print("complete, the 2D map is saved into {}".format(altas_2D_file))
+                print("Completed. The 2D map is saved into {}".format(altas_2D_file))
 
     def set_atlas_2D_map(self,atlas_FC_2D_map_file='./atlas/FC_inner_embedded.npy', atlas_TC_2D_map_file='./atlas/TC_inner_embedded.npy'):
         self.atlas_FC_2D_map_file = atlas_FC_2D_map_file
@@ -255,11 +255,11 @@ class OAIImageAnalysis:
         print("TC distance: max:{:.4f}, min:{:.4f}, median:{:.4f}, 95 percent {:.4f}".format(dist_max_TC, dist_min_TC, dist_median_TC,
                                                                             dist_95p_TC))
         self.surface_distance_FC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
-        self.surface_distance_TC.append(np.array([[dist_max_FC, dist_min_FC,dist_median_FC, dist_95p_FC]]))
+        self.surface_distance_TC.append(np.array([[dist_max_TC, dist_min_TC,dist_median_TC, dist_95p_TC]]))
 
     def get_surface_distances_eval(self):
         FC_distances = np.vstack(self.surface_distance_FC)
-        TC_distances = np.vstack(self.surface_distance_FC)
+        TC_distances = np.vstack(self.surface_distance_TC)
         FC_means = FC_distances.mean(axis=0)
         FC_std = FC_distances.std(axis=0)
         TC_means = TC_distances.mean(axis=0)
@@ -287,8 +287,8 @@ class OAIImageAnalysis:
         TODO: implement the method to project thickness from 3D mesh to 2D grid,
          and save the file to oai_image.FC_2D_thickness_grid and oai_image.TC_2D_thickness_grid
         """
-        map_thickness_to_2D_projection(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file,self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map')
-        map_thickness_to_2D_projection(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file,self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map')
+        map_thickness_to_2D_projection(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file,self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map',overwrite=overwrite)
+        map_thickness_to_2D_projection(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file,self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map',overwrite=overwrite)
 
     def preprocess_parallel(self, image_list, n_workers=10, overwrite=False):
         with Pool(processes=n_workers) as pool:

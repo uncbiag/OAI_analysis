@@ -309,9 +309,8 @@ class OAIImage:
         self.TC_thickness_mapped_to_atlas_mesh = os.path.join(task_folder, "atlas_TC_mesh_with_thickness.ply")
 
         # TODO: naming the file of 2d thickness grid
-        self.FC_2D_thickness_grid = os.path.join(task_folder, "FC_2d_thickness.png")
-        self.TC_2D_thickness_grid = os.path.join(task_folder, "TC_2d_thickness.png")
-
+        self.FC_2D_thickness_grid = os.path.join(task_folder, "FC_2d_thickness")
+        self.TC_2D_thickness_grid = os.path.join(task_folder, "TC_2d_thickness")
 
     def get_dataframe_line(self):
         return pd.DataFrame([self.__dict__])
