@@ -21,11 +21,12 @@ OAI_DATA_PATH = '/net/biag-raid/playpen/data/OAI' # /playpen/zhenlinx/data/OAI' 
 OAI_ANALYSIS_RESULTS_OUTPUT_PATH = '/net/biag-raid1/playpen/oai_analysis_results' # '/playpen/zyshen/oai_data/OAI_image_analysis'
 
 AVSM_PATH = '/playpen/oai/registration_net'
+PYTHON_EXECUTABLE = '/playpen/conda_envs/envs/oai_mn/bin/python' # in case we are dealing with a virtual environment for remote debugging
 
 def build_default_analyzer(ckpoint_folder=None, use_nifty=True,avsm_path=None):
     niftyreg_path = NIFTY_REG_PATH
     avsm_path = avsm_path + '/demo'
-    register = NiftyReg(niftyreg_path) if use_nifty else AVSMReg(avsm_path)
+    register = NiftyReg(niftyreg_path) if use_nifty else AVSMReg(avsm_path=avsm_path,python_executable=PYTHON_EXECUTABLE)
     if not ckpoint_folder:
         ckpoint_folder = "./segmentation/ckpoints/UNet_bias_Nifti_rescaled_LEFT_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01272019_212723"
     segmenter_config = dict(
@@ -93,7 +94,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False):
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
                                                     part='LEFT_KNEE')
 
-    subcohort_images = progression_cohort_images[10:11]  # 100 patients of progression cohort, 6 visiting each
+    subcohort_images = progression_cohort_images[16:17]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
