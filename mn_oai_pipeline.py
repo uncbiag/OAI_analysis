@@ -93,7 +93,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False):
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
                                                     part='LEFT_KNEE')
 
-    subcohort_images = progression_cohort_images[:2]  # 100 patients of progression cohort, 6 visiting each
+    subcohort_images = progression_cohort_images[10:11]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)

@@ -189,7 +189,9 @@ class OAIImageAnalysis:
 
 
     def register_image_to_atlas_AVSM(self,oai_image,overwrite=False, gpu_id=0):
-        if overwrite:
+        if (not overwrite) and os.path.isfile(oai_image.inv_transform_to_atlas):
+            print("{} exists; not recomputing.".format(oai_image.inv_transform_to_atlas))
+        else:
             self.register.register_image(self.atlas_image_file, oai_image.preprocessed_image_file,
                                          lmoving_path=None, ltarget_path=None,
                                          gpu_id=gpu_id,oai_image=oai_image)
