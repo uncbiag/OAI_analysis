@@ -300,8 +300,8 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
         ValueError("Cartilage can only be FC or TC")
 
     # computer vertex distances to opposite surface
-    inner_thickness = pymesh.distance_to_mesh(outer_mesh, inner_mesh.vertices)[0]
-    outer_thickness = pymesh.distance_to_mesh(inner_mesh, outer_mesh.vertices)[0]
+    inner_thickness = np.sqrt(pymesh.distance_to_mesh(outer_mesh, inner_mesh.vertices)[0])
+    outer_thickness = np.sqrt(pymesh.distance_to_mesh(inner_mesh, outer_mesh.vertices)[0])
 
     # combine into a single thickness list
     thickness = np.zeros(mesh.num_vertices)
@@ -710,7 +710,7 @@ def surface_distance(source_mesh, target_mesh):
     if type(target_mesh) == str:
         target_mesh = pymesh.load_mesh(target_mesh)
 
-    distances, _, _ = pymesh.distance_to_mesh(target_mesh, source_mesh.vertices)
+    distances, _, _ = np.sqrt(pymesh.distance_to_mesh(target_mesh, source_mesh.vertices))
 
     return np.max(distances), np.min(distances), np.median(distances), np.percentile(distances, 95)
 
