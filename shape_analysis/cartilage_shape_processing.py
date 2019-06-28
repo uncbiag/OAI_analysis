@@ -710,7 +710,8 @@ def surface_distance(source_mesh, target_mesh):
     if type(target_mesh) == str:
         target_mesh = pymesh.load_mesh(target_mesh)
 
-    distances, _, _ = np.sqrt(pymesh.distance_to_mesh(target_mesh, source_mesh.vertices))
+    distances_sqr, _, _ = pymesh.distance_to_mesh(target_mesh, source_mesh.vertices)
+    distances = np.sqrt(distances_sqr)
 
     return np.max(distances), np.min(distances), np.median(distances), np.percentile(distances, 95)
 

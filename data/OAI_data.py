@@ -60,6 +60,13 @@ class OAIData:
         for image in self.images:
             image.set_processed_data_paths(proceesed_data_root,task_name)
 
+    def set_processed_data_paths_without_creating_image_directories(self, proceesed_data_root='',task_name=None):
+        """Set the root folder where the processed data are saved"""
+        self.root_path = proceesed_data_root
+        for image in self.images:
+            image.set_processed_data_paths_without_creating_directories(proceesed_data_root,task_name)
+
+
     def build_repositories(self):
         """
         Build nested repositories for patients to save processed OAI data
@@ -285,7 +292,11 @@ class OAIImage:
     def name(self):
         return "_".join([str(self.patient_id), self.visit_description[self.visit_month], self.part, self.modality])
 
-    def set_processed_data_paths(self, processed_root,task_name=None):
+    def create_output_directory(self,task_name=None):
+        task_folder = os.path.join(self.folder, task_name) if task_name else self.folder
+        os.makedirs(task_folder, exist_ok=True)
+
+    def set_processed_data_paths_without_creating_directories(self, processed_root,task_name=None):
         """
         According to the root path of processed data, setup the path of all analysis file
         :param processed_root:
@@ -293,8 +304,9 @@ class OAIImage:
         """
         self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
                                    self.visit_description[self.visit_month])
+
         task_folder = os.path.join(self.folder,task_name) if task_name else self.folder
-        os.makedirs(task_folder,exist_ok=True)
+
         self.preprocessed_image_file = os.path.join(self.folder, 'image_preprocessed.nii.gz')
         self.FC_probmap_file = os.path.join(self.folder, 'FC_probmap.nii.gz')
         self.TC_probmap_file = os.path.join(self.folder, 'TC_probmap.nii.gz')
@@ -311,6 +323,22 @@ class OAIImage:
         # TODO: naming the file of 2d thickness grid
         self.FC_2D_thickness_grid = os.path.join(task_folder, "FC_2d_thickness")
         self.TC_2D_thickness_grid = os.path.join(task_folder, "TC_2d_thickness")
+
+
+    def set_processed_data_paths(self, processed_root,task_name=None):
+        """
+        According to the root path of processed data, setup the path of all analysis file
+        :param processed_root:
+        :return:
+        """
+        self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
+                                   self.visit_description[self.visit_month])
+
+        self.create_output_directory(task_name=task_name)
+
+        self.set_processed_data_paths_without_creating_directories(processed_root=
+                                                                   processed_root,task_name=task_name)
+
 
     def get_dataframe_line(self):
         return pd.DataFrame([self.__dict__])
