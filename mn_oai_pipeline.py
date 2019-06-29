@@ -86,7 +86,7 @@ def demo_analyze_single_image(use_nifti,avsm_path=None,do_clean=False):
     # analyzer.get_surface_distances_eval()
 
 
-def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,task_id=None,data_division_interval=None,data_division_offset=None):
+def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False, just_get_number_of_images = False, task_id=None,data_division_interval=None,data_division_offset=None):
 
     OAI_data_sheet = PARAMS['oai_data_sheet']
     OAI_data = OAIData(OAI_data_sheet, PARAMS['oai_data_directory'])
@@ -102,7 +102,21 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,tas
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
                                                     part='LEFT_KNEE')
 
-    subcohort_images = progression_cohort_images[16:17]  # 100 patients of progression cohort, 6 visiting each
+    if just_get_number_of_images:
+        print('Number of images that would be analyzed = {}'.format(len(progression_cohort_images)))
+        return
+
+    if task_id is not None:
+        subcohort_images = progression_cohort_images[task_id:task_id+1]  # 100 patients of progression cohort, 6 visiting each
+    else:
+        if (data_division_interval is not None) and (data_division_offset is not None):
+            subcohort_images = progression_cohort_images[data_division_offset::data_division_interval]
+            print('data_division_interval = {}; data_division_offset = {}'.format(data_division_interval,data_division_offset))
+        else:
+            # just process all of them
+            print('Processing all {} images.'.format(len(progression_cohort_images)))
+            subcohort_images = progression_cohort_images
+
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
@@ -171,10 +185,10 @@ if __name__ == '__main__':
     DEFAULT['config'] = '~/.oai_analysis_settings.json'
 
     HELP['config_out'] = 'The used json configuration file that the configuration should be written to in the end.'
-    DEFAULT['config_out'] = 'tst_out_oai_analysis_settings.json'
+    DEFAULT['config_out'] = None
 
     HELP['config_comment_out'] = 'The used json configuration file that the configuration comments should be written to in the end.'
-    DEFAULT['config_comment_out'] = 'tst_out_oai_analysis_settings_comments.json'
+    DEFAULT['config_comment_out'] = None
 
     HELP['output_directory'] = 'Directory where the analysis results will be stored.'
     DEFAULT['output_directory'] = '/net/biag-raid1/playpen/oai_analysis_results'
@@ -300,4 +314,12 @@ if __name__ == '__main__':
             data_division_offset = None
 
 
-    analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'])
+    analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'],
+                   just_get_number_of_images=args.get_number_of_jobs,
+                   task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset)
+
+    if args.config_out is not None:
+        PARAMS.write_JSON(args.config_out)
+
+    if args.config_comment_out is not None:
+        PARAMS.write_JSON_comments(args.config_comment_out)
