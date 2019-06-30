@@ -178,9 +178,13 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
 
     while True:
 
+        # mn test; todo maybe, remove again; use fix_mesh instead?
+        mesh, _ = pymesh.remove_duplicated_vertices(mesh)
+
         with Pool(processes=n_workers, initializer=mesh_process_pool_init, initargs=(mesh,)) as pool:
             smoothed_label = pool.map(partial(smooth_face_label, face_labels=face_labels, smooth_rings=smooth_rings),
                                       range(len(face_labels)))
+
         smoothed_label = np.array(smoothed_label)
 
         inner_face_list = np.where(smoothed_label == -1)[0]
@@ -299,6 +303,13 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
     else:
         ValueError("Cartilage can only be FC or TC")
 
+    # do this later, in case there was some mesh processing
+    inner_mesh.add_attribute("vertex_index")
+    inner_mesh.add_attribute("vertex_normal")
+
+    outer_mesh.add_attribute("vertex_index")
+    outer_mesh.add_attribute("vertex_normal")
+
     # computer vertex distances to opposite surface
     inner_thickness = np.sqrt(pymesh.distance_to_mesh(outer_mesh, inner_mesh.vertices)[0])
     outer_thickness = np.sqrt(pymesh.distance_to_mesh(inner_mesh, outer_mesh.vertices)[0])
@@ -351,10 +362,12 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
         print("Compute FC mesh thickness")
         FC_thickness = compute_mesh_thickness(FC_mesh_main, cartilage='FC', smooth_rings=10, max_rings=None,
                                               n_workers=20)
+        print('Done computing FC mesh thickness')
 
         print("Compute TC mesh thickness")
         TC_thickness = compute_mesh_thickness(TC_mesh_main, cartilage='TC', smooth_rings=10, max_rings=None,
                                               n_workers=20)
+        print('Done computing TC mesh thickness')
 
     # if transform:
     #     FC_mesh_main = pymesh.form_mesh(voxel_to_world_coord(FC_mesh_main.vertices, transform),

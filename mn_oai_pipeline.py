@@ -130,6 +130,15 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False, ju
     analyzer.close_segmenter()
 
     for i, test_image in enumerate(subcohort_images):
+
+        # # current thickness images
+        # thickness_npy_file_FC = test_image.FC_2D_thickness_grid + '.npy'
+        # thickness_npy_file_TC = test_image.TC_2D_thickness_grid + '.npy'
+
+        # if os.path.isfile(thickness_npy_file_FC) and os.path.isfile(thickness_npy_file_TC):
+        #     print('DEBUG: thickness has already been computed. Skipping')
+        # else:
+        
         print("\n[{}] {}\n".format(i, test_image.name))
         analyzer.register_image_to_atlas(test_image, overwrite=overwrite)
         analyzer.extract_surface_mesh(test_image, overwrite=overwrite)
@@ -139,6 +148,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False, ju
         analyzer.compute_atlas_2D_map(n_jobs=None)
         analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
         analyzer.project_thickness_to_2D(test_image, overwrite=overwrite)
+
     analyzer.get_surface_distances_eval()
 
 def get_parameter_value(command_line_par,params, params_name, default_val, params_description):
