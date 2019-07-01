@@ -151,12 +151,23 @@ def smooth_face_label(id, face_labels, smooth_rings):
     neighbor_faces = get_neighbors(MESH, id, 'face', search_range=smooth_rings)
 
     if np.sum(face_labels[neighbor_faces]) < 0:
-        return 1
-    elif np.sum(face_labels[neighbor_faces]) > 0:
         return -1
+    elif np.sum(face_labels[neighbor_faces]) > 0:
+        return 1
     else:
         return face_labels[id]
 
+def smooth_face_label_single_core(mesh, id, face_labels, smooth_rings):
+    smoothed_labels = np.zeros(face_labels.shape)
+    for id in range(len(face_labels)):
+        neighbor_faces = get_neighbors(mesh, id, 'face', search_range=smooth_rings)
+        if np.sum(face_labels[neighbor_faces]) < 0:
+            smoothed_labels[id] = -1
+        elif np.sum(face_labels[neighbor_faces]) > 0:
+            smoothed_labels[id] = 1
+        else:
+            smoothed_labels[id] = face_labels[id]
+    return smoothed_labels
 
 def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_workers=2):
     """
@@ -169,6 +180,14 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
     :returns inner_mesh(label -1, surface touching bones), outer_mesh(label 1),
     inner_face_list(face indices of inner mesh), outer_face_list(face indices of outer mesh)
     """
+    if smooth_rings == 0:
+        inner_face_list = np.where(face_labels == -1)[0]
+        outer_face_list = np.where(face_labels == 1)[0]
+
+        inner_mesh = pymesh.submesh(mesh, inner_face_list, num_rings=0)
+        outer_mesh = pymesh.submesh(mesh, outer_face_list, num_rings=0)
+        return inner_mesh, outer_mesh, inner_face_list, outer_face_list
+
     if max_rings is None:
         max_rings = smooth_rings
 
@@ -178,9 +197,12 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
 
     while True:
 
-        with Pool(processes=n_workers, initializer=mesh_process_pool_init, initargs=(mesh,)) as pool:
-            smoothed_label = pool.map(partial(smooth_face_label, face_labels=face_labels, smooth_rings=smooth_rings),
-                                      range(len(face_labels)))
+        if n_workers>1:
+            with Pool(processes=n_workers, initializer=mesh_process_pool_init, initargs=(mesh,)) as pool:
+                smoothed_label = pool.map(partial(smooth_face_label, face_labels=face_labels, smooth_rings=smooth_rings),
+                                          range(len(face_labels)))
+        else:
+            smoothed_label = smooth_face_label(mesh, id, face_labels, smooth_rings)
         smoothed_label = np.array(smoothed_label)
 
         inner_face_list = np.where(smoothed_label == -1)[0]
@@ -229,7 +251,8 @@ def split_femoral_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_work
     for k in range(mesh.num_faces):
         connect_direction = center - face_centroid[k, :]
 
-        if np.dot(connect_direction[1:], face_normal[k, 1:]) < 0:
+        # only cares the direction on x-y plane
+        if np.dot(connect_direction[:2], face_normal[k, :2]) < 0:
             inner_outer_label_list[k] = 1
         else:
             inner_outer_label_list[k] = -1
@@ -337,9 +360,9 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
     TC_verts, TC_faces, TC_normals, TC_values = measure.marching_cubes_lewiner(TC_prob, 0.5,
                                                                                spacing=spacing,
                                                                                step_size=1, gradient_direction="ascent")
-    if transform:
-        FC_verts = voxel_to_world_coord(FC_verts, transform)
-        TC_verts = voxel_to_world_coord(TC_verts, transform)
+    # if transform:
+    #     FC_verts = voxel_to_world_coord(FC_verts, transform)
+    #     TC_verts = voxel_to_world_coord(TC_verts, transform)
 
     FC_mesh = pymesh.form_mesh(FC_verts, FC_faces)
     TC_mesh = pymesh.form_mesh(TC_verts, TC_faces)
@@ -356,11 +379,11 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
         TC_thickness = compute_mesh_thickness(TC_mesh_main, cartilage='TC', smooth_rings=10, max_rings=None,
                                               n_workers=20)
 
-    # if transform:
-    #     FC_mesh_main = pymesh.form_mesh(voxel_to_world_coord(FC_mesh_main.vertices, transform),
-    #                                     FC_mesh_main.faces)
-    #     TC_mesh_main = pymesh.form_mesh(voxel_to_world_coord(TC_mesh_main.vertices, transform),
-    #                                     TC_mesh_main.faces)
+    if transform:
+        FC_mesh_main = pymesh.form_mesh(voxel_to_world_coord(FC_mesh_main.vertices, transform),
+                                        FC_mesh_main.faces)
+        TC_mesh_main = pymesh.form_mesh(voxel_to_world_coord(TC_mesh_main.vertices, transform),
+                                        TC_mesh_main.faces)
 
     if thickness:
         FC_mesh_main.add_attribute("vertex_thickness")
