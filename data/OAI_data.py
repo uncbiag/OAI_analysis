@@ -302,8 +302,12 @@ class OAIImage:
         :param processed_root:
         :return:
         """
-        self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
-                                   self.visit_description[self.visit_month])
+        if self.folder is None:
+            self.folder = os.path.join(processed_root,
+                                       str(self.patient_id) if self.patient_id else '',
+                                       self.modality if self.modality else '',
+                                       self.part if self.part else '',
+                                       self.visit_description[self.visit_month] if self.visit_month else '')
 
         task_folder = os.path.join(self.folder,task_name) if task_name else self.folder
 
@@ -331,13 +335,12 @@ class OAIImage:
         :param processed_root:
         :return:
         """
-        self.folder = os.path.join(processed_root, str(self.patient_id), self.modality, self.part,
-                                   self.visit_description[self.visit_month])
+        self.set_processed_data_paths_without_creating_directories(processed_root=
+                                                                   processed_root, task_name=task_name)
 
         self.create_output_directory(task_name=task_name)
 
-        self.set_processed_data_paths_without_creating_directories(processed_root=
-                                                                   processed_root,task_name=task_name)
+
 
 
     def get_dataframe_line(self):

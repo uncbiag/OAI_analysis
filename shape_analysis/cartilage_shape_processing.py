@@ -148,6 +148,14 @@ def mesh_process_pool_init(mesh):
 
 
 def smooth_face_label(id, face_labels, smooth_rings):
+    """
+    Given an id of triangle face, set its label according to the majority of its neighbors' labels
+    This function is for parallel processing as all progresses share the global mesh object MESH
+    :param id:
+    :param face_labels:
+    :param smooth_rings:
+    :return:
+    """
     neighbor_faces = get_neighbors(MESH, id, 'face', search_range=smooth_rings)
 
     if np.sum(face_labels[neighbor_faces]) < 0:
@@ -157,7 +165,15 @@ def smooth_face_label(id, face_labels, smooth_rings):
     else:
         return face_labels[id]
 
-def smooth_face_label_single_core(mesh, id, face_labels, smooth_rings):
+def smooth_face_label_single_core(mesh, face_labels, smooth_rings):
+    """
+    Single process version of smooth the labels of all faces
+    :param mesh:
+    :param face_labels:
+    :param smooth_rings:
+    :return:
+    """
+
     smoothed_labels = np.zeros(face_labels.shape)
     for id in range(len(face_labels)):
         neighbor_faces = get_neighbors(mesh, id, 'face', search_range=smooth_rings)
@@ -171,10 +187,20 @@ def smooth_face_label_single_core(mesh, id, face_labels, smooth_rings):
 
 def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_workers=2):
     """
-    Spatially smooth the binary labels of face labels on a surface mesh
+    Spatially smooth the binary labels of face labels on a surface mesh, the smoothing is done by nearest neighbors
+    The neighbors is controlled by smooth-rings which is defined as the discrete "geodesic" distance to the faces.
+    E.g. smooth_rings=1 will use the faces directly connected to the target face as neighbors,
+        smooth_rings=2 will add the faces directly connected to the ring1 neighbors as neighbors.
+    if smooth_rings = 0, smoothing will not be excuted
+
+    The smoothing will be repeated with +1 smooth_ring until it reachs max_rings or the segmentation is sufficiently
+    smoothed (after segmentation, each connected component in the original mesh is segemented into two connected components).
+
+    When max_ring is None, it will be set as smooth_ring and therefore only one smoothing iteration will be excuted.
+
     :param mesh:
     :param face_labels: The binary labeling have to be -1 or 1
-    :param smooth_rings: size of smoothing rings(kernal size on mesh graph)
+    :param smooth_rings: size of smoothing rings(neighbor range on mesh graph)
     :param max_rings: if max_rings is given, the smooth_rings keeps growing until the smoothed mesh has no additional
     disconnected meshes or reaching maximum iterations
     :returns inner_mesh(label -1, surface touching bones), outer_mesh(label 1),
@@ -197,20 +223,22 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
 
     while True:
         # mn test; todo maybe, remove again; use fix_mesh instead?
-        mesh, _ = pymesh.remove_duplicated_vertices(mesh)
+        # mesh, _ = pymesh.remove_duplicated_vertices(mesh)
 
+        # one iteration of smoothing
         if n_workers>1:
             with Pool(processes=n_workers, initializer=mesh_process_pool_init, initargs=(mesh,)) as pool:
                 smoothed_label = pool.map(partial(smooth_face_label, face_labels=face_labels, smooth_rings=smooth_rings),
                                           range(len(face_labels)))
         else:
-            smoothed_label = smooth_face_label(mesh, id, face_labels, smooth_rings)
-
+            smoothed_label = smooth_face_label_single_core(mesh, face_labels, smooth_rings)
         smoothed_label = np.array(smoothed_label)
 
+        # get faces with each label
         inner_face_list = np.where(smoothed_label == -1)[0]
         outer_face_list = np.where(smoothed_label == 1)[0]
 
+        # get two segmented meshes
         inner_mesh = pymesh.submesh(mesh, inner_face_list, num_rings=0)
         outer_mesh = pymesh.submesh(mesh, outer_face_list, num_rings=0)
 
@@ -244,17 +272,21 @@ def split_femoral_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_work
     mesh.add_attribute("face_normal")
     mesh.add_attribute("face_centroid")
 
+    # face normals are towards the inner of cartilage surface
     face_normal = mesh.get_attribute("face_normal").reshape([-1, 3])
     face_centroid = mesh.get_attribute("face_centroid").reshape([-1, 3])
+
+    # get the center of bounding box of femoral cartilage
     bbox_min, bbox_max = mesh.bbox
     center = (bbox_min + bbox_max) / 2
 
     inner_outer_label_list = np.zeros(mesh.num_faces)  # up:1, down:-1
-
     for k in range(mesh.num_faces):
+        # get the direction from the center to the current face centroid
         connect_direction = center - face_centroid[k, :]
 
-        # only cares the direction on x-y plane
+        # if the direction is the same with the normal, then it is outer side (labeled as -1) of cartilage surface
+        # we only cares the direction on x-y plane
         if np.dot(connect_direction[:2], face_normal[k, :2]) < 0:
             inner_outer_label_list[k] = 1
         else:
@@ -309,7 +341,7 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
     :return:thickness at each vertex of mesh
     """
     mesh.add_attribute("vertex_index")
-    mesh.add_attribute("vertex_normal")
+    # mesh.add_attribute("vertex_normal")
 
     # split the cartilage into inner surface that interfacing the bone and the outer surface
     if cartilage == 'FC':
@@ -325,12 +357,13 @@ def compute_mesh_thickness(mesh, cartilage, smooth_rings=1, max_rings=None, n_wo
     else:
         ValueError("Cartilage can only be FC or TC")
 
+    # you do not need this since inner mesh get vertex index/normal from original mesh
     # do this later, in case there was some mesh processing
-    inner_mesh.add_attribute("vertex_index")
-    inner_mesh.add_attribute("vertex_normal")
-
-    outer_mesh.add_attribute("vertex_index")
-    outer_mesh.add_attribute("vertex_normal")
+    # inner_mesh.add_attribute("vertex_index")
+    # inner_mesh.add_attribute("vertex_normal")
+    #
+    # outer_mesh.add_attribute("vertex_index")
+    # outer_mesh.add_attribute("vertex_normal")
 
     # computer vertex distances to opposite surface
     inner_thickness = np.sqrt(pymesh.distance_to_mesh(outer_mesh, inner_mesh.vertices)[0])
@@ -353,7 +386,8 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
     :param spacing: spacing of segmentation map in H,W,D
     :param prob: if the input segmentation is probability map
     :param transform: the transformation that to map the voxel coordinates (default) of vertices to world coordinates
-                    if None, keep the world coordinates, otherwise it should be a tuple of two numpy arrays (R, T)
+                    if None, keep the voxel coordinates (included the spacing though),
+                    otherwise it should be a tuple of two numpy arrays (R, T)
                     R is a 3x3 rotation matrix and T is the translation vetor of length 3
                     The world coordinates are computed by P_w = P_v x R + T
 
@@ -370,12 +404,12 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
     TC_verts, TC_faces, TC_normals, TC_values = measure.marching_cubes_lewiner(TC_prob, 0.5,
                                                                                spacing=spacing,
                                                                                step_size=1, gradient_direction="ascent")
-    # if transform:
-    #     FC_verts = voxel_to_world_coord(FC_verts, transform)
-    #     TC_verts = voxel_to_world_coord(TC_verts, transform)
 
     FC_mesh = pymesh.form_mesh(FC_verts, FC_faces)
     TC_mesh = pymesh.form_mesh(TC_verts, TC_faces)
+
+    FC_mesh, _ = pymesh.remove_duplicated_vertices(FC_mesh)
+    TC_mesh, _ = pymesh.remove_duplicated_vertices(TC_mesh)
 
     FC_mesh_main = get_largest_mesh(pymesh.separate_mesh(FC_mesh), num_max=1, merge=True)
     TC_mesh_main = get_largest_mesh(pymesh.separate_mesh(TC_mesh), num_max=2, merge=True)
@@ -445,6 +479,7 @@ def get_cartilage_surface_mesh_from_segmentation_file(segmentation_file, thickne
             FC_prob = (segmentation == 1).astype(float)
             TC_prob = (segmentation == 2).astype(float)
 
+        # get rotation matrix and translation vector for mapping from voxel space to world space
         if coord == 'voxel':
             transform = None
         elif coord == 'nifti':
@@ -458,6 +493,7 @@ def get_cartilage_surface_mesh_from_segmentation_file(segmentation_file, thickne
             FC_prob = np.swapaxes(sitk.GetArrayFromImage(segmentation[0]), 0, 2).astype(float)
             TC_prob = np.swapaxes(sitk.GetArrayFromImage(segmentation[1]), 0, 2).astype(float)
 
+            # the np array from itk are ordered in z,y,x
             if coord == 'voxel':
                 transform = None
             elif coord == 'nifti':
@@ -731,6 +767,8 @@ def map_thickness_to_2D_projection(atlas_mesh, source_mesh, atlas_2d_map_file=No
     # third:  do projection
     thickness = atlas_mesh.get_attribute("vertex_thickness")
     thickness = thickness.copy()
+    print(np.where(thickness==0)[0].shape)
+
     __map_thickness_to_2D_projection(embedded, thickness, ninter=300, min_thickness=-1,fpth_np=map_2d_file_np,fpth_png=map_2d_file_png, name=name)
 
 def surface_distance(source_mesh, target_mesh):
