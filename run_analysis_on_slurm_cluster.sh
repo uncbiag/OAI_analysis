@@ -32,4 +32,4 @@ fi
 # Run the job from the directory where it was launched (default)
 
 # The job command(s):
-python mn_oai_pipeline.py ${SLURM_ARRAY_TASK_ID}
+python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --only_recompute_if_thickness_file_is_missing --knee_type LEFT_KNEE --progression_cohort_only
