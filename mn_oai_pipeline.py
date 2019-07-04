@@ -136,7 +136,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         if (data_division_interval is not None) and (data_division_offset is not None):
             subcohort_images = analysis_cohort_images[data_division_offset::data_division_interval]
             print('data_division_interval = {}; data_division_offset = {}'.format(data_division_interval,data_division_offset))
-            process_type_str += 'process type = data_division_interval: {}, data_division_offset: {}'.format(data_division_interval,data_division_interval)
+            process_type_str += 'process type = data_division_interval: {}, data_division_offset: {}'.format(data_division_interval,data_division_offset)
         else:
             # just process all of them
             print('Processing all {} images.'.format(len(analysis_cohort_images)))
