@@ -93,9 +93,10 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                    knee_type='LEFT_KNEE',
                    only_recompute_if_thickness_file_is_missing = False,
                    just_get_number_of_images = False,
-                   task_id=None,data_division_interval=None,data_division_offset=None):
+                   task_id=None,data_division_interval=None,data_division_offset=None,
+                   logging_filename='oai_analysis_log.log'):
 
-    logging.basicConfig(filename='oai_pipeline.log', filemode='a', format='%(name)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename=logging_filename, filemode='a', format='%(name)s - %(levelname)s - %(message)s')
 
     OAI_data_sheet = PARAMS['oai_data_sheet']
     OAI_data = OAIData(OAI_data_sheet, PARAMS['oai_data_directory'])
@@ -268,6 +269,9 @@ if __name__ == '__main__':
     HELP['knee_type'] = 'Can be set to LEFT_KNEE, RIGHT_KNEE, BOTH_KNEES. Specifies what knees should be analyzed.'
     DEFAULT['knee_type'] = 'BOTH_KNEES'
 
+    HELP['logging_filename'] = 'Log file for the analysis which records possible issues while running.'
+    DEFAULT['logging_filename'] = 'oai_analysis_log.log'
+
     # create parser parameters
 
     parser.add_argument('--use_nifty_reg', action='store_true', help=HELP['use_nifty_reg'])
@@ -299,6 +303,8 @@ if __name__ == '__main__':
     parser.add_argument('--progression_cohort_only', action='store_true', help=HELP['progression_cohort_only'])
 
     parser.add_argument('--knee_type', choices=['LEFT_KNEE', 'RIGHT_KNEE', 'BOTH_KNEES'], default=DEFAULT['knee_type'], help=HELP['knee_type'])
+
+    parser.add_argument('--logging_filename', required=False, default=DEFAULT['logging_filename'], help=HELP['logging_filename'])
 
     parser.add_argument('--task_id', required=False, default=None, type=int, help='When running via slurm on a cluster defines the task ID')
 
@@ -370,6 +376,11 @@ if __name__ == '__main__':
                         default_val=DEFAULT['knee_type'],
                         params_description=HELP['knee_type'])
 
+    get_parameter_value(args.logging_filename, params=PARAMS,
+                        params_name='logging_filename',
+                        default_val=DEFAULT['logging_filename'],
+                        params_description=HELP['logging_filename'])
+
     if PARAMS['seed'] is not None:
         print('Setting the random seed to {:}'.format(PARAMS['seed']))
         torch.manual_seed(PARAMS['seed'])
@@ -396,7 +407,8 @@ if __name__ == '__main__':
                        knee_type=PARAMS['knee_type'],
                        only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
                        just_get_number_of_images=args.get_number_of_jobs,
-                       task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset)
+                       task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset,
+                       logging_filename=PARAMS['logging_filename'])
 
     if args.config_out is not None:
         PARAMS.write_JSON(args.config_out)
