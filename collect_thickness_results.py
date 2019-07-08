@@ -34,7 +34,7 @@ def parse_filename(filename, thickness_data,
             femoral_thickness_values[nr_femoral,...] = thickness_values
 
         nr_femoral += 1
-        cartilage_type_id = nr_femoral
+        cartilage_type_id = nr_femoral-1
         print('Added femoral cartilage with id {}'.format(cartilage_type_id))
 
     elif tail[0:2] == 'TC':
@@ -54,7 +54,7 @@ def parse_filename(filename, thickness_data,
             tibial_thickness_values[nr_tibial, ...] = thickness_values
 
         nr_tibial += 1
-        cartilage_type_id = nr_tibial
+        cartilage_type_id = nr_tibial-1
         print('Added tibial cartilage with id {}'.format(cartilage_type_id))
 
     else:
