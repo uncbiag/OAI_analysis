@@ -13,6 +13,8 @@ import torch
 import numpy as np
 import sys
 
+import logging
+
 import module_parameters as pars
 
 # global parameters
@@ -86,7 +88,15 @@ def demo_analyze_single_image(use_nifti,avsm_path=None,do_clean=False):
     # analyzer.get_surface_distances_eval()
 
 
-def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False, just_get_number_of_images = False, task_id=None,data_division_interval=None,data_division_offset=None):
+def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
+                   progression_cohort_only=True,
+                   knee_type='LEFT_KNEE',
+                   only_recompute_if_thickness_file_is_missing = False,
+                   just_get_number_of_images = False,
+                   task_id=None,data_division_interval=None,data_division_offset=None,
+                   logging_filename='oai_analysis_log.log'):
+
+    logging.basicConfig(filename=logging_filename, filemode='a', format='%(name)s - %(levelname)s - %(message)s')
 
     OAI_data_sheet = PARAMS['oai_data_sheet']
     OAI_data = OAIData(OAI_data_sheet, PARAMS['oai_data_directory'])
@@ -96,58 +106,90 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False, ju
 
     patients_ASCII_file_path = PARAMS['oai_enrollees']
     oai_patients = OAIPatients(patients_ASCII_file_path)
-    progression_cohort_patient = oai_patients.filter_patient(V00COHORT='1: Progression')
+    if progression_cohort_only:
+        # todo:: support different selectors here
+        analysis_cohort_patient = oai_patients.filter_patient(V00COHORT='1: Progression')
+        analysis_cohort_patient_6visits = list(analysis_cohort_patient & OAI_data.patient_set)
+    else:
+        analysis_cohort_patient_6visits = list(OAI_data.patient_set)
 
-    progression_cohort_patient_6visits = list(progression_cohort_patient & OAI_data.patient_set)
-    progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
-                                                    part='LEFT_KNEE')
+    if knee_type in ['LEFT_KNEE','RIGHT_KNEE']:
+        part=knee_type
+    elif knee_type=='BOTH_KNEES':
+        part=None
+    else:
+        print('WARNING: unknown knee type {}, defaulting to LEFT_KNEE.'.format(knee_type))
+        part='LEFT_KNEE'
+
+    analysis_cohort_images = OAI_data.get_images(patient_id=analysis_cohort_patient_6visits,
+                                                    part=part)
 
     if just_get_number_of_images:
-        print('Number of images that would be analyzed = {}'.format(len(progression_cohort_images)))
+        print('Number of images that would be analyzed = {}'.format(len(analysis_cohort_images)))
         return
 
+    process_type_str = ''
+
     if task_id is not None:
-        subcohort_images = progression_cohort_images[task_id:task_id+1]  # 100 patients of progression cohort, 6 visiting each
+        subcohort_images = analysis_cohort_images[task_id:task_id+1]
+        process_type_str += 'process type = task_id: {}'.format(task_id)
     else:
         if (data_division_interval is not None) and (data_division_offset is not None):
-            subcohort_images = progression_cohort_images[data_division_offset::data_division_interval]
+            subcohort_images = analysis_cohort_images[data_division_offset::data_division_interval]
             print('data_division_interval = {}; data_division_offset = {}'.format(data_division_interval,data_division_offset))
+            process_type_str += 'process type = data_division_interval: {}, data_division_offset: {}'.format(data_division_interval,data_division_offset)
         else:
             # just process all of them
-            print('Processing all {} images.'.format(len(progression_cohort_images)))
-            subcohort_images = progression_cohort_images
+            print('Processing all {} images.'.format(len(analysis_cohort_images)))
+            subcohort_images = analysis_cohort_images
+            process_type_str += 'process type = all'
 
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
     for test_image in subcohort_images:
 
-        # make output path if it does not exist yet
-        test_image.create_output_directory(task_name=task_name)
+        try:
+            # make output path if it does not exist yet
+            test_image.create_output_directory(task_name=task_name)
 
-        analyzer.preprocess(test_image, overwrite=overwrite)
-        analyzer.segment_image_and_save_results(test_image, overwrite=overwrite)
+            analyzer.preprocess(test_image, overwrite=overwrite)
+            analyzer.segment_image_and_save_results(test_image, overwrite=overwrite)
+        except:
+            error_msg = 'Could not process image: {}; {}'.format(test_image.name, process_type_str)
+            print(error_msg)
+            logging.critical(error_msg)
+
     analyzer.close_segmenter()
 
     for i, test_image in enumerate(subcohort_images):
 
-        # # current thickness images
-        # thickness_npy_file_FC = test_image.FC_2D_thickness_grid + '.npy'
-        # thickness_npy_file_TC = test_image.TC_2D_thickness_grid + '.npy'
+        # current thickness images
+        thickness_npy_file_FC = test_image.FC_2D_thickness_grid + '.npy'
+        thickness_npy_file_TC = test_image.TC_2D_thickness_grid + '.npy'
 
-        # if os.path.isfile(thickness_npy_file_FC) and os.path.isfile(thickness_npy_file_TC):
-        #     print('DEBUG: thickness has already been computed. Skipping')
-        # else:
-        
-        print("\n[{}] {}\n".format(i, test_image.name))
-        analyzer.register_image_to_atlas(test_image, overwrite=overwrite)
-        analyzer.extract_surface_mesh(test_image, overwrite=overwrite)
-        analyzer.warp_mesh(test_image, overwrite=overwrite, do_clean=do_clean)
-        analyzer.eval_registration_surface_distance(test_image)
-        analyzer.set_atlas_2D_map(PARAMS['atlas_fc_2d_map_path'], PARAMS['atlas_tc_2d_map_path'])
-        analyzer.compute_atlas_2D_map(n_jobs=None)
-        analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
-        analyzer.project_thickness_to_2D(test_image, overwrite=overwrite)
+        if os.path.isfile(thickness_npy_file_FC) and os.path.isfile(thickness_npy_file_TC):
+            thickness_files_exist = True
+        else:
+            thickness_files_exist = False
+
+        if only_recompute_if_thickness_file_is_missing and thickness_files_exist:
+            print('DEBUG: thickness has already been computed. Skipping')
+        else:
+            try:
+                print("\n[{}] {}\n".format(i, test_image.name))
+                analyzer.register_image_to_atlas(test_image, overwrite=overwrite)
+                analyzer.extract_surface_mesh(test_image, overwrite=overwrite)
+                analyzer.warp_mesh(test_image, overwrite=overwrite, do_clean=do_clean)
+                analyzer.eval_registration_surface_distance(test_image)
+                analyzer.set_atlas_2D_map(PARAMS['atlas_fc_2d_map_path'], PARAMS['atlas_tc_2d_map_path'])
+                analyzer.compute_atlas_2D_map(n_jobs=None)
+                analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
+                analyzer.project_thickness_to_2D(test_image, overwrite=overwrite)
+            except:
+                error_msg = 'Could not process image: {}, {}'.format(test_image.name, process_type_str)
+                print(error_msg)
+                logging.critical(error_msg)
 
     analyzer.get_surface_distances_eval()
 
@@ -221,6 +263,15 @@ if __name__ == '__main__':
     HELP['data_division_offset'] = 'Specified index offset for data subdivision, i.e., if you run on 4 machines, these machines should get offsets 0, 1, 2, and 3 respectively.'
     DEFAULT['data_division_offset'] = 0
 
+    HELP['progression_cohort_only'] = 'If set, only the progression cohort will be analyzed.'
+    DEFAULT['progression_cohort_only'] = False
+
+    HELP['knee_type'] = 'Can be set to LEFT_KNEE, RIGHT_KNEE, BOTH_KNEES. Specifies what knees should be analyzed.'
+    DEFAULT['knee_type'] = 'BOTH_KNEES'
+
+    HELP['logging_filename'] = 'Log file for the analysis which records possible issues while running.'
+    DEFAULT['logging_filename'] = 'oai_analysis_log.log'
+
     # create parser parameters
 
     parser.add_argument('--use_nifty_reg', action='store_true', help=HELP['use_nifty_reg'])
@@ -249,11 +300,23 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_division_offset', required=False, default=DEFAULT['data_division_offset'], type=int, help=HELP['data_division_offset'])
 
+    parser.add_argument('--progression_cohort_only', action='store_true', help=HELP['progression_cohort_only'])
+
+    parser.add_argument('--knee_type', choices=['LEFT_KNEE', 'RIGHT_KNEE', 'BOTH_KNEES'], default=DEFAULT['knee_type'], help=HELP['knee_type'])
+
+    parser.add_argument('--logging_filename', required=False, default=DEFAULT['logging_filename'], help=HELP['logging_filename'])
+
     parser.add_argument('--task_id', required=False, default=None, type=int, help='When running via slurm on a cluster defines the task ID')
+
+    parser.add_argument('--only_recompute_if_thickness_file_is_missing', action='store_true',
+                        help='If set all recomputations will be surpressed if thickness file is found for an image.')
 
     parser.add_argument('--get_number_of_jobs', action='store_true',
                         help='If set no analysis is run, but the program prints the number of jobs to run (i.e., images to analyze). '
                              'This is useful to set the parameters for SLURM cluster runs w/ run_analysis_on_slurm_cluster.sh')
+
+    parser.add_argument('--do_not_run', action='store_true',
+                        help='If selected the actual analysis is not run, this can be desired to simply write out a configuration file for example.')
 
     args = parser.parse_args()
 
@@ -303,7 +366,20 @@ if __name__ == '__main__':
                                              default_val=PARAMS['overwrite'],
                                              params_description=HELP['overwrite'])
 
+    get_parameter_value_flag(args.progression_cohort_only, params=PARAMS,
+                             params_name='progression_cohort_only',
+                             default_val=PARAMS['progression_cohort_only'],
+                             params_description=HELP['progression_cohort_only'])
 
+    get_parameter_value(args.knee_type, params=PARAMS,
+                        params_name='knee_type',
+                        default_val=DEFAULT['knee_type'],
+                        params_description=HELP['knee_type'])
+
+    get_parameter_value(args.logging_filename, params=PARAMS,
+                        params_name='logging_filename',
+                        default_val=DEFAULT['logging_filename'],
+                        params_description=HELP['logging_filename'])
 
     if PARAMS['seed'] is not None:
         print('Setting the random seed to {:}'.format(PARAMS['seed']))
@@ -317,16 +393,22 @@ if __name__ == '__main__':
     data_division_offset = args.data_division_offset
     task_id = args.task_id
 
-    if task_id is not None:
-        if (data_division_interval is not None) or (data_division_offset is not None):
-            print('WARNING: data_division settings specified but task ID is given; using task ID {}'.format(task_id))
-            data_division_interval = None
-            data_division_offset = None
+    if not args.do_not_run:
+
+        if task_id is not None:
+            if (data_division_interval is not None) or (data_division_offset is not None):
+                print('WARNING: data_division settings specified but task ID is given; using task ID {}'.format(task_id))
+                data_division_interval = None
+                data_division_offset = None
 
 
-    analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'],
-                   just_get_number_of_images=args.get_number_of_jobs,
-                   task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset)
+        analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'],
+                       progression_cohort_only=PARAMS['progression_cohort_only'],
+                       knee_type=PARAMS['knee_type'],
+                       only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
+                       just_get_number_of_images=args.get_number_of_jobs,
+                       task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset,
+                       logging_filename=PARAMS['logging_filename'])
 
     if args.config_out is not None:
         PARAMS.write_JSON(args.config_out)
