@@ -120,7 +120,7 @@ class AVSMReg(Register):
         """
         warp a surface mesh with given transform (affine, bspline et al.)
 
-        :param mesh_file: mesh to be warped, should be in voxel coord
+        :param mesh_file: mesh to be warped, should be in nifi coord
         :param inv_transform_file: the inverse transform of registration, if inverse transform is given, invertT should be False
         :param reference_image: the image where the transformation is defined on, since we used inverse transformation
                 to warp images, it should be the floating image of registration
@@ -136,7 +136,7 @@ class AVSMReg(Register):
         inv_map = torch.Tensor(inv_map).cuda()
         points = csp.get_points_from_mesh(mesh_file).copy()
         transform = csp.get_voxel_to_world_transform_nifti(reference_image_file)
-        points = csp.word_to_voxel_coord(points,transform)
+        points = csp.world_to_voxel_coord(points,transform)
         warped_points = self.warp_points(points, inv_map, reference_image_file)
         warped_points = csp.voxel_to_world_coord(warped_points,transform)
         csp.modify_mesh_with_new_vertices(mesh_file, warped_points, warped_mesh_file)

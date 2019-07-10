@@ -532,14 +532,14 @@ def voxel_to_world_coord(input_points, transform):
 
 
 
-def word_to_voxel_coord(input_points, transform):
+def world_to_voxel_coord(input_points, transform):
     """
-    A function that transfer the voxel coordinates to world coordinates
+    A function that transfer the world coordinates to voxel coordinates
     :param input_points: Nx3 array, the points of coordinates in the voxel space
     :param transform: a tuple of two numpy arrays (R, T) represents the transformation that to map the voxel coordinates
             of vertices to world coordinates, where R is a 3x3 rotation matrix and T is the translation vetor of length 3
             The world coordinates are computed by P_w = R x P_v  + T
-    :return: output_points: Nx3 array, the points of coordinates in the world space
+    :return: output_points: Nx3 array, the points of coordinates in the voxel space
 
     """
     assert input_points.shape[1] == 3 and len(input_points.shape) == 2

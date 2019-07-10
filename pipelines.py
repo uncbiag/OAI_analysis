@@ -62,9 +62,9 @@ def demo_analyze_single_image(use_nifti,avsm_path=None,do_clean=False):
     OAI_data_sheet = "./data/SEG_3D_DESS_6visits.csv"
     OAI_data = OAIData(OAI_data_sheet, '/playpen/zhenlinx/data/OAI')
     OAI_data.set_processed_data_paths('/playpen/zyshen/oai_data/OAI_image_analysis',None if use_nifti else 'avsm')
-    test_image = OAI_data.get_images(patient_id= [9279291])[0] # 9279291, 9298954,9003380
+    test_image = OAI_data.get_images(patient_id= [9298954])[0] # 9279291, 9298954,9003380
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
-    analyzer.preprocess(test_image, overwrite=False)
+    #analyzer.preprocess(test_image, overwrite=False)
     # analyzer.segment_image_and_save_results(test_image, overwrite=False)
     # analyzer.close_segmenter()
     analyzer.extract_surface_mesh(test_image, overwrite=False)
