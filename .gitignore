@@ -12,7 +12,7 @@ segmentation/ckpoints
 ### image files
 *.nii.gz
 *.nii
-
+!atlas/atlas_60_LEFT_baseline_NMI/*
 ### mesh files
 *.obj
 
