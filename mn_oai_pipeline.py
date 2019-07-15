@@ -174,6 +174,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
             thickness_files_exist = False
 
         if only_recompute_if_thickness_file_is_missing and thickness_files_exist:
+            print('DEBUG: thickness files {} and {} exit.'.format(thickness_npy_file_FC,thickness_npy_file_TC))
             print('DEBUG: thickness has already been computed. Skipping')
         else:
             try:
