@@ -26,7 +26,7 @@ PARAMS['atlas_fc_mesh_path'] = (os.path.join(os.getcwd(),'data/atlas_FC_inner_me
 PARAMS['atlas_tc_mesh_path'] = (os.path.join(os.getcwd(),'data/atlas_TC_inner_mesh_world.ply'), 'Atlas inner mesh for tibial cartilage.')
 PARAMS['atlas_fc_2d_map_path'] = (os.path.join(os.getcwd(), 'data/FC_inner_embedded.npy'), 'Computed embedding for the inner atlas femoral cartilage mesh.')
 PARAMS['atlas_tc_2d_map_path'] = (os.path.join(os.getcwd(), 'data/TC_inner_embedded.npy'), 'Computed embedding for the inner atlas tibial cartilage mesh.')
-PARAMS['oai_data_sheet'] = ('data/SEG_3D_DESS_6visits.csv','The data sheet describing all the images.')
+PARAMS['oai_data_sheet'] = ('data/SEG_3D_DESS_all.csv','The data sheet describing all the images.')
 PARAMS['oai_enrollees'] = ('data/Enrollees.txt','Patient ID file for the OAI data.')
 
 
@@ -94,7 +94,8 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                    only_recompute_if_thickness_file_is_missing = False,
                    just_get_number_of_images = False,
                    task_id=None,data_division_interval=None,data_division_offset=None,
-                   logging_filename='oai_analysis_log.log'):
+                   logging_filename='oai_analysis_log.log',
+                   set_pids_from_file=False):
 
     logging.basicConfig(filename=logging_filename, filemode='a', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -109,9 +110,12 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
     if progression_cohort_only:
         # todo:: support different selectors here
         analysis_cohort_patient = oai_patients.filter_patient(V00COHORT='1: Progression')
-        analysis_cohort_patient_6visits = list(analysis_cohort_patient & OAI_data.patient_set)
+        analysis_patient = list(analysis_cohort_patient & OAI_data.patient_set)
+    elif set_pids_from_file:
+        pids = read_pid_from_file(PARAMS['pid_file'])
+        analysis_patient = list(OAI_data.patient_set & set(pids))
     else:
-        analysis_cohort_patient_6visits = list(OAI_data.patient_set)
+        analysis_patient = list(OAI_data.patient_set)
 
     if knee_type in ['LEFT_KNEE','RIGHT_KNEE']:
         part=knee_type
@@ -121,33 +125,37 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         print('WARNING: unknown knee type {}, defaulting to LEFT_KNEE.'.format(knee_type))
         part='LEFT_KNEE'
 
-    analysis_cohort_images = OAI_data.get_images(patient_id=analysis_cohort_patient_6visits,
+    analysis_images = OAI_data.get_images(patient_id=analysis_patient,
                                                     part=part)
 
     if just_get_number_of_images:
-        print('Number of images that would be analyzed = {}'.format(len(analysis_cohort_images)))
+        print('Number of images that would be analyzed = {}'.format(len(analysis_images)))
         return
 
     process_type_str = ''
 
     if task_id is not None:
-        subcohort_images = analysis_cohort_images[task_id:task_id+1]
+        subcohort_images = analysis_images[task_id:task_id+1]
         process_type_str += 'process type = task_id: {}'.format(task_id)
     else:
         if (data_division_interval is not None) and (data_division_offset is not None):
-            subcohort_images = analysis_cohort_images[data_division_offset::data_division_interval]
+            subcohort_images = analysis_images[data_division_offset::data_division_interval]
             print('data_division_interval = {}; data_division_offset = {}'.format(data_division_interval,data_division_offset))
             process_type_str += 'process type = data_division_interval: {}, data_division_offset: {}'.format(data_division_interval,data_division_offset)
         else:
             # just process all of them
-            print('Processing all {} images.'.format(len(analysis_cohort_images)))
-            subcohort_images = analysis_cohort_images
+            print('Processing all {} images.'.format(len(analysis_images)))
+            subcohort_images = analysis_images
             process_type_str += 'process type = all'
 
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
-    for test_image in subcohort_images:
+
+    for j, test_image in enumerate(subcohort_images):
+        print("================================")
+        print("[{}/{}] Preprocess and segmentation".format(j, len(subcohort_images)))
+        print("================================")
 
         try:
             # make output path if it does not exist yet
@@ -163,6 +171,9 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
     analyzer.close_segmenter()
 
     for i, test_image in enumerate(subcohort_images):
+        print("\n================================")
+        print("[{}/{}] Compute thickness and registration".format(i, len(subcohort_images)))
+        print("================================\n")
 
         # current thickness images
         thickness_npy_file_FC = test_image.FC_2D_thickness_grid + '.npy'
@@ -213,6 +224,28 @@ def get_parameter_value_flag(command_line_par,params, params_name, default_val, 
         ret = command_line_par
 
     return ret
+
+
+def read_pid_from_file(pid_file):
+    """
+    get pid from a text file in format
+    ```
+    index PID
+    1 XXXX
+    2 XXXX
+    3 XXXX
+    ```
+    :param pid_file:
+    :return:
+    """
+    pids = []
+    with open(pid_file) as f:
+        lines = f.readlines()
+        for l in lines[1:]:
+            pids.append(int(l.strip().split(' ')[1]))
+
+    return pids
+
 
 if __name__ == '__main__':
 
@@ -273,6 +306,9 @@ if __name__ == '__main__':
     HELP['logging_filename'] = 'Log file for the analysis which records possible issues while running.'
     DEFAULT['logging_filename'] = 'oai_analysis_log.log'
 
+    HELP['pid_file'] = 'text file with pids of patient to be processed.'
+    DEFAULT['pid_file'] = '/net/biag-raid1/playpen/zhenlinx/pid_600.txt'
+
     # create parser parameters
 
     parser.add_argument('--use_nifty_reg', action='store_true', help=HELP['use_nifty_reg'])
@@ -318,6 +354,10 @@ if __name__ == '__main__':
 
     parser.add_argument('--do_not_run', action='store_true',
                         help='If selected the actual analysis is not run, this can be desired to simply write out a configuration file for example.')
+
+    parser.add_argument('--pid_file', required=False, help=HELP['pid_file'])
+    parser.add_argument('--set_pids_from_file', action='store_true',
+                        help='use an file to set the patients to be processed')
 
     args = parser.parse_args()
 
@@ -382,6 +422,11 @@ if __name__ == '__main__':
                         default_val=DEFAULT['logging_filename'],
                         params_description=HELP['logging_filename'])
 
+    get_parameter_value(args.pid_file, params=PARAMS,
+                        params_name='pid_file',
+                        default_val=DEFAULT['pid_file'],
+                        params_description=HELP['pid_file'])
+
     if PARAMS['seed'] is not None:
         print('Setting the random seed to {:}'.format(PARAMS['seed']))
         torch.manual_seed(PARAMS['seed'])
@@ -409,7 +454,8 @@ if __name__ == '__main__':
                        only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
                        just_get_number_of_images=args.get_number_of_jobs,
                        task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset,
-                       logging_filename=PARAMS['logging_filename'])
+                       logging_filename=PARAMS['logging_filename'],
+                       set_pids_from_file=args.set_pids_from_file)
 
     if args.config_out is not None:
         PARAMS.write_JSON(args.config_out)
