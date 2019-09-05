@@ -182,8 +182,9 @@ class OAIData:
         :return: a list of images
         Warning!: The returned data are the references of data in the object, any change on them will affect the object
         """
+        conditions = {key:value for key, value in kwargs.items() if value is not None}
 
-        images = [image for image in self.images if image.filter(kwargs)]
+        images = [image for image in self.images if image.filter(conditions)]
 
         return images
 
