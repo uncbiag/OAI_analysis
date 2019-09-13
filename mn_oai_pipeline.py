@@ -198,10 +198,12 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                 analyzer.compute_atlas_2D_map(n_jobs=None)
                 analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
                 analyzer.project_thickness_to_2D(test_image, overwrite=overwrite)
-            except:
+            except Exception as e:
                 error_msg = 'Could not process image: {}, {}'.format(test_image.name, process_type_str)
                 print(error_msg)
+                print(e)
                 logging.critical(error_msg)
+                logging.critical(e)
 
     analyzer.get_surface_distances_eval()
 
