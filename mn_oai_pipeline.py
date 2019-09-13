@@ -163,10 +163,12 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
 
             analyzer.preprocess(test_image, overwrite=overwrite)
             analyzer.segment_image_and_save_results(test_image, overwrite=overwrite)
-        except:
+        except Exception as e:
             error_msg = 'Could not process image: {}; {}'.format(test_image.name, process_type_str)
             print(error_msg)
+            print(e)
             logging.critical(error_msg)
+            logging.critical(e)
 
     analyzer.close_segmenter()
 
