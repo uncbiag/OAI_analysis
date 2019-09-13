@@ -207,7 +207,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
 
 def get_parameter_value(command_line_par,params, params_name, default_val, params_description):
 
-    if command_line_par is None:
+    if (command_line_par==default_val) or (command_line_par is None):
         ret = params[(params_name, default_val, params_description)]
     else:
         params[params_name]=(command_line_par, params_description)
@@ -217,7 +217,7 @@ def get_parameter_value(command_line_par,params, params_name, default_val, param
 
 def get_parameter_value_flag(command_line_par,params, params_name, default_val, params_description):
 
-    if command_line_par==default_val:
+    if (command_line_par==default_val) or (command_line_par is None):
         ret = params[(params_name, default_val, params_description)]
     else:
         params[params_name]=(command_line_par, params_description)
@@ -438,6 +438,9 @@ if __name__ == '__main__':
     data_division_interval = args.data_division_interval
     data_division_offset = args.data_division_offset
     task_id = args.task_id
+    if task_id is not None:
+        data_division_offset = None
+        data_division_interval = None
 
     if not args.do_not_run:
 
