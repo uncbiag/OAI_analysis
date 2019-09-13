@@ -17,7 +17,8 @@
 #SBATCH --gres=gpu:1  
 
 # Batch arrays
-# --array=0-2105%15
+#--array=0-2105%15
+
 #SBATCH --array=0-1%2
 
 # Send yourself an email when the job:
@@ -43,4 +44,11 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # The job command(s):
 source activate oai_mn
-python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --output_directory /proj/mn/projects/oai/OAI_progression --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES
+
+#python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --output_directory /proj/mn/projects/oai/OAI_progression --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type LEFT_KNEE --progression_cohort_only
+
+#python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --output_directory /proj/mn/projects/oai/OAI_progression --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES --get_number_of_jobs
+
+python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES
+
+
