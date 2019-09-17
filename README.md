@@ -27,6 +27,7 @@ The atlas is [given](./atlas/atlas_60_LEFT_baseline_NMI).
     built from source, tested with commit [e3c777a66c92f97dcfea610f66bbffa60701cd5f](https://github.com/PyMesh/PyMesh/tree/e3c777a66c92f97dcfea610f66bbffa60701cd5f) 
 2. [NiftyReg](https://cmiclab.cs.ucl.ac.uk/mmodat/niftyreg) 
     built from source, tested with commit [4e4525b84223c182b988afaa85e32ac027774c42](https://cmiclab.cs.ucl.ac.uk/mmodat/niftyreg/tree/4e4525b84223c182b988afaa85e32ac027774c42)
+   Or [EasyReg](https://github.com/uncbiag/mermaid) branch oai_analysis
 3. [surface-distance](https://github.com/deepmind/surface-distance)
     built from source, tested with commit [f850c1640cd26c8cf6fa6095e7464db695406fd5](https://github.com/deepmind/surface-distance/tree/f850c1640cd26c8cf6fa6095e7464db695406fd5). Only needed for evaluating atlas.
 4. [requirement.txt](./requirement.txt) gives other requirements can be installed from pip or conda.
@@ -41,8 +42,8 @@ Two other repositories are needed.
 
 *  Set env
 ```
-git clone https://github.com/uncbiag/registration_net.git
-cd registration_net
+git clone -b oai_analysis --single-branch https://github.com/uncbiag/easyreg.git
+cd easyreg
 git clone https://github.com/uncbiag/mermaid.git
 pip install -r requirements.txt
 ```  
