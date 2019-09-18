@@ -1,0 +1,3 @@
+OAI_data_sheet="/tmp/uray/SEG_3D_DESS_6visits.csv"
+OAI_data="/tmp/uray"
+OAI_results="/tmp/uray/results"
