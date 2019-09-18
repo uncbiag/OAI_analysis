@@ -21,7 +21,6 @@ import module_parameters as pars
 PARAMS = pars.ParameterDict()
 
 # some settings for which we do not need user input
-PARAMS['python_executable'] = (sys.executable,'used python interpreter')
 PARAMS['atlas_fc_mesh_path'] = (os.path.join(os.getcwd(),'data/atlas_FC_inner_mesh_world.ply'), 'Atlas inner mesh for femoral cartilage.')
 PARAMS['atlas_tc_mesh_path'] = (os.path.join(os.getcwd(),'data/atlas_TC_inner_mesh_world.ply'), 'Atlas inner mesh for tibial cartilage.')
 PARAMS['atlas_fc_2d_map_path'] = (os.path.join(os.getcwd(), 'data/FC_inner_embedded.npy'), 'Computed embedding for the inner atlas femoral cartilage mesh.')
@@ -313,6 +312,9 @@ if __name__ == '__main__':
     HELP['pid_file'] = 'text file with pids of patient to be processed.'
     DEFAULT['pid_file'] = '/net/biag-raid1/playpen/zhenlinx/pid_600.txt'
 
+    HELP['python_executable'] = 'python executable to run the registrations with. In principle this is set automatically, but this automatic setting does not always work when running on a cluster.'
+    DEFAULT['python_executable'] = sys.executable
+
     # create parser parameters
 
     parser.add_argument('--use_nifty_reg', action='store_true', help=HELP['use_nifty_reg'])
@@ -326,6 +328,8 @@ if __name__ == '__main__':
     parser.add_argument('--config_out', required=False, default=DEFAULT['config_out'], help=HELP['config_out'])
 
     parser.add_argument('--config_comment_out', required=False, default=DEFAULT['config_comment_out'], help=HELP['config_comment_out'])
+
+    parser.add_argument('--python_executable', required=False, default=DEFAULT['python'], help=HELP['python'])
 
     parser.add_argument('--output_directory', required=False, default=DEFAULT['output_directory'], help=HELP['output_directory'])
 
@@ -385,6 +389,11 @@ if __name__ == '__main__':
                         params_name='nifty_reg_directory',
                         default_val=DEFAULT['nifty_reg_directory'],
                         params_description=HELP['nifty_reg_directory'])
+
+    get_parameter_value(args.python_executable, params=PARAMS,
+                        params_name='python_executable',
+                        default_val=DEFAULT['python_executable'],
+                        params_description=HELP['python_executable'])
 
     get_parameter_value(args.atlas_image, params=PARAMS,
                         params_name='atlas_image',
