@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--config_comment_out', required=False, default=DEFAULT['config_comment_out'], help=HELP['config_comment_out'])
 
-    parser.add_argument('--python_executable', required=False, default=DEFAULT['python'], help=HELP['python'])
+    parser.add_argument('--python_executable', required=False, default=DEFAULT['python_executable'], help=HELP['python_executable'])
 
     parser.add_argument('--output_directory', required=False, default=DEFAULT['output_directory'], help=HELP['output_directory'])
 
