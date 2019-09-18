@@ -32,7 +32,7 @@
         "mode_train": true,
         "model": "reg_net",
         "model_folder_path": "",
-        "model_path": "/playpen/oai/registration_net/mermaid/pretrained/pre_trained_model",
+        "model_path": "/nas/longleaf/home/mn/python/registration_net/mermaid/pretrained/pre_trained_model",
         "n_in_channel": 1,
         "network_name": "mermaid",
         "old_gpu_ids": 2,

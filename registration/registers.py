@@ -60,8 +60,18 @@ class AVSMReg(Register):
          -g {}'.format(self.python_executable, self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,output_path,gpu_id)
         wd = os.getcwd()
         #subprocess.run('source activate torch4 && {} && source deactivate'.format(cmd),cwd=self.avsm_path, shell=True)
+    
+        print('Running registration: cmd = {}'.format(cmd))
+        print('avsm_path = {}'.format(self.avsm_path))
+
         process = subprocess.Popen(cmd, cwd=self.avsm_path,shell=True)
         process.wait()
+
+        print('registration done.')
+        print('wd = {}'.format(wd))
+        print('output_path = {}'.format(output_path))
+        print('oai_image.inv_transform_to_atlas = {}'.format(oai_image.inv_transform_to_atlas))
+
         os.chdir(wd)
         os.rename(os.path.join(output_path,'reg/res/records/original_sz/image_preprocessed_atlas_inv_phi.nii.gz'),oai_image.inv_transform_to_atlas)
         shutil.rmtree(output_path)
