@@ -7,11 +7,11 @@
     "avsm_directory": "/nas/longleaf/home/mn/python/registration_net",
     "nifty_reg_directory": "/nas/longleaf/home/mn/python//niftyreg/install/bin",
     "oai_data_directory": "/proj/mn/projects/oai/OAI",
-    "oai_data_sheet": "data/SEG_3D_DESS_6visits.csv",
+    "oai_data_sheet": "data/SEG_3D_DESS_all.csv",
     "oai_enrollees": "data/Enrollees.txt",
     "output_directory": "/proj/mn/projects/oai/OAI_results",
     "overwrite": false,
-    "python_executable": "/nas/longleaf/home/mn/.conda/envs/oai_mn/bin",
+    "python_executable": "/nas/longleaf/home/mn/.conda/envs/oai_mn/bin/python",
     "seed": 2018,
     "use_nifty_reg": false
 }
