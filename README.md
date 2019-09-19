@@ -42,7 +42,7 @@ Two other repositories are needed.
 
 *  Set env
 ```
-git clone -b oai_analysis --single-branch https://github.com/uncbiag/easyreg.git
+git clone -b oai_analysis_stable --single-branch https://github.com/uncbiag/easyreg.git
 cd easyreg
 git clone https://github.com/uncbiag/mermaid.git
 pip install -r requirements.txt
