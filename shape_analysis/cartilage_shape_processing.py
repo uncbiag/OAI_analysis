@@ -85,6 +85,33 @@ def get_largest_mesh(meshes, num_max=1, merge=True):
         return pymesh.merge_meshes([meshes[i] for i in largest_mesh_indices])
 
 
+def get_main_mesh(meshes, threshold=1, merge=True):
+    """
+    Get the main mesh(es) with a threhold of number of vertices from a list of meshes
+    The goal is to remove small connected-component caused by segmentation artifacts
+    :param meshes:
+    :param threshold: meshes with number of vertices below the threshold will be removed
+    :return: largest mesh(es): a list if num_max>1
+    """
+    assert (threshold > 1 and isinstance(threshold, int)), "threshold must be an >1 integer"
+
+    num_vertices = np.array([meshes[i].num_vertices for i in range(len(meshes))])
+
+    ordered_mesh_size_indices = num_vertices.argsort()[::-1]
+
+    main_mesh_indices = []
+
+    for ind in ordered_mesh_size_indices:
+        if num_vertices[ind] < threshold:
+            break
+        else:
+            main_mesh_indices.append(ind)
+
+    if not merge:
+        return [meshes[i] for i in main_mesh_indices]
+    else:
+        return pymesh.merge_meshes([meshes[i] for i in main_mesh_indices])
+
 def get_neighbors(mesh, root, element, search_range=1, edge_only=False):
     """
     get neighbors of given element(vertices/faces) on mesh
@@ -411,8 +438,8 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
     FC_mesh, _ = pymesh.remove_duplicated_vertices(FC_mesh)
     TC_mesh, _ = pymesh.remove_duplicated_vertices(TC_mesh)
 
-    FC_mesh_main = get_largest_mesh(pymesh.separate_mesh(FC_mesh), num_max=1, merge=True)
-    TC_mesh_main = get_largest_mesh(pymesh.separate_mesh(TC_mesh), num_max=2, merge=True)
+    FC_mesh_main = get_main_mesh(pymesh.separate_mesh(FC_mesh), threshold=1000, merge=True)
+    TC_mesh_main = get_main_mesh(pymesh.separate_mesh(TC_mesh), threshold=1000, merge=True)
 
     if thickness:
         print("Compute FC mesh thickness")
@@ -673,11 +700,64 @@ def map_thickness_to_atlas_mesh(atlas_mesh, source_mesh, atlas_mapped_file=None)
     if type(source_mesh) == str:
         source_mesh = pymesh.load_mesh(source_mesh)
 
-    pymesh.map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness')
+    map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness', threshold=3)
     if type(atlas_mapped_file) == str:
         pymesh.save_mesh(atlas_mapped_file, atlas_mesh, 'vertex_thickness', ascii=True)
 
     return atlas_mesh
+
+
+def map_vertex_attribute(mesh1, mesh2, attr_name, threshold, bvh=None):
+    """ Map vertex attribute from mesh1 to mesh2 based on closest points.
+    Modified from code in Pymesh map_attributes.py
+
+    Args:
+        mesh1 (:class:`Mesh`): Source mesh, where the attribute is defined.
+        mesh2 (:class:`Mesh`): Target mesh, where the attribute is mapped to.
+        attr_name (``string``): Attribute name.
+        threshold (``int``): Any vertex with closest distance below the thrshold is set as zero
+        bvh (:class:`BVH`): Pre-computed Bounded volume hierarchy if available.
+
+    A new attribute with name ``attr_name`` is added to ``mesh2``.
+    """
+
+    import numpy as np
+    from pymesh.aabb_tree import BVH
+
+    assert (mesh1.dim == mesh2.dim);
+    assert (mesh1.vertex_per_face == 3);
+    assert (mesh2.vertex_per_face == 3);
+    assert (mesh1.has_attribute(attr_name));
+    values = mesh1.get_vertex_attribute(attr_name);
+
+    if bvh is None:
+        bvh = BVH(dim=mesh1.dim);
+        bvh.load_mesh(mesh1);
+    dists, closest_faces, p = bvh.lookup(mesh2.vertices);
+
+    vertices = mesh1.vertices;
+    faces = mesh1.faces;
+    v0 = vertices[faces[closest_faces, 0], :];
+    v1 = vertices[faces[closest_faces, 1], :];
+    v2 = vertices[faces[closest_faces, 2], :];
+
+    a01 = np.linalg.norm(np.cross(v0 - p, v1 - p), axis=1).reshape((-1, 1));
+    a12 = np.linalg.norm(np.cross(v1 - p, v2 - p), axis=1).reshape((-1, 1));
+    a20 = np.linalg.norm(np.cross(v2 - p, v0 - p), axis=1).reshape((-1, 1));
+
+    a = a01 + a12 + a20;
+
+    val_0 = values[faces[closest_faces, 0], :];
+    val_1 = values[faces[closest_faces, 1], :];
+    val_2 = values[faces[closest_faces, 2], :];
+
+    target_val = (val_0 * a12 + val_1 * a20 + val_2 * a01) / a;
+
+    target_val[dists>threshold] = 0
+
+    if not mesh2.has_attribute(attr_name):
+        mesh2.add_attribute(attr_name);
+    mesh2.set_attribute(attr_name, target_val);
 
 
 def __generate_mask(vertice, mask, interx, intery, startx, starty):
