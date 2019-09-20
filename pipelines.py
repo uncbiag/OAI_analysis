@@ -91,7 +91,7 @@ def demo_analyze_cohort(use_nifti,avsm_path=None, do_clean=False):
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
                                                     part='LEFT_KNEE')
 
-    subcohort_images = progression_cohort_images[:2]  # 100 patients of progression cohort, 6 visiting each
+    subcohort_images = progression_cohort_images[:12]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
@@ -101,9 +101,9 @@ def demo_analyze_cohort(use_nifti,avsm_path=None, do_clean=False):
 
     for i, test_image in enumerate(subcohort_images):
         print("\n[{}] {}\n".format(i, test_image.name))
-        analyzer.register_image_to_atlas(test_image, False)
-        analyzer.extract_surface_mesh(test_image, overwrite=False)
-        analyzer.warp_mesh(test_image, overwrite=False,do_clean=do_clean)
+        analyzer.register_image_to_atlas(test_image, True)
+        analyzer.extract_surface_mesh(test_image, overwrite=True)
+        analyzer.warp_mesh(test_image, overwrite=True,do_clean=do_clean)
         analyzer.eval_registration_surface_distance(test_image)
         analyzer.set_atlas_2D_map(ATLAS_FC_2D_MAP_PATH, ATLAS_TC_2D_MAP_PATH)
         analyzer.compute_atlas_2D_map(n_jobs=None)

@@ -289,8 +289,8 @@ class OAIImageAnalysis:
         TODO: implement the method to project thickness from 3D mesh to 2D grid,
          and save the file to oai_image.FC_2D_thickness_grid and oai_image.TC_2D_thickness_grid
         """
-        map_thickness_to_2D_projection(self.atlas_FC_mesh_file, oai_image.warped_FC_mesh_file,self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map',overwrite=overwrite)
-        map_thickness_to_2D_projection(self.atlas_TC_mesh_file, oai_image.warped_TC_mesh_file,self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map',overwrite=overwrite)
+        map_thickness_to_2D_projection(oai_image.FC_thickness_mapped_to_atlas_mesh, self.atlas_FC_2D_map_file, oai_image.FC_2D_thickness_grid,name='FC_2D_map',overwrite=overwrite)
+        map_thickness_to_2D_projection(oai_image.TC_thickness_mapped_to_atlas_mesh, self.atlas_TC_2D_map_file, oai_image.TC_2D_thickness_grid,name='TC_2D_map',overwrite=overwrite)
 
     def preprocess_parallel(self, image_list, n_workers=10, overwrite=False):
         with Pool(processes=n_workers) as pool:
