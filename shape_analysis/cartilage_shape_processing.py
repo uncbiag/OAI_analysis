@@ -773,6 +773,17 @@ def __generate_mask(vertice, mask, interx, intery, startx, starty):
     return mask
 
 def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickness=-1., fpth_np=None, fpth_png=None, name=''):
+    """
+
+    :param embedded: numpy array, 2d embedded atlas mesh
+    :param thickness: numpy array, thickness
+    :param ninter: mask resolution
+    :param min_thickness: the threshold on minumum of thickness
+    :param fpth_np: saving path of numpy array of 2d thickness map
+    :param fpth_png: saving path of 2d project image
+    :param name: projection name
+    :return:
+    """
 
     xmin, xmax, ymin, ymax = min(embedded[:, 0]), max(embedded[:, 0]), min(embedded[:, 1]), max(embedded[:, 1])
     rangex = xmax - xmin
@@ -813,11 +824,10 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
         plt.clf()
 
 
-def map_thickness_to_2D_projection(atlas_mesh, source_mesh, atlas_2d_map_file=None, map_2d_base_filename=None, name='', overwrite=False):
+def map_thickness_to_2D_projection(atlas_mesh_with_thickness, atlas_2d_map_file=None, map_2d_base_filename=None, name='', overwrite=False):
     """
     Map thickness of a registered mesh to the 2d projection of the atlas mesh
-    :param atlas_mesh: atlas mesh which the source mesh was registered to
-    :param source_mesh: the mesh with thickness that has been registered to atlas space
+    :param atlas_mesh_with_thickness: atlas mesh which the source mesh was registered to
     :param map_2d_base_filename: filename to save the 2d contour with mapped thickness (as png) and the raw values as a numpy array
     :param  name: name of the projection
     :param  overwrite: overwrite if the files already exist
@@ -832,22 +842,22 @@ def map_thickness_to_2D_projection(atlas_mesh, source_mesh, atlas_2d_map_file=No
             print('Thickness 2D projection, not recomputing as {} and {} exist.'.format(map_2d_file_np,map_2d_file_png))
             return
 
-    if type(atlas_mesh) == str:
-        atlas_mesh = pymesh.load_mesh(atlas_mesh)
-    elif isinstance(atlas_mesh) == pymesh.Mesh:
-        atlas_mesh = atlas_mesh.copy()
+    if type(atlas_mesh_with_thickness) == str:
+        atlas_mesh_with_thickness = pymesh.load_mesh(atlas_mesh_with_thickness)
+    elif isinstance(atlas_mesh_with_thickness) == pymesh.Mesh:
+        atlas_mesh_with_thickness = atlas_mesh_with_thickness.copy()
     else:
         TypeError("atlas mesh is either a mesh file or a pymesh.mesh ")
 
-    if type(source_mesh) == str:
-        source_mesh = pymesh.load_mesh(source_mesh)
+    # if type(source_mesh) == str:
+    #     source_mesh = pymesh.load_mesh(source_mesh)
 
     # first : map_thickness_to_atlas_mesh
-    pymesh.map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness')
+    # map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness', threshold=3)
     # second: load atlas 2d map
     embedded = np.load(atlas_2d_map_file)
     # third:  do projection
-    thickness = atlas_mesh.get_attribute("vertex_thickness")
+    thickness = atlas_mesh_with_thickness.get_attribute("vertex_thickness")
     thickness = thickness.copy()
     print(np.where(thickness==0)[0].shape)
 
