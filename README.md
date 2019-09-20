@@ -44,15 +44,17 @@ Two other repositories are needed.
 ```
 git clone -b oai_analysis_stable --single-branch https://github.com/uncbiag/easyreg.git
 cd easyreg
-git clone https://github.com/uncbiag/mermaid.git
 pip install -r requirements.txt
+git clone https://github.com/uncbiag/mermaid.git
+cd mermaid
+python setup.py develop
 ```  
 
-* Download the pretrained model\
+* Download the pretrained model (in mermaid directory)\
 (a seven-step affine network with a three-step vSVF model)
 
 ```angular2html
-cd mermaid && mkdir pretrained && cd pretrained
+mkdir pretrained && cd pretrained
 gdown https://drive.google.com/uc?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
 ```
 * Set the model path.\

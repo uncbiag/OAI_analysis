@@ -788,7 +788,7 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
     if min_thickness>0:
         thickness[thickness<min_thickness]=min_thickness
     z = thickness
-    zi = griddata((x, y), z, (xi, yi), method='linear')
+    zi = griddata((x, y), z, (xi, yi), method='linear', fill_value=0)
     #zi[mask] = 100
     zi[mask] = np.nan
 
@@ -797,7 +797,7 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
 
     contour_num = 80
     maxz = max(z)
-    plt.contourf(xi, yi, zi, np.arange(0.01, maxz + maxz / contour_num, maxz / contour_num))
+    plt.contourf(xi, yi, zi, np.arange(0.0, maxz + maxz / contour_num, maxz / contour_num))
     plt.axis('equal')
     # plt.xlabel('xi', fontsize=16)
     # plt.ylabel('yi', fontsize=16)
@@ -815,11 +815,13 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
 
 def map_thickness_to_2D_projection(atlas_mesh, source_mesh, atlas_2d_map_file=None, map_2d_base_filename=None, name='', overwrite=False):
     """
-    Map thickness of a registered mesh to the atlas mesh
+    Map thickness of a registered mesh to the 2d projection of the atlas mesh
     :param atlas_mesh: atlas mesh which the source mesh was registered to
     :param source_mesh: the mesh with thickness that has been registered to atlas space
-    :param map_2d_base_filename: base filename to save the 2d contour with mapped thickness (as png) and the raw values as a numpy array
-    :return: atlas mesh with mapped thickness
+    :param map_2d_base_filename: filename to save the 2d contour with mapped thickness (as png) and the raw values as a numpy array
+    :param  name: name of the projection
+    :param  overwrite: overwrite if the files already exist
+    :return:
     """
 
     map_2d_file_np = map_2d_base_filename # numpy will automatically add .npy as suffix
