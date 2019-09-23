@@ -7,6 +7,11 @@ import SimpleITK as sitk
 import visvis as vv
 import pymesh
 
+
+# prob = sitk.ReadImage('/data/raid1/oai_analysis_results/9000099/MR_SAG_3D_DESS/LEFT_KNEE/72_MONTH/TC_probmap.nii.gz')
+# mask = prob > 0.5
+# sitk.WriteImage(mask, '/data/raid1/oai_analysis_results/9000099/MR_SAG_3D_DESS/LEFT_KNEE/72_MONTH/TC_mask.nii.gz')
+
 FC_mesh_world = pymesh.load_mesh('/playpen/zhenlinx/Data/OAI_image_analysis/9000099/MR_SAG_3D_DESS/LEFT_KNEE/72_MONTH/FC_mesh_world.ply')
 TC_mesh_world = pymesh.load_mesh('/playpen/zhenlinx/Data/OAI_image_analysis/9000099/MR_SAG_3D_DESS/LEFT_KNEE/72_MONTH/TC_mesh_world.ply')
 FC_mesh_atlas = pymesh.load_mesh('/playpen/zhenlinx/Data/OAI_image_analysis/9000099/MR_SAG_3D_DESS/LEFT_KNEE/72_MONTH/atlas_FC_mesh_with_thickness.ply')
