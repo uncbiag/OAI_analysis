@@ -1,0 +1,4 @@
+OAI_data_sheet=/mnt/beegfs/uray/SEG_3D_DESS_6visits.csv
+OAI_data=/mnt/beegfs/uray
+OAI_results=/mnt/beegfs/uray/results
+Month=12
