@@ -799,7 +799,7 @@ def __map_thickness_to_2D_projection(embedded, thickness, ninter=100, min_thickn
     if min_thickness>0:
         thickness[thickness<min_thickness]=min_thickness
     z = thickness
-    zi = griddata((x, y), z, (xi, yi), method='linear', fill_value=0)
+    zi = griddata((x, y), z, (xi, yi), method='linear')
     #zi[mask] = 100
     zi[mask] = np.nan
 

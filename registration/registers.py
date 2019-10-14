@@ -84,9 +84,9 @@ class AVSMReg(Register):
     def warp_points(self,points, inv_map,ref_img=None):
         """
         in avsm the inv transform coord is from [0,1], so here we need to read mesh in voxel coord and then normalized it to [0,1],
-        the last step is to transform warped mesh into word coord/ voxel coord
-        the transfom map use default [0,1] coord unless the ref img is provided
-        here the transform map can be in inversed (height, width, depth) voxel space or in  inversed physical space (height, width, depth)
+        the last step is to transform warped mesh into word/ voxel coord
+        the transformation map use default [0,1] coord unless the ref img is provided
+        here the transform map is  in inversed (height, width, depth) voxel space or in  inversed physical space (height, width, depth)
         but the points should be in standard voxel space (depth, height, width)
         :return:
         """
@@ -96,7 +96,7 @@ class AVSMReg(Register):
         import torch.nn.functional as F
         # first make everything in voxel coordinate, depth, height, width
         img_sz=  np.array(inv_map.shape[1:])
-        standard_spacing = 1/(img_sz-1)  # height, width, depth
+        standard_spacing = 1/(img_sz-1)  # width,height, depth
         standard_spacing = np.flipud(standard_spacing) # depth, height, width
         img = sitk.ReadImage(ref_img)
         spacing = img.GetSpacing()
@@ -107,7 +107,7 @@ class AVSMReg(Register):
         grid_sz =[1]+ [points.shape[0]]+ [1,1,3] # 1*N*1*1*3
         grid = points.reshape(*grid_sz)
         grid = torch.Tensor(grid).cuda()
-        inv_map_sz = [1,3]+list(img_sz)  # height, width, depth
+        inv_map_sz = [1,3]+list(img_sz)  # width,height, depth
         inv_map = inv_map.view(*inv_map_sz) # 1*3*X*Y*Z
         points_wraped=F.grid_sample(inv_map, grid, mode='bilinear', padding_mode='border') # 1*3*N*1*1
         points_wraped = points_wraped.detach().cpu().numpy()
