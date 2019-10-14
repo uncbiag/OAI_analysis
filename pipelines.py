@@ -89,7 +89,7 @@ def demo_analyze_cohort(use_nifti,avsm_path=None, do_clean=False):
 
     progression_cohort_patient_6visits = list(progression_cohort_patient & OAI_data.patient_set)
     progression_cohort_images = OAI_data.get_images(patient_id=progression_cohort_patient_6visits,
-                                                    part='LEFT_KNEE')
+                                                    part='LEFT_KNEE',visit_month=[72])
 
     subcohort_images = progression_cohort_images[:12]  # 100 patients of progression cohort, 6 visiting each
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)

@@ -38,28 +38,20 @@ The atlas is [given](./atlas/atlas_60_LEFT_baseline_NMI).
 # Network Version Usage
 
 The network version refers to paper "Networks for Joint Affine and Non-parametric Image Registration" (https://arxiv.org/pdf/1903.08811.pdf) \
-Two other repositories are needed.
 
 *  Set env
 ```
-git clone -b oai_analysis_stable --single-branch https://github.com/uncbiag/easyreg.git
+git clone https://github.com/uncbiag/easyreg.git
 cd easyreg
 pip install -r requirements.txt
+# Download the pretrained model (in mermaid directory) (a seven-step affine network with a three-step vSVF model)
+cd demo && mkdir pretrained && cd pretrained
+gdown https://drive.google.com/uc?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
+cd ../..
 git clone https://github.com/uncbiag/mermaid.git
 cd mermaid
 python setup.py develop
 ```  
-
-* Download the pretrained model (in mermaid directory)\
-(a seven-step affine network with a three-step vSVF model)
-
-```angular2html
-mkdir pretrained && cd pretrained
-gdown https://drive.google.com/uc?id=1f7pWcwGPvr28u4rr3dAL_4aD98B7PNDX
-```
-* Set the model path.\
-Open settings/avsm/cur_task_settings.json 
-Change the 'model_path' into "YOUR_REGISTRATION_NET_FOLDER_PATH/mermaid/pre_trained/pre_trained_model"
 
 
 Overall the usage is the same as the optimization version.\

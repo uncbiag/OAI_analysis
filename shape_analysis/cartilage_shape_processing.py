@@ -700,7 +700,7 @@ def map_thickness_to_atlas_mesh(atlas_mesh, source_mesh, atlas_mapped_file=None)
     if type(source_mesh) == str:
         source_mesh = pymesh.load_mesh(source_mesh)
 
-    map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness', threshold=3)
+    map_vertex_attribute(source_mesh, atlas_mesh, 'vertex_thickness', threshold=4)
     if type(atlas_mapped_file) == str:
         pymesh.save_mesh(atlas_mapped_file, atlas_mesh, 'vertex_thickness', ascii=True)
 
