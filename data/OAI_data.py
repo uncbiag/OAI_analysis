@@ -22,7 +22,7 @@ import SimpleITK as sitk
 
 
 class OAIData:
-    def __init__(self, data_sheet=None, raw_data_root=''):
+    def __init__(self, data_sheet=None, raw_data_root=None):
         self.images = list() # a list of OAIImage objects
         self.visit_description = {-1: 'SCREENING',  # only exists in Xray images
                                   0: 'ENROLLMENT',
@@ -33,8 +33,10 @@ class OAIData:
                                   72: '72 MONTH'}
         self.root_path = None  # root path of data and initialized when building patient repositories
         self.patient_set = set()
-        if data_sheet and raw_data_root:
+        if data_sheet != None and raw_data_root != 'None':
             self.load_raw_data_sheet(data_sheet, raw_data_root=raw_data_root)
+        else:
+            print("WARNING: the OAI data is not correctly initialized since both data_sheet and raw_data_root are required!")
 
     def load_raw_data_sheet(self, data_sheet, raw_data_root='', proceesed_data_root=''):
         """
