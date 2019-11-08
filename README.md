@@ -59,5 +59,5 @@ Overall the usage is the same as the optimization version.\
 Several extra settings need to be done in main function in pipeline.py
 ```
 use_nifti=False
-avsm_path = 'The PATH OF EASYREG DIRECTORY'
+avsm_directory = 'The PATH OF EASYREG DIRECTORY'
 ```
