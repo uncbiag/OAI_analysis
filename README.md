@@ -39,7 +39,7 @@ The atlas is [given](./atlas/atlas_60_LEFT_baseline_NMI).
 
 The network version refers to paper "Networks for Joint Affine and Non-parametric Image Registration" (https://arxiv.org/pdf/1903.08811.pdf) \
 
-*  Set env
+*  Set env, let's first cd into OAI_analysis repository, then run the following commands
 ```
 git clone https://github.com/uncbiag/easyreg.git
 cd easyreg
@@ -59,6 +59,5 @@ Overall the usage is the same as the optimization version.\
 Several extra settings need to be done in main function in pipeline.py
 ```
 use_nifti=False
-avsm_path = 'REGISTRATION_NET PATH'
-avsm_output_path = 'PATH TO SAVE AVSM RESULTS'
+avsm_path = 'The PATH OF EASYREG DIRECTORY'
 ```
