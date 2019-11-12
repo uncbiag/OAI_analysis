@@ -92,7 +92,8 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                    knee_type='LEFT_KNEE',
                    only_recompute_if_thickness_file_is_missing = False,
                    just_get_number_of_images = False,
-                   task_id=None,data_division_interval=None,data_division_offset=None,
+                   task_id=None,task_id_chunk=None,
+                   data_division_interval=None,data_division_offset=None,
                    logging_filename='oai_analysis_log.log',
                    set_pids_from_file=False):
 
@@ -124,18 +125,32 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         print('WARNING: unknown knee type {}, defaulting to LEFT_KNEE.'.format(knee_type))
         part='LEFT_KNEE'
 
-    analysis_images = OAI_data.get_images(patient_id=analysis_patient,
-                                                    part=part)
+    analysis_images = OAI_data.get_images(patient_id=analysis_patient,part=part)
+
+    total_nr_of_analysis_images = len(analysis_images)
 
     if just_get_number_of_images:
-        print('Number of images that would be analyzed = {}'.format(len(analysis_images)))
+        print('Number of images that would be analyzed = {}'.format(total_nr_of_analysis_images))
         return
 
     process_type_str = ''
 
     if task_id is not None:
-        subcohort_images = analysis_images[task_id:task_id+1]
-        process_type_str += 'process type = task_id: {}'.format(task_id)
+        if task_id_chunk is None:
+            task_id_chunk = 1
+
+        task_id_from = task_id*task_id_chunk
+        task_id_to = min(total_nr_of_analysis_images,(task_id+1)*task_id_chunk)
+
+        if task_id_from>=total_nr_of_analysis_images:
+            print('INFO: task id range exceeds available number of images: requested lowest task id is {}, but we only have {} images.'.format(task_id_from,total_nr_of_analysis_images))
+            print('INFO: Aborting the analysis.')
+            logging.critical('task_id {} is out of range [0,{})'.format(task_id_from,total_nr_of_analysis_images))
+            return
+
+        subcohort_images = analysis_images[task_id_from:task_id_to]
+        process_type_str += 'process type = task_id range: [{},{})'.format(task_id_from,task_id_to)
+
     else:
         if (data_division_interval is not None) and (data_division_offset is not None):
             subcohort_images = analysis_images[data_division_offset::data_division_interval]
@@ -291,8 +306,8 @@ if __name__ == '__main__':
     HELP['nifty_reg_directory'] = 'Directory where the nifty-reg binaries live (if niftyreg is used).'
     DEFAULT['nifty_reg_directory'] = '/playpen/oai/niftyreg/install/bin'
 
-    HELP['avsm_directory'] = 'Directory which contains the registration_net scripts; should be ... /registration_net'
-    DEFAULT['avsm_directory'] = '/playpen/oai/registration_net'
+    HELP['avsm_directory'] = 'Directory which contains the registration_net scripts; should be ... /easyreg'
+    DEFAULT['avsm_directory'] = '/playpen/oai/easyreg'
 
     HELP['data_division_interval'] = 'Specifies how the data is subdivided. E.g., if one wants to run on 4 machines simultaneously, set it to 4.'
     DEFAULT['data_division_interval'] = 1
@@ -352,6 +367,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging_filename', required=False, default=DEFAULT['logging_filename'], help=HELP['logging_filename'])
 
     parser.add_argument('--task_id', required=False, default=None, type=int, help='When running via slurm on a cluster defines the task ID')
+    parser.add_argument('--task_id_chunk', required=False, default=1, type=int, help='When running via slurm this specifies how many images are chunked together per process')
 
     parser.add_argument('--only_recompute_if_thickness_file_is_missing', action='store_true',
                         help='If set all recomputations will be surpressed if thickness file is found for an image.')
@@ -451,9 +467,14 @@ if __name__ == '__main__':
     data_division_interval = args.data_division_interval
     data_division_offset = args.data_division_offset
     task_id = args.task_id
+    task_id_chunk = args.task_id_chunk
     if task_id is not None:
         data_division_offset = None
         data_division_interval = None
+        if task_id_chunk is None:
+            task_id_chunk = 1
+    else:
+        task_id_chunk = None
 
     if not args.do_not_run:
 
@@ -469,7 +490,8 @@ if __name__ == '__main__':
                        knee_type=PARAMS['knee_type'],
                        only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
                        just_get_number_of_images=args.get_number_of_jobs,
-                       task_id=task_id, data_division_interval=data_division_interval, data_division_offset=data_division_offset,
+                       task_id=task_id, task_id_chunk=task_id_chunk,
+                       data_division_interval=data_division_interval, data_division_offset=data_division_offset,
                        logging_filename=PARAMS['logging_filename'],
                        set_pids_from_file=args.set_pids_from_file)
 

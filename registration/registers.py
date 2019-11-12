@@ -47,17 +47,18 @@ class AVSMReg(Register):
         self.avsm_path = avsm_path
         self.python_executable = python_executable
         cur_dir = os.getcwd()
-        self.refering_task_path= os.path.join(cur_dir, 'settings/avsm')
-        self.mermaid_setting_path=os.path.join(cur_dir, 'settings/avsm/mermaid_setting.json')
+        self.mermaid_setting_path=os.path.join(cur_dir, 'settings/avsm')
 
     def register_image(self,target_path, moving_path,lmoving_path=None, ltarget_path=None,gpu_id=0,oai_image=None):
         output_path = os.path.join(os.path.split(oai_image.inv_transform_to_atlas)[0],'detailed')
         cmd = ''
-        cmd +='{} single_pair_atlas_registration.py -rt {} \
-        -s  {}  -t {}  -ls {}  -lt {}\
-        -ms {}\
-        -o {}\
-         -g {}'.format(self.python_executable, self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,output_path,gpu_id)
+        # cmd +='{} single_pair_atlas_registration.py -rt {} \
+        # -s  {}  -t {}  -ls {}  -lt {}\
+        # -ms {}\
+        # -o {}\
+        #  -g {}'.format(self.python_executable, self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,output_path,gpu_id)
+        cmd += '{} demo_for_easyreg_eval.py -s {} -t {} -ls {} -lt {} -ts {} -o {} -g {}'.\
+            format(self.python_executable, moving_path, target_path, lmoving_path, ltarget_path, self.mermaid_setting_path,output_path,gpu_id)
         wd = os.getcwd()
         #subprocess.run('source activate torch4 && {} && source deactivate'.format(cmd),cwd=self.avsm_path, shell=True)
     
@@ -94,9 +95,9 @@ class AVSMReg(Register):
     def warp_points(self,points, inv_map,ref_img=None):
         """
         in avsm the inv transform coord is from [0,1], so here we need to read mesh in voxel coord and then normalized it to [0,1],
-        the last step is to transform warped mesh into word coord/ voxel coord
-        the transfom map use default [0,1] coord unless the ref img is provided
-        here the transform map can be in inversed (height, width, depth) voxel space or in  inversed physical space (height, width, depth)
+        the last step is to transform warped mesh into word/ voxel coord
+        the transformation map use default [0,1] coord unless the ref img is provided
+        here the transform map is  in inversed (height, width, depth) voxel space or in  inversed physical space (height, width, depth)
         but the points should be in standard voxel space (depth, height, width)
         :return:
         """
@@ -106,7 +107,7 @@ class AVSMReg(Register):
         import torch.nn.functional as F
         # first make everything in voxel coordinate, depth, height, width
         img_sz=  np.array(inv_map.shape[1:])
-        standard_spacing = 1/(img_sz-1)  # height, width, depth
+        standard_spacing = 1/(img_sz-1)  # width,height, depth
         standard_spacing = np.flipud(standard_spacing) # depth, height, width
         img = sitk.ReadImage(ref_img)
         spacing = img.GetSpacing()
@@ -117,7 +118,7 @@ class AVSMReg(Register):
         grid_sz =[1]+ [points.shape[0]]+ [1,1,3] # 1*N*1*1*3
         grid = points.reshape(*grid_sz)
         grid = torch.Tensor(grid).cuda()
-        inv_map_sz = [1,3]+list(img_sz)  # height, width, depth
+        inv_map_sz = [1,3]+list(img_sz)  # width,height, depth
         inv_map = inv_map.view(*inv_map_sz) # 1*3*X*Y*Z
         points_wraped=F.grid_sample(inv_map, grid, mode='bilinear', padding_mode='border') # 1*3*N*1*1
         points_wraped = points_wraped.detach().cpu().numpy()

@@ -9,7 +9,7 @@
 #SBATCH --mem=16g
 
 # The maximum running time of the job in days-hours:mins:sec
-#SBATCH --time=0-0:10:00
+#SBATCH --time=0-10:00:00
 
 # compute partition
 #SBATCH --qos gpu_access 
@@ -17,9 +17,9 @@
 #SBATCH --gres=gpu:1  
 
 # Batch arrays
-#--array=0-2105%15
+##SBATCH --array=0-43070%10
 
-#SBATCH --array=0-1%2
+#SBATCH --array=0-431%10
 
 # Send yourself an email when the job:
 # aborts abnormally (fails)
@@ -49,6 +49,8 @@ source activate oai_mn
 
 #python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --output_directory /proj/mn/projects/oai/OAI_progression --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES --get_number_of_jobs
 
-python mn_oai_pipeline.py --task_id ${SLURM_ARRAY_TASK_ID} --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES
+#python mn_oai_pipeline.py --task_id_chunk 2 --task_id ${SLURM_ARRAY_TASK_ID} --config oai_analysis_longleaf.json --only_recompute_if_thickness_file_is_missing --knee_type BOTH_KNEES
+
+python mn_oai_pipeline.py --task_id_chunk 100 --task_id ${SLURM_ARRAY_TASK_ID} --config oai_analysis_longleaf.json --knee_type BOTH_KNEES
 
 

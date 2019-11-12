@@ -35,7 +35,7 @@ def parse_filename(filename, thickness_data,
 
         nr_femoral += 1
         cartilage_type_id = nr_femoral-1
-        print('Added femoral cartilage with id {}'.format(cartilage_type_id))
+        # print('Added femoral cartilage with id {}'.format(cartilage_type_id))
 
     elif tail[0:2] == 'TC':
         cartilage_type = 'tibial'
@@ -55,7 +55,7 @@ def parse_filename(filename, thickness_data,
 
         nr_tibial += 1
         cartilage_type_id = nr_tibial-1
-        print('Added tibial cartilage with id {}'.format(cartilage_type_id))
+        # print('Added tibial cartilage with id {}'.format(cartilage_type_id))
 
     else:
         raise ValueError('Unknown cartilage type for file: {}'.format(filename))
@@ -114,6 +114,7 @@ def read_thickness_file_information(filename,thickness_data, femoral_thickness_v
 if __name__ == '__main__':
 
     import argparse
+    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Collects the cartilage thickness analysis results')
 
@@ -124,6 +125,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     files = glob.glob(args.output_directory + '/**/*_2d_thickness.npy', recursive=True)
+
+    print("Found {} saved files".format(len(files)))
 
     empty_data = {'patient_id':[],
                   'modality': [],
@@ -139,7 +142,7 @@ if __name__ == '__main__':
     nr_femoral = 0
     nr_tibial = 0
 
-    for f in files:
+    for f in tqdm(files):
         (thickness_data,femoral_thickness_values, nr_femoral, tibial_thickness_values, nr_tibial) = \
             read_thickness_file_information(filename=f, thickness_data=thickness_data,
                                             femoral_thickness_values=femoral_thickness_values,

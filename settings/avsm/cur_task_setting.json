@@ -1,27 +1,32 @@
 {
+    "dataset": {
+        "img_after_resize": [
+            80,
+            192,
+            192
+        ],
+        "load_training_data_into_memory": false,
+        "max_pair_for_loading": [
+            1,
+            1,
+            -1,
+            1
+        ],
+        "spacing_to_refer": [
+            0.7,
+            0.3646,
+            0.3646
+        ]
+    },
     "tsk_set": {
-        "batch_sz": 2,
+        "batch_sz": 1,
         "check_best_model_period": 5,
         "continue_train": false,
         "continue_train_lr": 5e-05,
         "criticUpdates": 1,
         "epoch": 300,
-        "gpu_ids": 2,
-        "img_size": [
-            160,
-            384,
-            384
-        ],
-        "input_resize_factor": [
-            0.5,
-            0.5,
-            0.5
-        ],
+        "gpu_ids": 0,
         "loss": {
-            "ce": {
-                "no_bg": false,
-                "weighted": false
-            },
             "type": "lncc"
         },
         "max_batch_num_per_epoch": [
@@ -29,13 +34,11 @@
             8,
             4
         ],
-        "mode_train": true,
         "model": "reg_net",
         "model_folder_path": "",
         "model_path": "/nas/longleaf/home/mn/python/registration_net/mermaid/pretrained/pre_trained_model",
         "n_in_channel": 1,
-        "network_name": "mermaid",
-        "old_gpu_ids": 2,
+        "method_name": "mermaid",
         "optim": {
             "adam": {
                 "beta": 0.9
@@ -44,18 +47,14 @@
             "lr_scheduler": {
                 "custom": {
                     "gamma": 0.5,
-                    "step_size": 12000
-                },
-                "plateau": {
-                    "factor": 0.2,
-                    "min_lr": 1e-06,
-                    "patience": 5,
-                    "threshold": 0.001
+                    "step_size": 60
                 },
                 "type": "custom"
             },
             "optim_type": "adam"
         },
+        "output_taking_original_image_format": true,
+        "save_original_image_by_type": [false, false, false, false, false, true],
         "print_step": [
             10,
             4,
@@ -64,38 +63,42 @@
         "print_val_detail": true,
         "reg": {
             "affine_net": {
+                "acc_multi_step_loss": false,
                 "affine_net_iter": 7,
+                "epoch_activate_extern_loss": -1,
+                "epoch_activate_multi_step": -1,
+                "epoch_activate_sym": -1,
+                "epoch_activate_sym_loss": -1,
+                "initial_reg_factor": 10,
+                "min_reg_factor": 1e-07,
+                "reset_lr_for_multi_step": true,
                 "using_complex_net": true
             },
+            "compute_inverse_map": true,
             "low_res_factor": 0.5,
-            "mermaid_iter": {
-                "affine": {
-                    "sigma": 0.7
-                }
-            },
             "mermaid_net": {
-                "load_trained_affine_net":false,
                 "affine_init_path": "",
-                "num_step": 3,
-                "sym_factor": 100,
+                "affine_refine_step": 7,
+                "clamp_momentum": false,
+                "clamp_thre": 1,
+                "epoch_activate_multi_step": 100,
+                "epoch_activate_sym": 200,
+                "load_trained_affine_net": true,
+                "mermaid_net_json_pth": "",
+                "num_step": 2,
+                "optimize_momentum_network": false,
+                "reset_lr_for_multi_step": true,
+                "sym_factor": 500,
                 "using_affine_init": true,
-                "using_complex_net": true,
-                "using_index_coord": false,
-                "using_lddmm": false,
-                "using_multi_step": true,
-                "using_sym": false
+                "using_physical_coord": false,
+                "using_complex_net": true
             }
         },
-        "resize_factor": [
-            1.0,
-            1.0,
-            1.0
-        ],
-        "save_by_standard_label": true,
-        "save_fig_on": true,
-        "save_val_fig_epoch": 2,
-        "task_name": "test_intra_mermaid_net_500thisinst_10reg_double_loss_step3_jacobi",
+        "save_3d_img_on": false,
+        "save_extra_3d_img": false,
+        "save_fig_on": false,
         "train": false,
+        "use_physical_coord": false,
         "val_period": 10,
         "warmming_up_epoch": 2
     }
