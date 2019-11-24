@@ -264,7 +264,8 @@ class OAIImage:
                                   24: '24_MONTH',
                                   36: '36_MONTH',
                                   48: '48_MONTH',
-                                  72: '72_MONTH'}
+                                  72: '72_MONTH',
+                                  96: '96_MONTH'}
 
         # attributes of analysis file paths
         self.folder = None

@@ -90,6 +90,7 @@ def demo_analyze_single_image(use_nifti,avsm_path=None,do_clean=False):
 def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                    progression_cohort_only=True,
                    knee_type='LEFT_KNEE',
+                   time_point=None,
                    only_recompute_if_thickness_file_is_missing = False,
                    just_get_number_of_images = False,
                    task_id=None,task_id_chunk=None,
@@ -125,7 +126,14 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         print('WARNING: unknown knee type {}, defaulting to LEFT_KNEE.'.format(knee_type))
         part='LEFT_KNEE'
 
-    analysis_images = OAI_data.get_images(patient_id=analysis_patient,part=part)
+    if time_point is None:
+        analysis_images = OAI_data.get_images(patient_id=analysis_patient,part=part)
+    else:
+        if time_point in [0, 12, 24, 36, 48, 72, 96]:
+            analysis_images = OAI_data.get_images(patient_id=analysis_patient, part=part, visit_month=[time_point])
+        else:
+            raise ValueError('Unknown timepoint {}'.format(time_point))
+
 
     total_nr_of_analysis_images = len(analysis_images)
 
@@ -318,6 +326,9 @@ if __name__ == '__main__':
     HELP['progression_cohort_only'] = 'If set, only the progression cohort will be analyzed.'
     DEFAULT['progression_cohort_only'] = False
 
+    HELP['time_point'] = 'Can be set to 0, 12, 24, 36, 48, 72, or 96'
+    DEFAULT['time_point'] = None
+
     HELP['knee_type'] = 'Can be set to LEFT_KNEE, RIGHT_KNEE, BOTH_KNEES. Specifies what knees should be analyzed.'
     DEFAULT['knee_type'] = 'BOTH_KNEES'
 
@@ -361,6 +372,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_division_offset', required=False, default=DEFAULT['data_division_offset'], type=int, help=HELP['data_division_offset'])
 
     parser.add_argument('--progression_cohort_only', action='store_true', help=HELP['progression_cohort_only'])
+
+    parser.add_argument('--time_point', type=int, choices=[0, 12, 24, 36, 48, 72, 96], default=DEFAULT['time_point'], help=HELP['time_point'])
 
     parser.add_argument('--knee_type', choices=['LEFT_KNEE', 'RIGHT_KNEE', 'BOTH_KNEES'], default=DEFAULT['knee_type'], help=HELP['knee_type'])
 
@@ -441,6 +454,11 @@ if __name__ == '__main__':
                              default_val=PARAMS['progression_cohort_only'],
                              params_description=HELP['progression_cohort_only'])
 
+    get_parameter_value(args.time_point, params=PARAMS,
+                        params_name='time_point',
+                        default_val=DEFAULT['time_point'],
+                        params_description=HELP['time_point'])
+
     get_parameter_value(args.knee_type, params=PARAMS,
                         params_name='knee_type',
                         default_val=DEFAULT['knee_type'],
@@ -488,6 +506,7 @@ if __name__ == '__main__':
         analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'],
                        progression_cohort_only=PARAMS['progression_cohort_only'],
                        knee_type=PARAMS['knee_type'],
+                       time_point=PARAMS['time_point'],
                        only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
                        just_get_number_of_images=args.get_number_of_jobs,
                        task_id=task_id, task_id_chunk=task_id_chunk,
