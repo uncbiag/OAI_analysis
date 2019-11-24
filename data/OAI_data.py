@@ -30,7 +30,8 @@ class OAIData:
                                   24: '24 MONTH',
                                   36: '36 MONTH',
                                   48: '48 MONTH',
-                                  72: '72 MONTH'}
+                                  72: '72 MONTH',
+                                  96: '96 MONTH'}
         self.root_path = None  # root path of data and initialized when building patient repositories
         self.patient_set = set()
         if data_sheet != None and raw_data_root != 'None':
@@ -292,6 +293,9 @@ class OAIImage:
                                                                                  df_line.SeriesDescription)
             if raw_root:
                 self.raw_folder = os.path.join(raw_root, df_line.Folder)
+
+
+
     @property
     def name(self):
         return "_".join([str(self.patient_id), self.visit_description[self.visit_month], self.part, self.modality])
@@ -424,7 +428,7 @@ class OAIPatients:
         e.g. '1: Progression', '2: Incidence', '3: Non-exposed control group'
     """
     def __init__(self, enrollees_text_file):
-        df = pd.read_table(enrollees_text_file, sep='|')
+        df = pd.read_csv(enrollees_text_file, sep='|')
         self.df = df.set_index('ID')
 
     def filter_patient(self, **kwargs):
@@ -452,7 +456,7 @@ def oai_data_test():
     os.environ["CUDA_CACHE_PATH"] = "/playpen/zhenlinx/.cuda_cache"
 
     # patient infos
-    patients_ASCII_file_path = "/playpen/zhenlinx/Data/OAI/Clinical/Enrollees/Enrollees.txt"
+    patients_ASCII_file_path = "./Enrollees.txt"
     # patients_df = pd.read_table(patients_ASCII_file_path, sep='|')
     # patients_df = patients_df.set_index('ID')
     # progression_cohort = list(patients_df.index[patients_df['V00COHORT'] == '1: Progression'])
@@ -460,14 +464,14 @@ def oai_data_test():
     oai_patients = OAIPatients(patients_ASCII_file_path)
     progression_cohort = oai_patients.filter_patient(V00COHORT='1: Progression')
 
-    image_folder_path = "/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_6sets_rescaled"
+    # image_folder_path = "/playpen-raid/zhenlinx/Data/OAI_segmentation/Nifti_6sets_rescaled"
     # OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets_40test.csv"
-    OAI_data_sheet = "/playpen-raid/zhenlinx/Data/OAI_segmentation/SEG_3D_DESS_6sets.csv"
+    OAI_data_sheet = "./SEG_3D_DESS_all.csv"
 
     OAI_data = OAIData(OAI_data_sheet, '/playpen-raid/data/OAI')
-    OAI_data.set_processed_data_paths()
+    # OAI_data.set_processed_data_paths()
     ## build repositories and preprocess the raw image data
-    # OAI_data.build_repositories('/playpen-raid/zhenlinx/Data/OAI')
+    OAI_data.set_processed_data_paths_without_creating_image_directories('/playpen-raid/zhenlinx/Data/OAI')
     images = OAI_data.get_images()
     series = OAI_data.get_image_series()
     df = OAI_data.get_processed_data_frame()
