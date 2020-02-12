@@ -1,0 +1,9 @@
+Project=gifted-loader-253214
+Zone=us-east1-c
+OAI_data=gs://oai_bucket
+OAI_results=gs://result_oai
+Logging=gs://logging_oai
+Disk Size=200
+NNodes=3
+Month=12
+GPU=nvidia-tesla-k80
