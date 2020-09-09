@@ -332,9 +332,8 @@ class OAIImage:
         self.FC_thickness_mapped_to_atlas_mesh = os.path.join(task_folder, "atlas_FC_mesh_with_thickness.ply")
         self.TC_thickness_mapped_to_atlas_mesh = os.path.join(task_folder, "atlas_TC_mesh_with_thickness.ply")
 
-        # TODO: naming the file of 2d thickness grid
-        self.FC_2D_thickness_grid = os.path.join(task_folder, "FC_2d_thickness")
-        self.TC_2D_thickness_grid = os.path.join(task_folder, "TC_2d_thickness")
+        self.FC_2D_thickness_grid = os.path.join(task_folder, "FC_2d_thickness.npy")
+        self.TC_2D_thickness_grid = os.path.join(task_folder, "TC_2d_thickness.npy")
 
 
     def set_processed_data_paths(self, processed_root,task_name=None):
