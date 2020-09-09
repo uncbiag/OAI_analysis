@@ -3,6 +3,8 @@
 Created by zhenlinx on 1/25/19
 """
 import os
+import sys
+sys.path.append(os.path.realpath(".."))
 import segmentation.datasets as data3d
 from segmentation.segmenter import Segmenter3DInPatchClassWise
 def pred():
