@@ -10,9 +10,11 @@ from segmentation.segmenter import Segmenter3DInPatchClassWise
 def pred():
 
     pred_config = dict(
-        ckpoint_path = "./ckpoints/UNet_bias_Nifti_rescaled_toLeft_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01242019_232540/"
-                       "checkpoint.pth.tar",
-        training_config_file = "./ckpoints/UNet_bias_Nifti_rescaled_toLeft_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01242019_232540/"
+        # ckpoint_path = "./ckpoints/UNet_bias_Nifti_rescaled_toLeft_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01242019_232540/"
+        ckpoint_path = "./ckpoints/UNet_bias_Nifti_rescaled_LEFT_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01272019_212723/"
+                       "model_best.pth.tar",
+        # training_config_file = "./ckpoints/UNet_bias_Nifti_rescaled_toLeft_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01242019_232540/"
+        training_config_file = "./ckpoints/UNet_bias_Nifti_rescaled_LEFT_train1_patch_128_128_32_batch_4_sample_0.01-0.02_BCEWithLogitsLoss_lr_0.001/01272019_212723/"
                           "train_config.json",
         device = "cuda",
         batch_size = 4,
@@ -28,8 +30,9 @@ def pred():
                                           preload=False)
 
     segmenter = Segmenter3DInPatchClassWise(mode="pred", config=pred_config)
-    for image, _, name in validation_data:
+    for image, seg, name in validation_data:
         pred_FC, pred_TC = segmenter.segment(image)
+        pass
 
 if __name__ == '__main__':
     pred()
