@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Functions of PyTorch tensor operations
 Created by zhenlinx on 1/20/19

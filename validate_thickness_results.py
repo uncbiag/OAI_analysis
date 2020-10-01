@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 This script test the results of thickness computation by comparing them with manual measurements
 

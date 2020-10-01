@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Created by zhenlinx on 1/31/19
 Adapted by mn on 06/28/19
@@ -16,6 +16,10 @@ import sys
 import logging
 
 import module_parameters as pars
+
+import argparse
+
+from mpi4py import MPI
 
 # global parameters
 PARAMS = pars.ParameterDict()
@@ -71,20 +75,20 @@ def demo_analyze_single_image(use_nifti,avsm_path=None,do_clean=False):
     OAI_data_sheet = PARAMS['oai_data_sheet']
     OAI_data = OAIData(OAI_data_sheet, PARAMS['oai_data_directory'])
     OAI_data.set_processed_data_paths( PARAMS['output_directory'],None if use_nifti else 'avsm')
-    test_image = OAI_data.get_images(patient_id= [9279291])[0] # 9279291, 9298954,9003380
+    test_image = OAI_data.get_images(folder='1.C.2/9000798/20051130/10612103', patient_id= [9000798])[0] # 9279291, 9298954,9003380
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
     analyzer.preprocess(test_image, overwrite=False)
-    # analyzer.segment_image_and_save_results(test_image, overwrite=False)
-    # analyzer.close_segmenter()
+    analyzer.segment_image_and_save_results(test_image, overwrite=False)
+    analyzer.close_segmenter()
     analyzer.extract_surface_mesh(test_image, overwrite=False)
     analyzer.register_image_to_atlas(test_image, True)
     analyzer.warp_mesh(test_image, overwrite=True,do_clean=do_clean)
-    #analyzer.project_thickness_to_atlas(test_image, overwrite=False)
+    analyzer.project_thickness_to_atlas(test_image, overwrite=False)
     analyzer.set_atlas_2D_map(PARAMS['atlas_fc_2d_map_path'], PARAMS['atlas_tc_2d_map_path'])
     analyzer.compute_atlas_2D_map(n_jobs=None)
     analyzer.project_thickness_to_2D(test_image, overwrite=False)
-    # analyzer.eval_registration_surface_distance(test_image)
-    # analyzer.get_surface_distances_eval()
+    analyzer.eval_registration_surface_distance(test_image)
+    analyzer.get_surface_distances_eval()
 
 
 def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
@@ -93,11 +97,10 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                    time_point=None,
                    only_recompute_if_thickness_file_is_missing = False,
                    just_get_number_of_images = False,
-                   task_id=None,task_id_chunk=None,
-                   data_division_interval=None,data_division_offset=None,
                    logging_filename='oai_analysis_log.log',
                    set_pids_from_file=False):
 
+    print('hello')
     logging.basicConfig(filename=logging_filename, filemode='a', format='%(name)s - %(levelname)s - %(message)s')
 
     OAI_data_sheet = PARAMS['oai_data_sheet']
@@ -108,14 +111,19 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
 
     patients_ASCII_file_path = PARAMS['oai_enrollees']
     oai_patients = OAIPatients(patients_ASCII_file_path)
+
+    print (set_pids_from_file)
     if progression_cohort_only:
         # todo:: support different selectors here
+        print('hello')
         analysis_cohort_patient = oai_patients.filter_patient(V00COHORT='1: Progression')
         analysis_patient = list(analysis_cohort_patient & OAI_data.patient_set)
     elif set_pids_from_file:
+        print('hello1')
         pids = read_pid_from_file(PARAMS['pid_file'])
         analysis_patient = list(OAI_data.patient_set & set(pids))
     else:
+        print('hello2')
         analysis_patient = list(OAI_data.patient_set)
 
     if knee_type in ['LEFT_KNEE','RIGHT_KNEE']:
@@ -134,7 +142,6 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         else:
             raise ValueError('Unknown timepoint {}'.format(time_point))
 
-
     total_nr_of_analysis_images = len(analysis_images)
 
     if just_get_number_of_images:
@@ -143,32 +150,30 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
 
     process_type_str = ''
 
-    if task_id is not None:
-        if task_id_chunk is None:
-            task_id_chunk = 1
+    comm = MPI.COMM_WORLD
 
-        task_id_from = task_id*task_id_chunk
-        task_id_to = min(total_nr_of_analysis_images,(task_id+1)*task_id_chunk)
+    task_id = comm.Get_rank()
+    task_size = comm.Get_size()
 
-        if task_id_from>=total_nr_of_analysis_images:
-            print('INFO: task id range exceeds available number of images: requested lowest task id is {}, but we only have {} images.'.format(task_id_from,total_nr_of_analysis_images))
-            print('INFO: Aborting the analysis.')
-            logging.critical('task_id {} is out of range [0,{})'.format(task_id_from,total_nr_of_analysis_images))
-            return
+    task_id_chunk = total_nr_of_analysis_images // task_size
 
-        subcohort_images = analysis_images[task_id_from:task_id_to]
-        process_type_str += 'process type = task_id range: [{},{})'.format(task_id_from,task_id_to)
+    task_id_from = task_id*task_id_chunk
 
+    if task_id == task_size - 1:
+        task_id_to = min(total_nr_of_analysis_images,((task_id+1) * task_id_chunk) + (total_nr_of_analysis_images % task_size) - 1)
     else:
-        if (data_division_interval is not None) and (data_division_offset is not None):
-            subcohort_images = analysis_images[data_division_offset::data_division_interval]
-            print('data_division_interval = {}; data_division_offset = {}'.format(data_division_interval,data_division_offset))
-            process_type_str += 'process type = data_division_interval: {}, data_division_offset: {}'.format(data_division_interval,data_division_offset)
-        else:
-            # just process all of them
-            print('Processing all {} images.'.format(len(analysis_images)))
-            subcohort_images = analysis_images
-            process_type_str += 'process type = all'
+        task_id_to = min(total_nr_of_analysis_images,(task_id+1) * task_id_chunk - 1)
+
+    print(task_id, task_size, task_id_chunk, task_id_from, task_id_to)
+
+    if task_id_from>=total_nr_of_analysis_images:
+        print('INFO: task id range exceeds available number of images: requested lowest task id is {}, but we only have {} images.'.format(task_id_from,total_nr_of_analysis_images))
+        print('INFO: Aborting the analysis.')
+        logging.critical('task_id {} is out of range [0,{})'.format(task_id_from,total_nr_of_analysis_images))
+        return
+'''
+    subcohort_images = analysis_images[task_id_from:task_id_to]
+    process_type_str += 'process type = task_id range: [{},{})'.format(task_id_from,task_id_to)
 
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
@@ -230,7 +235,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                 logging.critical(e)
 
     analyzer.get_surface_distances_eval()
-
+'''
 def get_parameter_value(command_line_par,params, params_name, default_val, params_description):
 
     if (command_line_par==default_val) or (command_line_par is None):
@@ -272,10 +277,7 @@ def read_pid_from_file(pid_file):
 
     return pids
 
-
 if __name__ == '__main__':
-
-    import argparse
 
     parser = argparse.ArgumentParser(description='Performs analysis of the OAI data')
 
@@ -294,7 +296,7 @@ if __name__ == '__main__':
     DEFAULT['overwrite'] = False
 
     HELP['config'] = 'The main json configuration file that can be used to define the settings.'
-    DEFAULT['config'] = '~/.oai_analysis_settings.json'
+    DEFAULT['config'] = 'oai_analysis_longleaf.json'
 
     HELP['config_out'] = 'The used json configuration file that the configuration should be written to in the end.'
     DEFAULT['config_out'] = None
@@ -481,27 +483,7 @@ if __name__ == '__main__':
         np.random.seed(PARAMS['seed'])
         random.seed(PARAMS['seed'])
 
-    # those should be specified at the command line, will not be part of the configuration file
-    data_division_interval = args.data_division_interval
-    data_division_offset = args.data_division_offset
-    task_id = args.task_id
-    task_id_chunk = args.task_id_chunk
-    if task_id is not None:
-        data_division_offset = None
-        data_division_interval = None
-        if task_id_chunk is None:
-            task_id_chunk = 1
-    else:
-        task_id_chunk = None
-
     if not args.do_not_run:
-
-        if task_id is not None:
-            if (data_division_interval is not None) or (data_division_offset is not None):
-                print('WARNING: data_division settings specified but task ID is given; using task ID {}'.format(task_id))
-                data_division_interval = None
-                data_division_offset = None
-
 
         analyze_cohort(use_nifti=PARAMS['use_nifty_reg'],avsm_path=PARAMS['avsm_directory'],overwrite=PARAMS['overwrite'],
                        progression_cohort_only=PARAMS['progression_cohort_only'],
@@ -509,8 +491,6 @@ if __name__ == '__main__':
                        time_point=PARAMS['time_point'],
                        only_recompute_if_thickness_file_is_missing=args.only_recompute_if_thickness_file_is_missing,
                        just_get_number_of_images=args.get_number_of_jobs,
-                       task_id=task_id, task_id_chunk=task_id_chunk,
-                       data_division_interval=data_division_interval, data_division_offset=data_division_offset,
                        logging_filename=PARAMS['logging_filename'],
                        set_pids_from_file=args.set_pids_from_file)
 

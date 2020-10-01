@@ -7,10 +7,12 @@ relative_paths:
     ckpoint_folder: ''
 absolute_paths:
     niftyreg_path: '/home/ssbehera/oai/niftyreg/niftyreg-git/install/bin'
+    results: '/mnt/beegfs/ssbehera/results'
 data:
     OAI_data_sheet: './data/SEG_3D_DESS_6visits.csv'
-    OAI_data_path: '/mnt/beegfs/uray/1.C.2'
-    results: '/mnt/beegfs/ssbehera/'
+    OAI_data_path: '/mnt/beegfs/uray/'
+    results: '/mnt/beegfs/ssbehera/results/'
     ckpoint_folder: ''
 avsm:
-    path: '/home/ssbehera/oai/tmp/OAI_analysis/easyreg'
+    path: '/home/ssbehera/oai/tmp/easyreg'
+nifty: true

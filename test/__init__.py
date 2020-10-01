@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Created by zhenlinxu on 07/01/2019
 """

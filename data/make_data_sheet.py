@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Make datasheets for images and their meta data
 Created by zhenlinxu on 07/08/2019

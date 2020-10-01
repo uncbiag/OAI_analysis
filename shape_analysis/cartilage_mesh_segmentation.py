@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 TODO: The script try to segment the cartilage surface mesh up/down side with clustering algorithm
 

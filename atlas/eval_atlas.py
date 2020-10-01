@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Script to evaluate atlas by:
 1. measure the overlapping/distance metric on segmentations of any pair of registered images

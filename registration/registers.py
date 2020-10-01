@@ -42,7 +42,7 @@ class Register(ABC):
 
 
 class AVSMReg(Register):
-    def __init__(self,avsm_path=None,python_executable='python'):
+    def __init__(self,avsm_path=None,python_executable='python3.6'):
         super(AVSMReg,self).__init__()
         self.avsm_path = avsm_path
         self.python_executable = python_executable

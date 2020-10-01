@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 A class for computing the thickness distribution on the surface of cartilages
 and other helper functions

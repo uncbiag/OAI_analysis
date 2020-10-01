@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 Operations on strings
 Created by zhenlinx on 1/19/19
