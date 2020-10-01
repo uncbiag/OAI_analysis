@@ -1,0 +1,16 @@
+relative_paths:
+    ATLAS_IMAGE_PATH: 'atlas/atlas_60_LEFT_baseline_NMI/atlas.nii.gz'
+    ATLAS_FC_MESH_PATH: 'data/atlas_FC_inner_mesh_world.ply'
+    ATLAS_TC_MESH_PATH: 'data/atlas_TC_inner_mesh_world.ply'
+    ATLAS_FC_2D_MAP_PATH: 'data/FC_inner_embedded.npy'
+    ATLAS_TC_2D_MAP_PATH: 'data/TC_inner_embedded.npy'
+    ckpoint_folder: ''
+absolute_paths:
+    niftyreg_path: '/home/ssbehera/oai/niftyreg/niftyreg-git/install/bin'
+data:
+    OAI_data_sheet: './data/SEG_3D_DESS_6visits.csv'
+    OAI_data_path: '/mnt/beegfs/uray/1.C.2'
+    results: '/mnt/beegfs/ssbehera/'
+    ckpoint_folder: ''
+avsm:
+    path: '/home/ssbehera/oai/tmp/OAI_analysis/easyreg'
