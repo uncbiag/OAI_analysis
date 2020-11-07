@@ -160,24 +160,27 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
     task_id_from = task_id*task_id_chunk
 
     if task_id == task_size - 1:
-        task_id_to = min(total_nr_of_analysis_images,((task_id+1) * task_id_chunk) + (total_nr_of_analysis_images % task_size) - 1)
+        task_id_to = min(total_nr_of_analysis_images,((task_id+1) * task_id_chunk) + (total_nr_of_analysis_images % task_size))
     else:
-        task_id_to = min(total_nr_of_analysis_images,(task_id+1) * task_id_chunk - 1)
+        task_id_to = min(total_nr_of_analysis_images,(task_id+1) * task_id_chunk)
 
-    print(task_id, task_size, task_id_chunk, task_id_from, task_id_to)
+    print(task_id, task_size, total_nr_of_analysis_images, task_id_chunk, task_id_from, task_id_to)
 
     if task_id_from>=total_nr_of_analysis_images:
         print('INFO: task id range exceeds available number of images: requested lowest task id is {}, but we only have {} images.'.format(task_id_from,total_nr_of_analysis_images))
         print('INFO: Aborting the analysis.')
         logging.critical('task_id {} is out of range [0,{})'.format(task_id_from,total_nr_of_analysis_images))
         return
-'''
     subcohort_images = analysis_images[task_id_from:task_id_to]
     process_type_str += 'process type = task_id range: [{},{})'.format(task_id_from,task_id_to)
 
     analyzer = build_default_analyzer(use_nifty=use_nifti, avsm_path=avsm_path)
 
     #analyzer.preprocess_parallel(image_list=subcohort_images, n_workers=32, overwrite=False)
+
+    #print (analysis_images)
+    print (subcohort_images)
+    #return
 
     for j, test_image in enumerate(subcohort_images):
         print("================================")
@@ -196,7 +199,6 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
             print(e)
             logging.critical(error_msg)
             logging.critical(e)
-
     analyzer.close_segmenter()
 
     for i, test_image in enumerate(subcohort_images):
@@ -219,10 +221,16 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
         else:
             try:
                 print("\n[{}] {}\n".format(i, test_image.name))
-                analyzer.register_image_to_atlas(test_image, overwrite=overwrite)
                 analyzer.extract_surface_mesh(test_image, overwrite=overwrite)
+                print('extract surface mesh done')
+                analyzer.register_image_to_atlas(test_image, overwrite=overwrite)
+                print('registration done')
+#                analyzer.extract_surface_mesh(test_image, overwrite=overwrite)
+#                print('extract surface mesh done')
                 analyzer.warp_mesh(test_image, overwrite=overwrite, do_clean=do_clean)
+                print('warp mesh done')
                 analyzer.eval_registration_surface_distance(test_image)
+                print('eval registration done')
                 analyzer.set_atlas_2D_map(PARAMS['atlas_fc_2d_map_path'], PARAMS['atlas_tc_2d_map_path'])
                 analyzer.compute_atlas_2D_map(n_jobs=None)
                 analyzer.project_thickness_to_atlas(test_image, overwrite=overwrite)
@@ -235,7 +243,7 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
                 logging.critical(e)
 
     analyzer.get_surface_distances_eval()
-'''
+
 def get_parameter_value(command_line_par,params, params_name, default_val, params_description):
 
     if (command_line_par==default_val) or (command_line_par is None):
