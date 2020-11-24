@@ -24,7 +24,7 @@ python3.6 -m pip install mpi4py tensorboardX matplotlib scikit-image sklearn pym
 
 python3.6 -m pip install pandas torch torchvision &>/dev/null
 
-sudo yum install eigen3-devel gmp-devel gmpxx4ldbl mpfr-devel boost-devel boost-thread-devel tbb-devel python3-devel scotch-devel cmake3 &>/dev/null
+sudo yum -y install eigen3-devel gmp-devel gmpxx4ldbl mpfr-devel boost-devel boost-thread-devel tbb-devel python3-devel scotch-devel cmake3 &>/dev/null
 
 
 #installing the above packages on the compute nodes
@@ -42,11 +42,11 @@ echo ${compute_prefix}
 
 for ((i=compute_start;i<=compute_end;i++)); do
  echo "installing packages on ${compute_prefix}${i}"
- ssh ${compute_prefix}${i} sudo yum install eigen3-devel gmp-devel gmpxx4ldbl mpfr-devel boost-devel boost-thread-devel tbb-devel python3-devel scotch-devel cmake3 &>/dev/null
+ ssh ${compute_prefix}${i} sudo yum -y install eigen3-devel gmp-devel gmpxx4ldbl mpfr-devel boost-devel boost-thread-devel tbb-devel python3-devel scotch-devel cmake3 &>/dev/null
 done
 
-sudo yum install libmpc-devel &>/dev/null
-sudo yum install gcc-c++
+sudo yum -y install libmpc-devel &>/dev/null
+sudo yum -y install gcc-c++
 echo 'dependency module installation complete'
 
 cd ..
@@ -68,6 +68,7 @@ cd ..
 echo 'installing PyMesh'
 
 git clone https://github.com/PyMesh/PyMesh.git &>/dev/null
+cd PyMesh &>/dev/null
 git checkout e3c777a66c92f97dcfea610f66bbffa60701cd5f -b test &>/dev/null
 git submodule update --init &>/dev/null
 pip3.6 install -r python/requirements.txt &>/dev/null
