@@ -38,15 +38,14 @@ compute_start=$(echo "$compute_range" | cut -d\- -f1)
 
 compute_end=$(echo "$compute_range" | cut -d\- -f2)
 
-echo ${compute_prefix}
-
 for ((i=compute_start;i<=compute_end;i++)); do
  echo "installing packages on ${compute_prefix}${i}"
  ssh ${compute_prefix}${i} sudo yum -y install eigen3-devel gmp-devel gmpxx4ldbl mpfr-devel boost-devel boost-thread-devel tbb-devel python3-devel scotch-devel cmake3 &>/dev/null
 done
 
 sudo yum -y install libmpc-devel &>/dev/null
-sudo yum -y install gcc-c++
+sudo yum -y install gcc-c++ &>/dev/null
+
 echo 'dependency module installation complete'
 
 cd ..
@@ -87,6 +86,8 @@ cmake3 -D CMAKE_C_COMPILER=/shared/bin/gcc -D CMAKE_CXX_COMPILER=/shared/bin/g++
 make &>/dev/null
 cd tools/Tetrahedralization
 cmake3 -E cmake_link_script CMakeFiles/lib_Tetrahedralization.dir/link.txt --verbose=1 &> jk.sh
+truncate -s-1 jk.sh
+echo -n " /usr/lib64/libscotch.so /usr/lib64/libscotcherr.so /usr/lib64/libscotcherrexit.so /usr/lib64/libscotchmetis.so" >> jk.sh
 sh jk.sh &>/dev/null
 cd ../../
 make &>/dev/null
@@ -105,12 +106,12 @@ pip3.6 install surface-distance/
 echo 'surface-distance installation complete'
 
 echo 'installing niftyreg'
-git clone git://git.code.sf.net/p/niftyreg/git niftyreg-git
+git clone git://git.code.sf.net/p/niftyreg/git niftyreg-git &>/dev/null
 cd niftyreg-git
 mkdir build
 mkdir install
 cd build
-cmake3 -D CMAKE_C_COMPILER=/shared/bin/gcc -D CMAKE_CXX_COMPILER=/shared/bin/g++ -D CMAKE_INSTALL_PREFIX=../install/
-make install
+cmake3 -D CMAKE_C_COMPILER=/shared/bin/gcc -D CMAKE_CXX_COMPILER=/shared/bin/g++ -D CMAKE_INSTALL_PREFIX=../install/ .. &>/dev/null
+make install &>/dev/null
 
 echo 'niftyreg installation complete'
