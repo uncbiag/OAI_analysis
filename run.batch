@@ -1,0 +1,11 @@
+#!/bin/bash
+
+#SBATCH -J oai_run            # Job name
+#SBATCH -o job.%j.out         # Name of stdout output file (%j expands to jobId)
+#SBATCH -N 2                  # Total number of nodes requested
+#SBATCH -n 4                  # Total number of mpi tasks requested
+#SBATCH -t 01:30:00           # Maximum Run time (hh:mm:ss) - 1.5 hours
+
+# Launch MPI-based executable
+
+mpirun python3.6 ./mn_oai_pipeline.py --config oai_analysis_longleaf.json --knee_type BOTH_KNEES --time_point 12 --overwrite --use_nifty_reg
