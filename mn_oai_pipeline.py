@@ -156,23 +156,28 @@ def analyze_cohort(use_nifti,avsm_path=None, do_clean=False, overwrite=False,
     task_size = comm.Get_size()
 
     task_id_chunk = total_nr_of_analysis_images // task_size
+    extra_images = total_nr_of_analysis_images % task_size
 
     if total_nr_of_analysis_images < task_size:
         task_id_from = task_id
     else:
-        task_id_from = task_id*task_id_chunk
+        if task_id < extra_images:
+            task_id_from = task_id * (task_id_chunk + 1)
+        else:
+            task_id_from = (extra_images * (task_id_chunk + 1)) + ((task_id - extra_images) * task_id_chunk)
 
-    if task_id < total_nr_of_analysis_images % task_size:
-        if total_nr_of_analysis_images < task_size:
-             task_id_to  = task_id + 1
+    if total_nr_of_analysis_images < task_size:
+        if task_id < extra_images:
+            task_id_to = task_id + 1
         else:
-             task_id_to = ((task_id+1) * task_id_chunk) + 1
+            print('idle task')
+            comm.Barrier()
+            return
     else:
-        if total_nr_of_analysis_images < task_size:
-             print('idle task')
-             comm.Barrier()
+        if task_id < extra_images:
+            task_id_to = task_id_from + task_id_chunk + 1
         else:
-             task_id_to = (task_id+1) * task_id_chunk
+            task_id_to = task_id_from + task_id_chunk
 
     print(task_id, task_size, total_nr_of_analysis_images, task_id_chunk, task_id_from, task_id_to)
 
