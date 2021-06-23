@@ -1,0 +1,28 @@
+pipelinestages:
+    - name: preprocess
+      resource: CPU
+    - name: segmentation
+      resource: GPU
+    - name: extractsurfacemesh
+      resource: CPU
+    - name: registerimagetoatlas
+      resource: GPU
+    - name: warpmesh
+      resource: CPU
+    - name: evalregistration
+      resource: CPU
+    - name: setatlas2dmap
+      resource: CPU
+    - name: computeatlas2dmap
+      resource: CPU
+    - name: projectthicknesstoatlas
+      resource: CPU
+    - name: projectthicknessto2d
+      resource: CPU
+performance:
+    basecpu: Intel Skylake Silver
+    basegpu: Nvidia Quadro P4000
+    latencies:
+        - cpu: Intel Skylake Silver
+          gpu: Nvidia Quadro P4000
+          latency: [14.6, 85.75, 1150.5, 589.3, 449.8, 139.8, 7.4, 0.0005, 185.22, 3.55]
