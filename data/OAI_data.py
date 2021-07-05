@@ -290,15 +290,16 @@ class OAIImage:
             self.patient_id = df_line.ParticipantID
             self.study_date = df_line.StudyDate
             self.bar_code = df_line.Barcode
+            self.studydescription = df_line.StudyDescription
+            self.seriesdescription = df_line.SeriesDescription
             self.modality, self.part, self.visit_month = self.factor_description(df_line.StudyDescription,
                                                                                  df_line.SeriesDescription)
 
             if raw_root:
                 self.raw_folder = os.path.join(raw_root, df_line.Folder)
 
-            if self.folder == '1.C.2' and self.patient_id == '9000798':
-                print('image exists')
-
+    def get_raw_info (self):
+        return [str(self.folder), str(self.patient_id), str(self.study_date), str(self.bar_code), str(self.studydescription), str(self.seriesdescription)]
 
     @property
     def name(self):

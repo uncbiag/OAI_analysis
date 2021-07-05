@@ -43,25 +43,45 @@ class Resource:
             self.ssdlocation = ''
 
     def set_main_taskset (self, iteration, tasksetid, resourcetype):
+        if resourcetype == 'CPU':
+            if 'GPU' in self.main_taskset.keys ():
+                del self.main_taskset['GPU']
+        if resourcetype == 'GPU':
+            if 'CPU' in self.main_taskset.keys ():
+                del self.main_taskset['CPU']
+
         self.main_taskset[str(resourcetype)] = [iteration, tasksetid]
 
     def get_main_taskset (self, resourcetype):
+        if resourcetype not in self.main_taskset.keys():
+            return None
         return self.main_taskset[str(resourcetype)]
 
     def set_support_taskset (self, iteration, tasksetid, resourcetype):
+        if resourcetype == 'CPU':
+            if 'GPU' in self.support_taskset.keys ():
+                del self.support_taskset['GPU']
+        if resourcetype == 'GPU':
+            if 'CPU' in self.support_taskset.keys ():
+                del self.support_taskset['CPU']
+
         self.support_taskset[str(resourcetype)] = [iteration, tasksetid]
 
     def get_support_taskset (self, resourcetype):
+        if resourcetype not in self.support_taskset.keys():
+            return None
         return self.support_taskset[str(resourcetype)]
 
     def set_current_taskset (self, resourcetype, iteration): # 'cpu/gpu:support/main'
         self.current_taskset[resourcetype] = iteration
 
     def get_current_taskset (self, resourcetype):
+        if resourcetype not in self.current_taskset.keys():
+            return None, None
         if self.current_taskset[resourcetype] == 'MAIN':
-            return self.get_main_taskset(resourcetype)
+            return 'MAIN', self.get_main_taskset(resourcetype)
         else:
-            return self.get_support_taskset(resourcetype)
+            return 'SUPPORT', self.get_support_taskset(resourcetype)
 
     def set_worker_id (self, workerid):
         self.workerid = workerid

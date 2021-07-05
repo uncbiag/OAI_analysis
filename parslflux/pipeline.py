@@ -1,7 +1,7 @@
 import yaml
 import sys
 
-from resources import ResourceManager, Resource 
+from parslflux.resources import ResourceManager, Resource 
 
 class PipelineStage:
     def __init__ (self, index, pipelinestage):
@@ -96,7 +96,6 @@ class PipelineManager:
                 output += str (pipelinestage.get_name())
                 output += ":"
             index += 1
-        print ('pipeline encode', pipelinestages, output)
         return output
 
     def performance_extrapolate (self, rm):

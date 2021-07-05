@@ -1,4 +1,4 @@
-from OAI_analysis.data.OAI_data import OAIData, OAIImage, OAIPatients
+from data.OAI_data import OAIData, OAIImage, OAIPatients
 
 import yaml
 import pickle
@@ -74,9 +74,16 @@ class InputManager2:
         print (len (self.analysis_images))
 
     def get_images (self, count):
+        return_images = {}
         images = self.analysis_images[self.index:self.index + count]
+
+        for image in images:
+            return_images[str(image.name)] = image.get_raw_info ()
         self.index = self.index + count
-        return images
+
+        print (return_images)
+
+        return return_images
 
     def print_data (self):
         for image in self.analysis_images:
