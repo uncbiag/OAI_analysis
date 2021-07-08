@@ -45,10 +45,18 @@ class Resource:
     def set_main_taskset (self, iteration, tasksetid, resourcetype):
         if resourcetype == 'CPU':
             if 'GPU' in self.main_taskset.keys ():
+                print ('set_main_taskset (): delete M-GPU')
                 del self.main_taskset['GPU']
+            if 'CPU' in self.support_taskset.keys ():
+                print ('set_main_taskset (): delete S-CPU')
+                del self.support_taskset['CPU']
         if resourcetype == 'GPU':
             if 'CPU' in self.main_taskset.keys ():
+                print ('set_main_taskset (): delete CPU')
                 del self.main_taskset['CPU']
+            if 'GPU' in self.support_taskset.keys ():
+                print ('set_main_taskset (): delete GPU')
+                del self.support_taskset['GPU']
 
         self.main_taskset[str(resourcetype)] = [iteration, tasksetid]
 
@@ -58,13 +66,6 @@ class Resource:
         return self.main_taskset[str(resourcetype)]
 
     def set_support_taskset (self, iteration, tasksetid, resourcetype):
-        if resourcetype == 'CPU':
-            if 'GPU' in self.support_taskset.keys ():
-                del self.support_taskset['GPU']
-        if resourcetype == 'GPU':
-            if 'CPU' in self.support_taskset.keys ():
-                del self.support_taskset['CPU']
-
         self.support_taskset[str(resourcetype)] = [iteration, tasksetid]
 
     def get_support_taskset (self, resourcetype):

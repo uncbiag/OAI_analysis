@@ -126,7 +126,7 @@ class Taskset:
                     index += 1
 
     def submit_support (self, rmanager, pmanager, resource_ids):
-        print ('printing support taskset', self.tasksetid)
+        print ('submitting support taskset', self.tasksetid)
         taskset = {}
         taskset['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
         taskset['id'] = self.tasksetid

@@ -7,6 +7,7 @@ import platform
 import yaml
 import pandas as pd
 
+from datetime import datetime
 from registration.registers import NiftyReg
 from segmentation.segmenter import Segmenter3DInPatchClassWise
 from oai_image_analysis import OAIImageAnalysis
@@ -268,7 +269,7 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
 
 def job_execute (h): 
     while True:
-        print (h)
+        print (datetime.now(), h)
         r = h.rpc (b"workermanager.workitem.get").get()
         if "empty" in r.keys():
             print ('empty workqueue')
@@ -297,16 +298,15 @@ def job_execute (h):
                     print ('time taken', time_taken)
                     time_stats.append (str(time_taken))
 
-            print ('reporting')
+            print (datetime.now(), 'reporting', tasksetid, iteration, time_stats)
             h.rpc (b"workermanager.workitem.report",
                    {'tasksetid' : tasksetid,
                    'iteration' : iteration,
                    'status' : 'SUCCESS',
                    'times' : time_stats})
-            print ('report complete')
+            print (datetime.now(), 'report complete')
 
             time.sleep (5)
-
         else:
             print ('invalid return')
             time.sleep (5)

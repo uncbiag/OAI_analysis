@@ -37,6 +37,7 @@ def get_launch_config (options):
                     max_blocks=1,
                     init_blocks=1,
                     partition='normal',
+                    walltime='24:00:00',
                     scheduler_options=options,
                     launcher=SrunLauncher(),
                 ),
@@ -170,48 +171,6 @@ def delete_taskset_queue ():
     del g_iterations[g_iteration]
     g_iteration -= 1
 
-def is_free (rmanager, imanager, pmanager, resource_id):
-    global g_iterations
-
-    print ('is_free ():', resource_id)
-
-    resource = rmanager.get_resource (resource_id)
-
-    cpu_iteration, cpu_current_taskset = resource.get_current_taskset ('CPU')
-    gpu_iteration, gpu_current_taskset = resource.get_current_taskset ('GPU')
-
-    print ('is_free ():', cpu_iteration, cpu_current_taskset)
-    print ('is_free ():', gpu_iteration, gpu_current_taskset)
-
-    cpu_free = False
-    gpu_free = False
-
-    if cpu_iteration == None:
-        cpu_free = True
-
-    if gpu_iteration == None:
-        gpu_free = True
-
-    if cpu_current_taskset != None:
-        cpu_taskset_queue = g_iterations[cpu_current_taskset[0]]
-
-        for taskset in cpu_taskset_queue:
-            if taskset.tasksetid == cpu_current_taskset[0]:
-                if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
-                    cpu_free = True
-                    break
-
-    if gpu_current_taskset != None:
-        gpu_taskset_queue = g_iterations[gpu_current_taskset[0]]
-
-        for taskset in gpu_taskset_queue:
-            if taskset.tasksetid == gpu_current_taskset[0]:
-                if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
-                    gpu_free = True
-                    break
-
-    return cpu_free, gpu_free
-
 def get_taskset (taskset_info):
     global g_iterations
 
@@ -226,7 +185,7 @@ def get_taskset (taskset_info):
 
     return None
 
-def schedule_taskset_main (rmanager, imanager, pmanager, resource_id, current_taskset_info):
+def schedule_taskset_main (rmanager, imanager, pmanager, resource_id, main_taskset_info):
     global g_iterations
     global g_iteration
 
@@ -234,13 +193,13 @@ def schedule_taskset_main (rmanager, imanager, pmanager, resource_id, current_ta
 
     resource = rmanager.get_resource(resource_id)
 
-    current_taskset_iteration = current_taskset_info[0]
+    main_taskset_iteration = main_taskset_info[0]
 
     new_taskset = None
 
-    current_taskset = get_taskset (current_taskset_info)
+    main_taskset = get_taskset (main_taskset_info)
 
-    if current_taskset.get_endofpipeline () == True:
+    if main_taskset.get_endofpipeline () == True:
         if resource.main_iteration == g_iteration - 1:
             create_tasksets (rmanager, imanager, pmanager)
         resource.main_iteration += 1
@@ -252,8 +211,8 @@ def schedule_taskset_main (rmanager, imanager, pmanager, resource_id, current_ta
                 new_taskset = taskset
                 break
     else:
-        taskset_id = str (int (current_taskset_info[1]) + 1)
-        taskset_queue = g_iterations[str(current_taskset_iteration)]
+        taskset_id = str (int (main_taskset_info[1]) + 1)
+        taskset_queue = g_iterations[str(main_taskset_iteration)]
 
         for taskset in taskset_queue:
             if taskset_id == taskset.tasksetid:
@@ -272,16 +231,12 @@ def schedule_taskset_support (rmanager, imanager, pmanager, resource_id, resourc
     ##TODO: based on time to completion of current_gpu_taskset, schedule that many images
 
     current_main_taskset = resource.get_main_taskset(resourcetype)
-    current_support_taskset = resource.get_support_taskset(resourcetype)
 
-    print ('schedule_taskset_support ():', resource_id, resourcetype, current_main_taskset, current_support_taskset)
+    print ('schedule_taskset_support ():', resource_id, resourcetype, current_main_taskset)
 
     support_iteration = 0
 
-    if current_support_taskset != None:
-        support_iteration = current_support_taskset[0] + 1
-    else:
-        support_iteration = resource.main_iteration + 1
+    support_iteration = resource.main_iteration + 1
 
     print ('schedule_taskset_support ():', support_iteration, g_iteration)
 
@@ -329,7 +284,8 @@ def status (rmanager):
         cpu_iteration, current_cpu_taskset = resource.get_current_taskset('CPU')
         gpu_iteration, current_gpu_taskset = resource.get_current_taskset('GPU')
 
-        print ('status ():', resource.id, current_cpu_taskset, current_gpu_taskset)
+        print ('status ():', resource.id, cpu_iteration, current_cpu_taskset)
+        print ('status ():', resource.id, gpu_iteration, current_gpu_taskset)
 
         if current_cpu_taskset != None:
             cpu_taskset = get_taskset(current_cpu_taskset)
@@ -338,6 +294,48 @@ def status (rmanager):
         if current_gpu_taskset != None:
             gpu_taskset = get_taskset(current_gpu_taskset)
             gpu_taskset.get_status()
+
+def is_free (rmanager, imanager, pmanager, resource_id):
+    global g_iterations
+
+    print ('is_free ():', resource_id)
+
+    resource = rmanager.get_resource (resource_id)
+
+    cpu_iteration, cpu_current_taskset = resource.get_current_taskset ('CPU')
+    gpu_iteration, gpu_current_taskset = resource.get_current_taskset ('GPU')
+
+    print ('is_free ():', cpu_iteration, cpu_current_taskset)
+    print ('is_free ():', gpu_iteration, gpu_current_taskset)
+
+    cpu_free = False
+    gpu_free = False
+
+    if cpu_iteration == None:
+        cpu_free = True
+
+    if gpu_iteration == None:
+        gpu_free = True
+
+    if cpu_current_taskset != None:
+        cpu_taskset_queue = g_iterations[cpu_current_taskset[0]]
+
+        for taskset in cpu_taskset_queue:
+            if taskset.tasksetid == cpu_current_taskset[1]:
+                if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
+                    cpu_free = True
+                    break
+
+    if gpu_current_taskset != None:
+        gpu_taskset_queue = g_iterations[gpu_current_taskset[0]]
+
+        for taskset in gpu_taskset_queue:
+            if taskset.tasksetid == gpu_current_taskset[1]:
+                if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
+                    gpu_free = True
+                    break
+
+    return cpu_free, gpu_free
 
 def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
 
@@ -378,7 +376,7 @@ def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
             if cpu_free and gpu_free:
                 if (cpu_iteration != None and cpu_iteration == 'MAIN') or (gpu_iteration != None and gpu_iteration == 'MAIN'):
                     #schedule main taskset and support taskset
-                    print ('OAI_scheduler ():', 'scheduling main taskset')
+                    print ('OAI_scheduler ():', 'scheduling main taskset (with one main)')
 
                     if cpu_iteration == 'MAIN':
                         schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_current_taskset)
@@ -390,42 +388,92 @@ def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
                     else:
                         schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
 
+                elif (cpu_iteration != None and cpu_iteration == 'SUPPORT') and (gpu_iteration != None and gpu_iteration == 'SUPPORT'):
+                    print ('OAI_scheduler ():', 'scheduling main taskset (with both support')
+
+                    cpu_main_taskset = resource.get_main_taskset ('CPU')
+                    gpu_main_taskset = resource.get_main_taskset ('GPU')
+
+                    if cpu_main_taskset == None and gpu_main_taskset == None:
+                        print ('Ooopsy!!!')
+
+                    if cpu_main_taskset != None:
+                        schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_main_taskset)
+                        schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
+                    else:
+                        schedule_taskset_main (rmanager, imanager, pmanager, resource.id, gpu_main_taskset)
+                        schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
+
             elif cpu_free:
-                if cpu_iteration == 'MAIN':
-                    #schedule support iteration cpu
-                    print ('OAI_scheduler ():', 'scheduling support cpu 1')
-                    schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
+                if cpu_iteration == 'MAIN': #TODO:end of the pipeline
+                    cpu_taskset = get_taskset (cpu_current_taskset)
+                    if cpu_taskset.get_endofpipeline () == True:
+                        if gpu_current_taskset[0] == resource.main_iteration + 1:
+                            resource.main_iteration += 1
+                            resource.set_current_taskset ('GPU', 'MAIN')
+                            resource.set_main_taskset (gpu_current_taskset[0], gpu_current_taskset[1], 'GPU')
+                            #schedule support iteration cpu
+                            print ('OAI_scheduler ():', 'scheduling support cpu 1')
+                            schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
+                        else:
+                            print ('OAI_scheduler ():', 'scheduling main 2')
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_current_taskset)
+                    else:
+                        print ('OAI_scheduler ():', 'scheduling support cpu 2')
+                        schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
                 elif cpu_iteration == 'SUPPORT':
                     if gpu_iteration != None and gpu_iteration == 'SUPPORT':
                         #schedule main iteration cpu
-                        print ('OAI_scheduler ():', 'scheduling main 1')
-                        schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_current_taskset)
+                        print ('OAI_scheduler ():', 'scheduling main 3')
+                        cpu_main_taskset = resource.get_main_taskset ('CPU')
+                        gpu_main_taskset = resource.get_main_taskset ('GPU')
+                        if cpu_main_taskset != None:
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_main_taskset)
+                        else:
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, gpu_main_taskset)
                     elif gpu_iteration != None and gpu_iteration == 'MAIN':
                         #schedule support iteration cpu
-                        print ('OAI_scheduler ():', 'scheduling support cpu 2')
+                        print ('OAI_scheduler ():', 'scheduling support cpu 3')
                         schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
                 else:
-                    print ('OAI_scheduler ():', 'scheduling support cpu 3')
+                    print ('OAI_scheduler ():', 'scheduling support cpu 4')
                     schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'CPU')
             elif gpu_free:
                 if resource.gputype == False:
                     print ('OAI_scheduler ():', 'gpu not available not', resource.id)
                     continue
                 if gpu_iteration == 'MAIN':
-                    #schedule support iteration gpu
-                    print ('OAI_scheduler ():', 'scheduling support gpu 1')
-                    schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
+                    gpu_taskset = get_taskset (gpu_current_taskset)
+                    if gpu_taskset.get_endofpipeline () == True:
+                        if cpu_current_taskset[0] == resource.main_iteration + 1:
+                            resource.main_iteration += 1
+                            resource.set_current_taskset ('CPU', 'MAIN')
+                            resource.set_main_taskset (cpu_current_taskset[0], cpu_current_taskset[1], 'GPU')
+                            #schedule support iteration cpu
+                            print ('OAI_scheduler ():', 'scheduling support gpu 1')
+                            schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
+                        else:
+                            print ('OAI_scheduler ():', 'scheduling main 4')
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, gpu_current_taskset)
+                    else:
+                        print ('OAI_scheduler ():', 'scheduling support gpu 2')
+                        schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
                 elif gpu_iteration == 'SUPPORT':
                     if cpu_iteration != None and cpu_iteration == 'SUPPORT':
                         #schedule main iteration gpu
-                        print ('OAI_scheduler ():', 'scheduling main 2')
-                        schedule_taskset_main (rmanager, imanager, pmanager, resource.id, gpu_current_taskset)
+                        print ('OAI_scheduler ():', 'scheduling main 5')
+                        cpu_main_taskset = resource.get_main_taskset ('CPU')
+                        gpu_main_taskset = resource.get_main_taskset ('GPU')
+                        if cpu_main_taskset != None:
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, cpu_main_taskset)
+                        else:
+                            schedule_taskset_main (rmanager, imanager, pmanager, resource.id, gpu_main_taskset)
                     elif cpu_iteration != None and cpu_iteration == 'MAIN':
                         #schedule support iteration gpu
-                        print ('OAI_scheduler ():', 'scheduling support gpu 2')
+                        print ('OAI_scheduler ():', 'scheduling support gpu 3')
                         schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
                 else:
-                    print ('OAI_scheduler ():', 'scheduling support gpu 3')
+                    print ('OAI_scheduler ():', 'scheduling support gpu 4')
                     schedule_taskset_support (rmanager, imanager, pmanager, resource.id, 'GPU')
         print ('OAI_scheduler ():', 'sleeping for 5')
         time.sleep (5)
