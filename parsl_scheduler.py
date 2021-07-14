@@ -50,7 +50,7 @@ def get_launch_config (options):
 
 @bash_app
 def app1 (workerid, own_uri):
-    return '~/local1/bin/flux start python3.6 flux_wrapper.py {} {}'.format(workerid, own_uri)
+    return '~/local/bin/flux start python3.6 flux_wrapper.py {} {}'.format(workerid, own_uri)
 
 def launch_workers (resources):
     for resource in resources:
