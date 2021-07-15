@@ -15,6 +15,19 @@ from data.OAI_data import OAIData, OAIImage, OAIPatients
 
 from flux.job import JobspecV1
 
+from parsl.config import Config
+from parsl.executors import ThreadPoolExecutor
+from parsl import python_app, bash_app
+import parsl
+
+worker_config = Config (
+    executors = [
+        ThreadPoolExecutor(
+            label='worker_thread'
+        )
+    ]
+)
+
 config_data = {}
 
 def load_config_file(config_file):
@@ -266,46 +279,67 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
 
     return end_time - start_time
 
+@python_app
+def execute_workitem (r, h):
+    tasksetid = r['tasksetid']
+    iteration = r['iteration']
+
+    print (datetime.now(), 'executing iteration', iteration, 'tasksetid', tasksetid)
+
+    analyzer = build_default_analyzer ()
+
+    pipelinestages = r['pipelinestages'].split (':')
+
+    OAI_data = retrieve_images (r, h)
+
+    analysis_images = OAI_data.get_images ()
+
+    time_stats = []
+
+    for i, image in enumerate (analysis_images):
+       for pipelinestage in  pipelinestages:
+           time_taken = execute_pipelinestage (OAI_data, analyzer,
+                                               pipelinestage,
+                                               image)
+           print (datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid,
+                  image.name, pipelinestage, 'time taken', time_taken)
+           time_stats.append (str(time_taken))
+
+    print (datetime.now(), 'reporting', iteration, tasksetid, time_stats)
+
+    h.rpc (b"workermanager.workitem.report",
+           {'tasksetid' : tasksetid,
+            'iteration' : iteration,
+            'status' : 'SUCCESS',
+            'times' : time_stats})
+    print (datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid, 'report complete')
+
+futures = []
 
 def job_execute (h): 
     while True:
-        print (datetime.now(), h)
+        is_slot_free = False
+        while True:
+            if len (futures) > 1:
+                for future in futures:
+                    if future.done () == True:
+                        futures.remove (future)
+                        is_slot_free = True
+                        print (datetime.now(), 'free slot')
+                        break
+            else:
+                is_slot_free = True
+            if is_slot_free == True:
+                break
+
         r = h.rpc (b"workermanager.workitem.get").get()
         if "empty" in r.keys():
             print ('empty workqueue')
             time.sleep (5)
         elif "pipelinestages" in r.keys():
             print (r)
-            tasksetid = r['tasksetid']
-            iteration = r['iteration']
-
-            analyzer = build_default_analyzer ()
-
-            pipelinestages = r['pipelinestages'].split(':')
-
-            OAI_data = retrieve_images (r, h)
-
-            analysis_images = OAI_data.get_images()
-
-            time_stats = []
-
-            for i, image in enumerate (analysis_images):
-
-                for pipelinestage in  pipelinestages:
-                    time_taken = execute_pipelinestage (OAI_data, analyzer,
-                                                        pipelinestage,
-                                                        image)
-                    print ('time taken', time_taken)
-                    time_stats.append (str(time_taken))
-
-            print (datetime.now(), 'reporting', tasksetid, iteration, time_stats)
-            h.rpc (b"workermanager.workitem.report",
-                   {'tasksetid' : tasksetid,
-                   'iteration' : iteration,
-                   'status' : 'SUCCESS',
-                   'times' : time_stats})
-            print (datetime.now(), 'report complete')
-
+            future = execute_workitem (r, h)
+            futures.append (future)
             time.sleep (5)
         else:
             print ('invalid return')
@@ -318,4 +352,5 @@ if __name__ == "__main__":
     print (sys.argv[1], sys.argv[2])
     load_config_file ('oaiconfig.yml')
     h.rpc (b"workermanager.worker.register", {"workerid":sys.argv[1], "parsluri":sys.argv[2]})
+    parsl.load (worker_config)
     job_execute (h)

@@ -46,17 +46,26 @@ class Resource:
         if resourcetype == 'CPU':
             if 'GPU' in self.main_taskset.keys ():
                 print ('set_main_taskset (): delete M-GPU')
-                del self.main_taskset['GPU']
+
+                self.main_taskset.pop ('GPU')
+                if self.current_taskset['GPU'] == 'MAIN':
+                    self.current_taskset.pop ('GPU')
+
             if 'CPU' in self.support_taskset.keys ():
                 print ('set_main_taskset (): delete S-CPU')
-                del self.support_taskset['CPU']
+                self.support_taskset.pop ('CPU')
+
         if resourcetype == 'GPU':
             if 'CPU' in self.main_taskset.keys ():
-                print ('set_main_taskset (): delete CPU')
-                del self.main_taskset['CPU']
+                print ('set_main_taskset (): delete M-CPU')
+
+                self.main_taskset.pop ('CPU')
+                if self.current_taskset['CPU'] == 'MAIN':
+                    self.current_taskset.pop ('CPU')
+
             if 'GPU' in self.support_taskset.keys ():
-                print ('set_main_taskset (): delete GPU')
-                del self.support_taskset['GPU']
+                print ('set_main_taskset (): delete S-GPU')
+                self.support_taskset.pop ('GPU')
 
         self.main_taskset[str(resourcetype)] = [iteration, tasksetid]
 

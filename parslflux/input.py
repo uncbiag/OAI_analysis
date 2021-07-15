@@ -75,6 +75,10 @@ class InputManager2:
 
     def get_images (self, count):
         return_images = {}
+
+        if count > len (self.analysis_images) - self.index:
+            count = len (self.analysis_images) - self.index
+
         images = self.analysis_images[self.index:self.index + count]
 
         for image in images:
@@ -84,6 +88,9 @@ class InputManager2:
         print (return_images)
 
         return return_images
+
+    def get_remaining_count (self):
+        return len (self.analysis_images) - self.index
 
     def print_data (self):
         for image in self.analysis_images:
