@@ -352,5 +352,6 @@ if __name__ == "__main__":
     print (sys.argv[1], sys.argv[2])
     load_config_file ('oaiconfig.yml')
     h.rpc (b"workermanager.worker.register", {"workerid":sys.argv[1], "parsluri":sys.argv[2]})
+    h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":sys.argv[1], "parenturi":sys.argv[2], "selfuri":get_own_remote_uri()})
     parsl.load (worker_config)
     job_execute (h)
