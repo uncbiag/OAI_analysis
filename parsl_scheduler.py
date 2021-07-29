@@ -17,48 +17,11 @@ from parslflux.resources import ResourceManager
 from parslflux.pipeline import PipelineManager
 from parslflux.taskset import Taskset
 from parslflux.input import InputManager2
-
-def get_own_remote_uri():
-    localuri = os.getenv('FLUX_URI')
-    remoteuri = localuri.replace("local://", "ssh://" + platform.node().split('.')[0])
-    return remoteuri
-
-def get_launch_config (options):
-    inspector_config = Config (
-        executors=[
-            HighThroughputExecutor(
-                label="inspector",
-                address=str(platform.node().split('.')[0]),
-                max_workers=1,
-                provider=SlurmProvider(
-                    channel=LocalChannel(),
-                    nodes_per_block=1,
-                    min_blocks=1,
-                    max_blocks=1,
-                    init_blocks=1,
-                    partition='normal',
-                    walltime='24:00:00',
-                    scheduler_options=options,
-                    launcher=SrunLauncher(),
-                ),
-            )
-        ],
-        app_cache=False,
-    )
-    return inspector_config
-
-
-@bash_app
-def app1 (workerid, own_uri):
-    return '~/local/bin/flux start python3.6 flux_wrapper.py {} {}'.format(workerid, own_uri)
+from fluxworker.fluxworker import *
 
 def launch_workers (resources):
     for resource in resources:
-        parsl.clear()
-        options = '#SBATCH -w ' + resource.hostname
-        config = get_launch_config (options)
-        parsl.load (config)
-        app1 (resource.hostname, get_own_remote_uri())
+        launch_worker (resource)
 
 def setup (resourcefile, pipelinefile, configfile, availablefile):
     r = ResourceManager (resourcefile, availablefile)
@@ -352,16 +315,29 @@ def is_free (rmanager, imanager, pmanager, resource_id):
 
     return cpu_free, gpu_free
 
+rmanager = None
+imanager = None
+pmanager= None
+
+def get_resource_manager ():
+    return rmanager
+
 def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
 
     global g_iterations
     global g_iteration
+    global rmanager
+    global imanager
+    global pmanager
 
     rmanager, imanager, pmanager = setup (resourcefile, pipelinefile, configfile, availablefile)
 
     print ('OAI_scheduler ():', 'sleeping for 40 secs')
 
     time.sleep (40)
+
+    while True:
+        time.sleep (5)
 
     create_tasksets(rmanager, imanager, pmanager)
 

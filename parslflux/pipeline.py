@@ -104,7 +104,7 @@ class PipelineManager:
         basegpurating = rm.get_gpurating_type (self.basegpu)
 
         for pipelinestage in self.pipelinestages:
-            for node in rm.get_nodes ():
+            for node in rm.get_resources ():
                 if pipelinestage.get_resource () == 'CPU':
                     nodecpurating = node.get_cpurating ()
 

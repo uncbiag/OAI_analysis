@@ -195,11 +195,13 @@ class ResourceManager:
         self.resourcefile = resourcefile
         self.availablefile = availablefile
         self.nodes = []
+        self.reservednodes = []
         self.nodescpuratings = []
         self.nodesgpuratings = []
         self.nodescpucost = []
         self.nodesgpucost = []
         self.nodesdict = {}
+        self.reservednodesdict = {}
         self.maxcpucost = 0
         self.maxgpucost = 0
         self.total_gpus = 0
@@ -229,15 +231,19 @@ class ResourceManager:
     def purge_resources (self):
         available_resourcefile = open (self.availablefile)
         availableresources = yaml.load (available_resourcefile, Loader = yaml.FullLoader)
-        newresources = {}
+        resources = {}
+        reservedresources = {}
 
-        if len (availableresources['available']) == 0:
-            return
+        if len (availableresources['available']) > 0:
+            for i in availableresources['available']:
+                resources[i] = copy.deepcopy (self.nodesdict[i])
 
-        for i in availableresources['available']:
-            newresources[i] = copy.deepcopy (self.nodesdict[i])
+        if len (availableresources['reserved']) > 0:
+            for i in availableresources['reserved']:
+                reservedresources[i] = copy.deepcopy (self.nodesdict[i])
 
-        self.nodesdict = newresources
+        self.nodesdict = resources
+        self.reservednodesdict = reservedresources
 
     def normalize (self):
         maxcpurating = 0
@@ -261,6 +267,9 @@ class ResourceManager:
             self.nodesdict[i].set_cpucost (self.nodesdict[i].get_cpucost () / maxcost * 100)
             self.nodesdict[i].set_gpucost (self.nodesdict[i].get_gpucost () / maxcost * 100)
 
+
+        #TODO: normalize for reserved nodes
+
         self.nodes = copy.deepcopy (list (self.nodesdict.values ()))
 
         print (len(self.nodes), self.total_gpus)
@@ -281,6 +290,16 @@ class ResourceManager:
         for node in self.nodes:
             if node.id == resource_id:
                 return node
+        return None
+
+    def request_reserved_resource (self):
+        if len (self.reservednodesdict.keys()) > 0:
+            new_key = self.reservednodesdict.keys()[0]
+            new_resource = self.reservednodesdict.pop (new_key)
+            self.nodesdict[new_key] = new_resource
+            self.nodes.append (new_resource)
+            return new_resource
+
         return None
 
     def get_resources (self):
@@ -307,9 +326,6 @@ class ResourceManager:
         for key in self.nodesdict.keys ():
             if self.nodesdict[key].get_gpuname () == gputype:
                 return self.nodesdict[key].get_gpurating ()
-
-    def get_nodes(self):
-        return self.nodes
 
     def get_latency (self, resourceid, pipelinestages):
         return self.nodesdict[resourceid].get_latency (pipelinestages)
