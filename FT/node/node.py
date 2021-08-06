@@ -4,7 +4,7 @@ from worker import *
 
 def node_allocate():
     print ('requesting new resource')
-    request_reserved_worker ()
+    pass
 
 def node_restart():
     print ('restarting resource')

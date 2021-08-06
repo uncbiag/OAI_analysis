@@ -349,10 +349,10 @@ def job_execute (h):
 if __name__ == "__main__":
     #register parsl manager's flux URI first with the workermanager
     h = flux.Flux()
-    print (h.attr_get("entity"), h.attr_get("entityvalue"))
-    print (sys.argv[1], sys.argv[2])
+    entity = h.attr_get("entity").decode("utf-8")
+    entityvalue = h.attr_get("entityvalue").decode("utf-8")
     load_config_file ('oaiconfig.yml')
-    h.rpc (b"workermanager.worker.register", {"workerid":sys.argv[1], "parsluri":sys.argv[2]})
-    h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":sys.argv[1], "parenturi":sys.argv[2], "selfuri":get_own_remote_uri()})
+    h.rpc (b"workermanager.worker.register", {"workerid":entityvalue, "parsluri":sys.argv[1]})
+    h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":entityvalue, "parenturi":sys.argv[1], "selfuri":get_own_remote_uri()})
     parsl.load (worker_config)
     job_execute (h)
