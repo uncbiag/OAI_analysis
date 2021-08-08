@@ -7,7 +7,7 @@ import platform
 import yaml
 import pandas as pd
 
-from datetime import datetime
+import datetime
 from registration.registers import NiftyReg
 from segmentation.segmenter import Segmenter3DInPatchClassWise
 from oai_image_analysis import OAIImageAnalysis
@@ -137,7 +137,7 @@ def retrieve_images (r, h):
 
     os.remove (platform_name + '.csv')
 
-    return OAI_data
+    return list(images.keys()), OAI_data
 
 def preprocess (analyzer, image):
     task_name = None if config_data['use_nifty_reg'] else 'avsm'
@@ -258,8 +258,6 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
 
     OAI_data.set_processed_data_paths_without_creating_image_directories(config_data['output_directory'],
                                                                          task_name=task_name)
-    start_time = time.time ()
-
     if pipelinestage == 'preprocess':
         preprocess (analyzer, image)
     elif pipelinestage == 'segmentation':
@@ -275,44 +273,37 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
     elif pipelinestage == 'projectthicknesstoatlas':
         project_thickness_to_atlas (analyzer, image)
 
-    end_time = time.time ()
-
-    return end_time - start_time
-
 @python_app
 def execute_workitem (r, h):
     tasksetid = r['tasksetid']
     iteration = r['iteration']
 
-    print (datetime.now(), 'executing iteration', iteration, 'tasksetid', tasksetid)
+    print (datetime.datetime.now(), 'executing iteration', iteration, 'tasksetid', tasksetid)
 
     analyzer = build_default_analyzer ()
 
     pipelinestages = r['pipelinestages'].split (':')
 
-    OAI_data = retrieve_images (r, h)
+    image_ids, OAI_data = retrieve_images (r, h)
 
     analysis_images = OAI_data.get_images ()
 
-    time_stats = []
-
+    index = 0
     for i, image in enumerate (analysis_images):
-       for pipelinestage in  pipelinestages:
-           time_taken = execute_pipelinestage (OAI_data, analyzer,
-                                               pipelinestage,
-                                               image)
-           print (datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid,
-                  image.name, pipelinestage, 'time taken', time_taken)
-           time_stats.append (str(time_taken))
+        starttime = datetime.datetime.now(datetime.timezone.utc)
+        for pipelinestage in  pipelinestages:
+            execute_pipelinestage (OAI_data, analyzer,
+                                   pipelinestage, image)
+        endtime = datetime.datetime.now(datetime.timezone.utc)
 
-    print (datetime.now(), 'reporting', iteration, tasksetid, time_stats)
-
-    h.rpc (b"workermanager.workitem.report",
-           {'tasksetid' : tasksetid,
-            'iteration' : iteration,
-            'status' : 'SUCCESS',
-            'times' : time_stats})
-    print (datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid, 'report complete')
+        h.rpc (b"workermanager.workitem.report",
+               {'tasksetid' : tasksetid,
+               'iteration' : iteration,
+               'id': str(image_ids[index]),
+               'status' : 'SUCCESS',
+               'starttime' : str(starttime),
+               'endtime' : str(endtime)})
+    print (datetime.datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid, 'report complete')
 
 futures = []
 
@@ -325,7 +316,7 @@ def job_execute (h):
                     if future.done () == True:
                         futures.remove (future)
                         is_slot_free = True
-                        print (datetime.now(), 'free slot')
+                        print (datetime.datetime.now(), 'free slot')
                         break
             else:
                 is_slot_free = True

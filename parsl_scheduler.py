@@ -13,11 +13,57 @@ import platform
 import os, sys
 import time
 
+sys.path.append ('/mnt/beegfs/ssbehera/OAI_analysis/')
 from parslflux.resources import ResourceManager
 from parslflux.pipeline import PipelineManager
 from parslflux.taskset import Taskset
 from parslflux.input import InputManager2
-from fluxworker.fluxworker import *
+
+@bash_app
+def app (command):
+    print (command)
+    return ''+command
+@bash_app
+def app1 (entity, entityvalue, scheduleruri):
+    return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} python3.6 flux_wrapper.py {}'.format('TASK', entityvalue, scheduleruri)
+
+def get_own_remote_uri():
+    localuri = os.getenv('FLUX_URI')
+    remoteuri = localuri.replace("local://", "ssh://" + platform.node().split('.')[0])
+    return remoteuri
+
+def get_launch_config (options):
+    inspector_config = Config (
+        executors=[
+            HighThroughputExecutor(
+                label="inspector",
+                address=str(platform.node().split('.')[0]),
+                max_workers=1,
+                provider=SlurmProvider(
+                    channel=LocalChannel(),
+                    nodes_per_block=1,
+                    min_blocks=1,
+                    max_blocks=1,
+                    init_blocks=1,
+                    partition='normal',
+                    walltime='24:00:00',
+                    scheduler_options=options,
+                    launcher=SrunLauncher(),
+                ),
+            )
+        ],
+        app_cache=False,
+    )
+    return inspector_config
+
+def launch_worker (resource):
+    parsl.clear()
+    options = '#SBATCH -w ' + resource.hostname
+    config = get_launch_config (options)
+    parsl.load (config)
+    app1 ('TASK', resource.hostname, get_own_remote_uri ())
+    #app ('~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} python3.6 flux_wrapper.py {} {}'.format('TASK', resource.hostname, resource.hostname, get_own_remote_uri()))
+    print ('launched', resource.hostname)
 
 def launch_workers (resources):
     for resource in resources:
@@ -116,11 +162,14 @@ def create_tasksets (rmanager, imanager, pmanager):
                 break
 
         if Ti.get_taskset_len() > 0:
-            if len(g_tasksets) > 0:
-                prev_ts = g_tasksets[-1]
-                Ti.add_input_taskset(prev_ts, rmanager, pmanager)
-            else:
-                Ti.add_input(rmanager, imanager, pmanager)
+            #if len(g_tasksets) > 0:
+            #    prev_ts = g_tasksets[-1]
+
+                #for resource in resources:
+                #    Ti.add_input_taskset(prev_ts, rmanager, pmanager, resource)
+            #else:
+                #for resource in resources:
+                #    Ti.add_input(rmanager, imanager, pmanager, resources)
 
             g_tasksets.append(Ti)
 
@@ -172,25 +221,40 @@ def schedule_taskset_main (rmanager, imanager, pmanager, resource_id, main_tasks
         if resource.main_iteration == g_iteration - 1:
             ret = create_tasksets (rmanager, imanager, pmanager)
             if ret == -1:
-                print ('schedule_taskset_main (): ')
+                print ('schedule_taskset_main (): create_tasksets () failure')
                 return -1
         resource.main_iteration += 1
+
         taskset_queue = g_iterations[str(resource.main_iteration)]
+
+        index = 0
+        prev_taskset = None
         for taskset in taskset_queue:
-            if taskset.input[resource.id]['complete'] < \
-                    taskset.input[resource.id]['count']:
+            if resource.id not in taskset.input.keys():
                 print ('schedule_taskset_main (): found main taskset 1', resource.id, resource.main_iteration)
                 new_taskset = taskset
+                if index == 0:
+                    ret = new_taskset.add_input (rmanager, imanager, pmanager, resource)
+                    if ret == -1:
+                        print ('schedule_taskset_main (): no more images left')
+                        return
+                else:
+                    new_taskset.add_input_taskset (prev_taskset, rmanager, pmanager, resource)
                 break
+            prev_taskset = taskset
+            index += 1
     else:
         taskset_id = str (int (main_taskset_info[1]) + 1)
         taskset_queue = g_iterations[str(main_taskset_iteration)]
 
+        prev_taskset = None
         for taskset in taskset_queue:
             if taskset_id == taskset.tasksetid:
                 print ('schedule_taskset_main (): found main taskset 2', resource.id, resource.main_iteration)
                 new_taskset = taskset
+                new_taskset.add_input_taskset (prev_taskset, rmanager, pmanager, resource)
                 break
+            prev_taskset = taskset
 
     new_taskset.submit_main(rmanager, pmanager, [resource_id])
     return 0
@@ -215,17 +279,27 @@ def schedule_taskset_support (rmanager, imanager, pmanager, resource_id, resourc
 
     while support_iteration < g_iteration:
         next_taskset_queue = g_iterations[str(support_iteration)]
+        prev_taskset = None
         for taskset in next_taskset_queue:
-            if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count']:
+            if resource.id in taskset.input.keys ():
                 print ('scheduling_taskset_support ():', 'taskset already complete')
-                continue
-            if taskset.get_resource_type() != resourcetype and taskset.input[resource.id]['complete'] < taskset.input[resource.id]['count']:
-                print ('scheduling_taskset_support ():', 'Other stage not executed yet')
-                break
-            elif taskset.get_resource_type() == resourcetype:
-                print ('scheduling_taskset_support ():', 'found a support taskset')
-                taskset.submit_support(rmanager, pmanager, [resource_id])
-                return
+            else:
+                if taskset.get_resource_type() != resourcetype:
+                    print ('scheduling_taskset_support ():', 'Other stage not executed yet')
+                    break
+                elif taskset.get_resource_type() == resourcetype:
+                    print ('scheduling_taskset_support ():', 'found a support taskset')
+                    if prev_taskset != None:
+                        taskset.add_input_taskset (prev_taskset, rmanager, pmanager, resource)
+                    else:
+                        ret = taskset.add_input (rmanager, imanager, pmanager, resource)
+                        if ret == -1:
+                            print ('schedule_taskset_support (): no more images left')
+                            return
+                    taskset.submit_support (rmanager, pmanager, [resource_id])
+                    return
+            print (support_iteration, prev_taskset)
+            prev_taskset = taskset
         support_iteration += 1
 
     #Otherwise create a taskset
@@ -250,6 +324,8 @@ def schedule_taskset_support (rmanager, imanager, pmanager, resource_id, resourc
 
     first_taskset = latest_taskset_queue[0]
 
+    first_taskset.add_input (rmanager, imanager, pmanager, resource)
+
     first_taskset.submit_support (rmanager, pmanager, [resource_id])
 
 def status (rmanager):
@@ -267,11 +343,11 @@ def status (rmanager):
 
         if current_cpu_taskset != None:
             cpu_taskset = get_taskset(current_cpu_taskset)
-            cpu_taskset.get_status()
+            cpu_taskset.get_status(resource.id)
 
         if current_gpu_taskset != None:
             gpu_taskset = get_taskset(current_gpu_taskset)
-            gpu_taskset.get_status()
+            gpu_taskset.get_status(resource.id)
 
 def is_free (rmanager, imanager, pmanager, resource_id):
     global g_iterations
@@ -336,18 +412,16 @@ def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
 
     time.sleep (40)
 
-    while True:
-        time.sleep (5)
-
     create_tasksets(rmanager, imanager, pmanager)
 
     tasksets = g_iterations['0']
 
-    #submit first cpu & gpu pipeline stages.
+    resources = rmanager.get_resources()
+
+    for resource in resources:
+        tasksets[0].add_input (rmanager, imanager, pmanager, resource)
 
     tasksets[0].submit_main (rmanager, pmanager, [])
-
-    resources = rmanager.get_resources()
 
     for resource in resources:
         resource.main_iteration = g_iteration - 1

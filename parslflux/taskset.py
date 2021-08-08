@@ -97,7 +97,7 @@ class Taskset:
         self.input[resource.id] = {}
         self.input[resource.id]['count'] = 0
         self.input[resource.id]['images'] = {}
-        self.input[resource.id]['status'] = 'SCHEDULED'
+        self.input[resource.id]['status'] = 'QUEUED'
         self.input[resource.id]['complete'] = 0
         self.input[resource.id]['scheduled'] = 0
 
@@ -209,12 +209,16 @@ class Taskset:
 
         return ""
 
-    def get_status (self):
+    def get_status (self, resource_id):
         f = flux.Flux ()
 
         print ('getting status')
 
-        r = f.rpc("parslmanager.taskset.status", {"tasksetid": self.tasksetid}).get()
+        if self.input[resource_id]['complete'] == self.input[resource_id]['count']:
+            print (self.tasksetid, resource_id, 'already complete')
+            return
+
+        r = f.rpc("parslmanager.taskset.status", {"tasksetid": self.tasksetid, "workerid":resource_id}).get()
 
         print (r)
 
@@ -224,16 +228,19 @@ class Taskset:
             print ('empty report')
             return
 
-        for workerid in report.keys ():
-            if type (report[workerid]) is not list:
-                if report[workerid] == 'INCOMPLETE':
-                    print (workerid, 'incomplete')
-                    continue
-                elif report[workerid] == 'FAILED':
-                    print (workerid, 'failed')
-                    self.input[workerid]['status'] = 'FAILED'
+        for imageid in report.keys ():
+            data = report[imageid]
+            status = data['status']
+            if status == 'SUCCESS':
+                self.input[resource_id]['images'][imageid]['status'] = 'SUCCESS'
+                self.input[resource_id]['images'][imageid]['starttime'] = data['starttime']
+                self.input[resource_id]['images'][imageid]['endtime'] = data['endtime']
+            elif status == 'FAILURE':
+                self.input[resource_id]['images'][imageid]['status'] = 'FAILURE'
             else:
-                print (workerid, 'success')
-                self.input[workerid]['times'] = report[workerid]
-                self.input[workerid]['complete'] = self.input[workerid]['count']
-                self.input[workerid]['scheduled'] = 0
+                print ('unknown status')
+            self.input[resource_id]['complete'] += 1
+            self.input[resource_id]['scheduled'] -= 1
+
+        print (self.input[resource_id]['complete'], self.input[resource_id]['scheduled'], self.input[resource_id]['count'])
+
