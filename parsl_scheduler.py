@@ -12,6 +12,7 @@ import platform
 
 import os, sys
 import time
+import operator
 
 sys.path.append ('/mnt/beegfs/ssbehera/OAI_analysis/')
 from parslflux.resources import ResourceManager
@@ -96,33 +97,6 @@ def setup (resourcefile, pipelinefile, configfile, availablefile):
     launch_workers (r.get_resources())
 
     return r, i, p
-
-def update_chunks (rmanager, pmanager, tasksets):
-    time.sleep(5)
-    #send a request to parslmanager to get updates
-    for taskset in tasksets:
-        total_latency = 0
-        for key in taskset.input.keys():
-            mapping = taskset.input[key]
-            resourceid = key
-            resource_latency = rmanager.get_latency (resourceid, taskset.pipelinestages) #get latency through
-            if resource_latency == -1:
-                print (resourceid, 'taskset not complete yet')
-            else:
-                total_latency += resource_latency
-                mapping['complete'] = True
-
-        for key in taskset.input.keys():
-            mapping = taskset.input[key]
-
-            print('count: ', mapping['count'])
-            print('images:')
-            images = mapping['images']
-            for key1 in images.keys():
-                image = images[key1]
-                print('id: ', key1, 'name: ', image['name'], 'location: ', image['location'], 'collectfrom: ',
-                      image['collectfrom'])
-                print('-------------------')
 
 g_tasksets = []
 g_iterations = {}
@@ -349,6 +323,54 @@ def status (rmanager):
             gpu_taskset = get_taskset(current_gpu_taskset)
             gpu_taskset.get_status(resource.id)
 
+def update_chunksize (taskset, resource_id, rmanager, pmanager):
+    resources = rmanager.get_resources ()
+
+    is_complete = True
+
+    for resource in resources:
+        if resource.id == resource_id:
+            continue
+        if resource.id not in taskset.input:
+            is_complete = False
+            break
+        if taskset.input[resource.id]['count'] > 0 and
+            taskset.input[resource.id]['complete'] != taskset.input[resource.id]['count']:
+            is_complete = False
+            break
+
+    if is_complete == True:
+        resource_exec_times = {}
+        for resource in resources:
+            exec_times = taskset.get_exectimes (resource.id)
+            total_time = 0
+            for val in exec_times.values():
+                total_time += val
+            avg_time = total_time / len(exec_times)
+
+            resource_exec_time[resource.id] = avg_time
+            print ('time taken:', taskset.pipelinestages, resource.id, resource_exec_time[resource.id])
+
+        sorted_exec_times = sorted(resource_exec_time.items(), key=operator.itemgetter(1))
+
+        basetime_key = list(sorted_exec_times.keys())[0]
+
+        basetime = sorted_exec_times[basetime_key]
+        base_resource = rmanager.get_resource (basetime_key)
+        base_chunksize = base_resource.get_chunksize (taskset.resourcetype, pmanager.encode_pipeline_stages(taskset.pipelinestages))
+
+        for resource_key in sorted_exec_times.keys():
+            resource_exec_time = sorted_exec_times[resource_key]
+            if resource_exec_time > (1.2 * basetime):
+                resoure = rmanager.get_resource (resource_key)
+                resource_old_chunksize = resource.get_chunksize (taskset.resourcetype,
+                                            pmanager.encode_pipeline_stages(taskset.pipelinestages))
+                resource_chunksize = base_chunksize + (((resource_exec_time - basetime) / basetime) / .2)
+
+                resource.set_chunksize (taskset.resourcetype, pmanager.encode_pipeline_stages(taskset.pipelinestages), 
+                print (resource.id, pmanager.encode_pipeline_stages(taskset.pipelinestages),
+                       'old chunksize', resource_old_chunksize, 'new chunksize', resource_chunksize) 
+
 def is_free (rmanager, imanager, pmanager, resource_id):
     global g_iterations
 
@@ -378,6 +400,7 @@ def is_free (rmanager, imanager, pmanager, resource_id):
             if taskset.tasksetid == cpu_current_taskset[1]:
                 if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
                     cpu_free = True
+                    update_chunksize (taskset, resource_id, rmanager, pmanager)
                     break
 
     if gpu_current_taskset != None:
@@ -387,6 +410,7 @@ def is_free (rmanager, imanager, pmanager, resource_id):
             if taskset.tasksetid == gpu_current_taskset[1]:
                 if taskset.input[resource.id]['complete'] == taskset.input[resource.id]['count'] and taskset.input[resource.id]['scheduled'] == 0:
                     gpu_free = True
+                    update_chunksize (taskset, resource_id, rmanager, pmanager)
                     break
 
     return cpu_free, gpu_free

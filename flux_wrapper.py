@@ -290,11 +290,11 @@ def execute_workitem (r, h):
 
     index = 0
     for i, image in enumerate (analysis_images):
-        starttime = datetime.datetime.now(datetime.timezone.utc)
+        starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         for pipelinestage in  pipelinestages:
             execute_pipelinestage (OAI_data, analyzer,
                                    pipelinestage, image)
-        endtime = datetime.datetime.now(datetime.timezone.utc)
+        endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
         h.rpc (b"workermanager.workitem.report",
                {'tasksetid' : tasksetid,

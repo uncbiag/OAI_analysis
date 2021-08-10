@@ -1,4 +1,5 @@
 import copy
+import datetime
 import json
 import flux, time
 from flux.job import JobspecV1
@@ -50,6 +51,25 @@ class Taskset:
     def add_pipelinestage (self, pipelinestage):
         self.pipelinestages.append (pipelinestage)
 
+    def get_exectimes (self, resource_id):
+        if resource_id not in self.input:
+            print ('resource missing', resource_id)
+            return None
+
+        exec_times = {}
+
+        for image_key in self.input[resource.id]['images'].keys():
+            if 'starttime' in self.input[resource_id]['images'][image_key] and 'endtime' in self.input[resource_id]['images'][image_key]:
+                starttime_s = self.input[resource_id]['images'][image_key]['starttime']
+                endtime_s = self.input[resource_id]['images'][image_key]['endtime']
+                startime = datetime.datetime.strptime(starttime_s, '%Y-%m-%d %H:%M:%S')
+                endtime = datetime.datetime.strptime(endtime_s, '%Y-%m-%d %H:%M:%S')
+                difference = endtime - starttime
+                exec_time[image_key] = difference.total_seconds ()
+            else:
+                print ('image', image_key, 'not yet complete')
+        return exec_times
+
     def add_input (self, rmanager, imanager, pmanager, resource):
 
         print ('add_input ():', resource.id)
@@ -59,16 +79,18 @@ class Taskset:
         if self.resourcetype == 'GPU' and resource.gputype == False:
             return
 
+        self.input[resource.id] = {}
+        self.input[resource.id]['images'] = {}
+        self.input[resource.id]['count'] = 0
+        self.input[resource.id]['complete'] = 0
+        self.input[resource.id]['scheduled'] = 0
+        self.input[resource.id]['status'] = 'QUEUED'
+
         images = imanager.get_images (resource.get_chunksize (self.resourcetype,
                                       pmanager.encode_pipeline_stages(self.pipelinestages)))
 
         if len(images) > 0:
-            self.input[resource.id] = {}
-            self.input[resource.id]['images'] = {}
             self.input[resource.id]['count'] = len(images)
-            self.input[resource.id]['complete'] = 0
-            self.input[resource.id]['scheduled'] = 0
-            self.input[resource.id]['status'] = 'QUEUED'
             for image_id in images.keys():
                 self.input[resource.id]['images'][image_id] = {}
                 self.input[resource.id]['images'][image_id]['data'] = images[image_id]
@@ -163,6 +185,7 @@ class Taskset:
 
             for image_id in images.keys ():
                 self.input[resource_id]['images'][image_id]['status'] = 'SCHEDULED'
+                self.input[resource_id]['images'][image_id]['scheduledtime'] = str(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
 
         print (taskset)
 
@@ -196,6 +219,7 @@ class Taskset:
             images = self.input[resource_id]['images']
             for image_id in images.keys ():
                 self.input[resource_id]['images'][image_id]['status'] = 'SCHEDULED'
+                self.input[resource_id]['images'][image_id]['scheduledtime'] = str(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
 
         print (taskset)
 

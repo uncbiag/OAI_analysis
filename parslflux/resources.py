@@ -123,21 +123,21 @@ class Resource:
     def set_cpurating (self, rating):
         self.cpurating = rating
 
-    def get_chunksize (self, resourcetype, taskset):
+    def get_chunksize (self, resourcetype, pipelinestages):
         if resourcetype == 'CPU':
-            if taskset not in self.cpuchunksize.keys():
-                self.cpuchunksize[taskset] = 1
-            return self.cpuchunksize[taskset]
+            if pipelinestages not in self.cpuchunksize.keys():
+                self.cpuchunksize[pipelinestages] = 1
+            return self.cpuchunksize[pipelinestages]
         else:
-            if taskset not in self.gpuchunksize.keys():
-                self.gpuchunksize[taskset] =1
-            return self.gpuchunksize[taskset]
+            if pipelinestages not in self.gpuchunksize.keys():
+                self.gpuchunksize[pipelinestages] =1
+            return self.gpuchunksize[pipelinestages]
 
-    def set_chunksize (self, resourcetype, chunksize, taskset):
+    def set_chunksize (self, resourcetype, pipelinestages, chunksize):
         if resourcetype == 'CPU':
-            self.cpuchunksize[taskset] = chunksize
+            self.cpuchunksize[pipelinestages] = chunksize
         else:
-            self.cpuchunksize[taskset] = chunksize
+            self.cpuchunksize[pipelinestages] = chunksize
 
     def set_availability (self, availability):
         self.available = availability
