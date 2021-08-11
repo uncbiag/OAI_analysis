@@ -69,6 +69,7 @@ def launch_worker (resource):
 def launch_workers (resources):
     for resource in resources:
         launch_worker (resource)
+        time.sleep (5) #add sleep to avoid same exec dir
 
 def setup (resourcefile, pipelinefile, configfile, availablefile):
     r = ResourceManager (resourcefile, availablefile)
@@ -264,7 +265,9 @@ def schedule_taskset_support (rmanager, imanager, pmanager, resource_id, resourc
                 elif taskset.get_resource_type() == resourcetype:
                     print ('scheduling_taskset_support ():', 'found a support taskset')
                     if prev_taskset != None:
-                        taskset.add_input_taskset (prev_taskset, rmanager, pmanager, resource)
+                        ret = taskset.add_input_taskset (prev_taskset, rmanager, pmanager, resource)
+                        if ret == -1:
+                            continue
                     else:
                         ret = taskset.add_input (rmanager, imanager, pmanager, resource)
                         if ret == -1:
@@ -306,6 +309,8 @@ def status (rmanager):
     global g_iterations
     global g_iteration
 
+    print ('#########################')
+
     resources = rmanager.get_resources()
 
     for resource in resources:
@@ -323,7 +328,11 @@ def status (rmanager):
             gpu_taskset = get_taskset(current_gpu_taskset)
             gpu_taskset.get_status(resource.id)
 
+    print ('#########################')
+
 def update_chunksize (taskset, resource_id, rmanager, pmanager):
+
+    print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
     resources = rmanager.get_resources ()
 
     is_complete = True
@@ -334,46 +343,59 @@ def update_chunksize (taskset, resource_id, rmanager, pmanager):
         if resource.id not in taskset.input:
             is_complete = False
             break
-        if taskset.input[resource.id]['count'] > 0 and
-            taskset.input[resource.id]['complete'] != taskset.input[resource.id]['count']:
+        if taskset.input[resource.id]['count'] > 0 and taskset.input[resource.id]['complete'] != taskset.input[resource.id]['count']:
             is_complete = False
             break
 
     if is_complete == True:
+        print ('is_complete', True)
         resource_exec_times = {}
         for resource in resources:
             exec_times = taskset.get_exectimes (resource.id)
-            total_time = 0
-            for val in exec_times.values():
-                total_time += val
-            avg_time = total_time / len(exec_times)
+            print ('exectimes:', exec_times)
+            if len (exec_times) > 0:
+                total_time = 0
+                for val in exec_times.values():
+                    total_time += val
+                avg_time = total_time / len(exec_times)
 
-            resource_exec_time[resource.id] = avg_time
-            print ('time taken:', taskset.pipelinestages, resource.id, resource_exec_time[resource.id])
+                resource_exec_times[resource.id] = avg_time
+                print ('avg. time taken:', pmanager.encode_pipeline_stages(taskset.pipelinestages), resource.id, resource_exec_times[resource.id])
+            else:
+                print ('skipping', resource.id)
 
-        sorted_exec_times = sorted(resource_exec_time.items(), key=operator.itemgetter(1))
+        sorted_exec_times = sorted(resource_exec_times.items(), key=operator.itemgetter(1), reverse=True)
 
-        basetime_key = list(sorted_exec_times.keys())[0]
+        basetime_key = sorted_exec_times[0][0]
 
-        basetime = sorted_exec_times[basetime_key]
+        basetime = sorted_exec_times[0][1]
         base_resource = rmanager.get_resource (basetime_key)
         base_chunksize = base_resource.get_chunksize (taskset.resourcetype, pmanager.encode_pipeline_stages(taskset.pipelinestages))
 
-        for resource_key in sorted_exec_times.keys():
-            resource_exec_time = sorted_exec_times[resource_key]
-            if resource_exec_time > (1.2 * basetime):
+        print ('base resource', basetime_key, 'time', basetime)
+
+        for resource_key_value in sorted_exec_times:
+            resource_key = resource_key_value[0]
+            resource_exec_time = resource_key_value[1]
+            if resource_exec_time * 1.2 < basetime:
                 resoure = rmanager.get_resource (resource_key)
                 resource_old_chunksize = resource.get_chunksize (taskset.resourcetype,
                                             pmanager.encode_pipeline_stages(taskset.pipelinestages))
-                resource_chunksize = base_chunksize + (((resource_exec_time - basetime) / basetime) / .2)
+                resource_chunksize = base_chunksize + int(((basetime - resource_exec_time) / basetime) / .2)
 
-                resource.set_chunksize (taskset.resourcetype, pmanager.encode_pipeline_stages(taskset.pipelinestages), 
-                print (resource.id, pmanager.encode_pipeline_stages(taskset.pipelinestages),
-                       'old chunksize', resource_old_chunksize, 'new chunksize', resource_chunksize) 
+                resource.set_chunksize (taskset.resourcetype, pmanager.encode_pipeline_stages(taskset.pipelinestages), resource_chunksize)
+                print (resource.id, pmanager.encode_pipeline_stages(taskset.pipelinestages), 'old chunksize', resource_old_chunksize, 'new chunksize', resource_chunksize)
+            else:
+                print (resource.id, 'within base time range')
+    else:
+        print ('is_complete', False)
+
+    print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
 def is_free (rmanager, imanager, pmanager, resource_id):
     global g_iterations
 
+    print ('================================')
     print ('is_free ():', resource_id)
 
     resource = rmanager.get_resource (resource_id)
@@ -412,6 +434,8 @@ def is_free (rmanager, imanager, pmanager, resource_id):
                     gpu_free = True
                     update_chunksize (taskset, resource_id, rmanager, pmanager)
                     break
+
+    print ('================================')
 
     return cpu_free, gpu_free
 
