@@ -82,16 +82,26 @@ class Resource:
             return None
         return self.support_taskset[str(resourcetype)]
 
-    def set_current_taskset (self, resourcetype, iteration): # 'cpu/gpu:support/main'
+    def set_current_taskset_1 (self, resourcetype, iteration): # 'cpu/gpu:support/main'
         self.current_taskset[resourcetype] = iteration
 
-    def get_current_taskset (self, resourcetype):
+    def get_current_taskset_1 (self, resourcetype):
         if resourcetype not in self.current_taskset.keys():
             return None, None
         if self.current_taskset[resourcetype] == 'MAIN':
             return 'MAIN', self.get_main_taskset(resourcetype)
         else:
             return 'SUPPORT', self.get_support_taskset(resourcetype)
+
+    def set_current_taskset (self, resourcetype, iteration, tasksetid):
+        self.current_taskset.pop (resourcetype, None)
+
+        self.current_taskset[resourcetype] = [iteration, tasksetid]
+
+    def get_current_taskset (self, resourcetype):
+        if resourcetype not in self.current_taskset:
+            return None
+        return self.current_taskset[resourcetype]
 
     def set_worker_id (self, workerid):
         self.workerid = workerid

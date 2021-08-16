@@ -58,17 +58,26 @@ class Taskset:
 
         exec_times = {}
 
-        for image_key in self.input[resource_id]['images'].keys():
-            if 'starttime' in self.input[resource_id]['images'][image_key] and 'endtime' in self.input[resource_id]['images'][image_key]:
-                starttime_s = self.input[resource_id]['images'][image_key]['starttime']
-                endtime_s = self.input[resource_id]['images'][image_key]['endtime']
-                starttime = datetime.datetime.strptime(starttime_s, '%Y-%m-%d %H:%M:%S')
-                endtime = datetime.datetime.strptime(endtime_s, '%Y-%m-%d %H:%M:%S')
-                difference = endtime - starttime
-                exec_times[image_key] = difference.total_seconds ()
-            else:
-                print ('image', image_key, 'not yet complete')
+        if 'images' in self.input[resource_id].keys ():
+            for image_key in self.input[resource_id]['images'].keys():
+                if 'starttime' in self.input[resource_id]['images'][image_key] and 'endtime' in self.input[resource_id]['images'][image_key]:
+                    starttime_s = self.input[resource_id]['images'][image_key]['starttime']
+                    endtime_s = self.input[resource_id]['images'][image_key]['endtime']
+                    starttime = datetime.datetime.strptime(starttime_s, '%Y-%m-%d %H:%M:%S')
+                    endtime = datetime.datetime.strptime(endtime_s, '%Y-%m-%d %H:%M:%S')
+                    difference = endtime - starttime
+                    exec_times[image_key] = difference.total_seconds ()
+                else:
+                    print ('image', image_key, 'not yet complete')
         return exec_times
+
+    def set_complete (self, resource_id, is_complete):
+        if resource_id not in self.input.keys ():
+            self.input[resource_id] = {}
+        self.input[str(resource_id)]['is_complete'] = is_complete
+
+    def get_complete (self, resource_id):
+        return self.input[str(resource_id)]['is_complete']
 
     def add_input (self, rmanager, imanager, pmanager, resource):
 
@@ -79,18 +88,22 @@ class Taskset:
         if self.resourcetype == 'GPU' and resource.gputype == False:
             return
 
-        self.input[resource.id] = {}
-        self.input[resource.id]['images'] = {}
-        self.input[resource.id]['count'] = 0
-        self.input[resource.id]['complete'] = 0
-        self.input[resource.id]['scheduled'] = 0
-        self.input[resource.id]['status'] = 'QUEUED'
+        chunksize = resource.get_chunksize (self.resourcetype, pmanager.encode_pipeline_stages(self.pipelinestages))
 
-        images = imanager.get_images (resource.get_chunksize (self.resourcetype,
-                                      pmanager.encode_pipeline_stages(self.pipelinestages)))
+        images = imanager.get_images (chunksize)
 
         if len(images) > 0:
-            self.input[resource.id]['count'] = len(images)
+            if resource.id not in self.input.keys ():
+                self.input[resource.id] = {}
+                self.input[resource.id]['images'] = {}
+                self.input[resource.id]['count'] = 0
+                self.input[resource.id]['complete'] = 0
+                self.input[resource.id]['scheduled'] = 0
+                self.input[resource.id]['status'] = 'QUEUED'
+                self.set_complete (resource.id, False)
+                self.input[resource.id]['chunksize'] = chunksize
+                self.input[resource.id]['count'] = len(images)
+
             for image_id in images.keys():
                 self.input[resource.id]['images'][image_id] = {}
                 self.input[resource.id]['images'][image_id]['data'] = images[image_id]
@@ -100,6 +113,7 @@ class Taskset:
             self.inputsize += self.input[resource.id]['count']
             return 0
         else:
+            self.set_complete (resource.id, True)
             return -1
 
     def add_input_taskset (self, input_taskset, rmanager, pmanager, resource):
@@ -113,35 +127,53 @@ class Taskset:
         chunksize = resource.get_chunksize(self.resourcetype,
                                            pmanager.encode_pipeline_stages(self.pipelinestages))
 
+        '''
+        if resource.id not in self.input.keys():
+            chunksize = resource.get_chunksize(self.resourcetype,
+                                               pmanager.encode_pipeline_stages(self.pipelinestages))
+            self.input[resource.id] = {}
+            self.input[resource.id]['count'] = 0
+            self.input[resource.id]['images'] = {}
+            self.input[resource.id]['status'] = 'QUEUED'
+            self.input[resource.id]['complete'] = 0
+            self.input[resource.id]['scheduled'] = 0
+            self.input[resource.id]['chunksize'] = chunksize
+            self.set_complete (resource.id, False)
+        '''
+
         #first collect it from its own resource.id
-        resource_input_images = input_taskset.input[resource.id]
+        total_count = 0
 
-        print (chunksize, input_taskset)
+        if resource.id in input_taskset.input.keys ():
+            resource_input_images = input_taskset.input[resource.id]
 
-        self.input[resource.id] = {}
-        self.input[resource.id]['count'] = 0
-        self.input[resource.id]['images'] = {}
-        self.input[resource.id]['status'] = 'QUEUED'
-        self.input[resource.id]['complete'] = 0
-        self.input[resource.id]['scheduled'] = 0
+            if 'count' in input_taskset.input[resource.id].keys () and input_taskset.input[resource.id]['count'] > 0:
+                index = 0
+                image_keys = list (input_taskset.input[resource.id]['images'].keys())
+                while index < input_taskset.input[resource.id]['count'] and total_count < chunksize:
+                    if input_taskset.input[resource.id]['images'][image_keys[index]]['reallocated'] == False and \
+                        input_taskset.input[resource.id]['images'][image_keys[index]]['status'] == 'SUCCESS':
 
-        if input_taskset.input[resource.id]['count'] > 0:
-            print (input_taskset.input[resource.id])
-            index = 0
-            image_keys = list (input_taskset.input[resource.id]['images'].keys())
-            while index < input_taskset.input[resource.id]['count'] and self.input[resource.id]['count'] < chunksize:
-                print (chunksize, image_keys[index], input_taskset.input[resource.id]['images'][image_keys[index]]['reallocated'])
-                if input_taskset.input[resource.id]['images'][image_keys[index]]['reallocated'] == False:
-                    self.input[resource.id]['images'][image_keys[index]] = {}
-                    self.input[resource.id]['images'][image_keys[index]]['data'] = input_taskset.input[resource.id]['images'][image_keys[index]]['data']
-                    self.input[resource.id]['images'][image_keys[index]]['collectfrom'] = resource.id
-                    self.input[resource.id]['images'][image_keys[index]]['status'] = 'QUEUED'
-                    self.input[resource.id]['images'][image_keys[index]]['reallocated'] = False
-                    input_taskset.input[resource.id]['images'][image_keys[index]]['reallocated'] = True
-                    self.input[resource.id]['count'] += 1
-                index += 1
+                        if resource.id not in self.input.keys():
+                            self.input[resource.id] = {}
+                            self.input[resource.id]['count'] = 0
+                            self.input[resource.id]['images'] = {}
+                            self.input[resource.id]['status'] = 'QUEUED'
+                            self.input[resource.id]['complete'] = 0
+                            self.input[resource.id]['scheduled'] = 0
+                            self.input[resource.id]['chunksize'] = chunksize
+                            self.set_complete (resource.id, False)
 
-        if self.input[resource.id]['count'] < chunksize:
+                        self.input[resource.id]['images'][image_keys[index]] = {}
+                        self.input[resource.id]['images'][image_keys[index]]['data'] = input_taskset.input[resource.id]['images'][image_keys[index]]['data']
+                        self.input[resource.id]['images'][image_keys[index]]['collectfrom'] = resource.id
+                        self.input[resource.id]['images'][image_keys[index]]['status'] = 'QUEUED'
+                        self.input[resource.id]['images'][image_keys[index]]['reallocated'] = False
+                        input_taskset.input[resource.id]['images'][image_keys[index]]['reallocated'] = True
+                        total_count += 1
+                    index += 1
+
+        if total_count < chunksize:
             #search for the rest of the images
             resource_keys = list (input_taskset.input.keys ())
 
@@ -150,25 +182,47 @@ class Taskset:
                     continue
 
                 resource_input_images = input_taskset.input[resource_key]
-                if input_taskset.input[resource_key]['count'] > 0:
-                    print (input_taskset.input[resource_key])
+                if 'count' in input_taskset.input[resource_key].keys () and input_taskset.input[resource_key]['count'] > 0:
                     index = 0
                     image_keys = list (input_taskset.input[resource_key]['images'].keys())
-                    while index < input_taskset.input[resource_key]['count'] and self.input[resource.id]['count'] < chunksize:
-                        print (chunksize, image_keys[index], input_taskset.input[resource_key]['images'][image_keys[index]]['reallocated'])
-                        if input_taskset.input[resource_key]['images'][image_keys[index]]['reallocated'] == False:
+
+                    while index < input_taskset.input[resource_key]['count'] and \
+                        total_count < chunksize:
+                        if input_taskset.input[resource_key]['images'][image_keys[index]]['reallocated'] == False and \
+                            input_taskset.input[resource_key]['images'][image_keys[index]]['status'] == 'SUCCESS':
+
+                            if resource.id not in self.input.keys():
+                                self.input[resource.id] = {}
+                                self.input[resource.id]['count'] = 0
+                                self.input[resource.id]['images'] = {}
+                                self.input[resource.id]['status'] = 'QUEUED'
+                                self.input[resource.id]['complete'] = 0
+                                self.input[resource.id]['scheduled'] = 0
+                                self.input[resource.id]['chunksize'] = chunksize
+                                self.set_complete (resource.id, False)
+
                             self.input[resource.id]['images'][image_keys[index]] = {}
                             self.input[resource.id]['images'][image_keys[index]]['data'] = input_taskset.input[resource_key]['images'][image_keys[index]]['data'] 
                             self.input[resource.id]['images'][image_keys[index]]['collectfrom'] = resource_key
                             self.input[resource.id]['images'][image_keys[index]]['status'] = 'QUEUED'
                             self.input[resource.id]['images'][image_keys[index]]['reallocated'] = False
                             input_taskset.input[resource_key]['images'][image_keys[index]]['reallocated'] = True
+                            total_count += 1
                             self.input[resource.id]['count'] += 1
+                            #add flux dependency
+                            print ('adding dependency', resource_key, resource.id)
+                            h = flux.Flux()
+                            r = h.rpc (b"exception.view.get", {"search":"", "level":"job", "jobid_o":"", "jobid_s":str(resource_key), \
+                                       "jobid_d":str(resource.id), "endrank_s":-1, "startrank_s":-1, "endrank_d":-1, "startrank_d":-1, \
+                                       "viewtype":2, "dependencytype":"UP", "component":"", "componenttype":""})
+                            print (r)
                         index += 1
 
-        if self.input[resource.id]['count'] == 0:
+        if total_count == 0:
             print ('add_input_taskset (): could not find any images')
             return -1
+        else:
+            self.input[resource.id]['count'] = total_count
 
         return 0
 
@@ -202,6 +256,7 @@ class Taskset:
 
         for resource_id in resource_ids:
             resource = rmanager.get_resource(resource_id)
+            resource.set_current_taskset (self.resourcetype, self.iteration, self.tasksetid)
             resource.set_support_taskset (self.iteration, self.tasksetid, self.resourcetype)
             resource.set_current_taskset (self.resourcetype, 'SUPPORT')
         return ""
@@ -234,8 +289,42 @@ class Taskset:
 
         for resource_id in resource_ids:
             resource = rmanager.get_resource(resource_id)
+            resource.set_current_taskset (self.resourcetype, self.iteration, self.tasksetid)
             resource.set_main_taskset (self.iteration, self.tasksetid, self.resourcetype)
             resource.set_current_taskset (self.resourcetype, 'MAIN')
+
+        return ""
+
+    def submit (self, rmanager, pmanager, resource_ids):
+        print ('submitting taskset', self.tasksetid)
+        taskset = {}
+        taskset['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
+        taskset['id'] = self.tasksetid
+        taskset['resourcetype'] = self.resourcetype
+        taskset['input'] = {}
+        taskset['iteration'] = self.iteration
+
+        if len (resource_ids) == 0:
+            resource_ids = self.input.keys ()
+
+        for resource_id in resource_ids:
+            taskset['input'][str(resource_id)] = {}
+            taskset['input'][str(resource_id)]['count'] = self.input[resource_id]['count']
+            taskset['input'][str(resource_id)]['images'] = self.input[resource_id]['images']
+            self.input[resource_id]['status'] = 'SCHEDULED'
+            self.input[resource_id]['scheduled'] = self.input[resource_id]['count']
+
+            images = self.input[resource_id]['images']
+            for image_id in images.keys ():
+                self.input[resource_id]['images'][image_id]['status'] = 'SCHEDULED'
+                self.input[resource_id]['images'][image_id]['scheduledtime'] = str(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
+
+        f = flux.Flux ()
+        f.rpc(b"parslmanager.taskset.submit", taskset)
+
+        for resource_id in resource_ids:
+            resource = rmanager.get_resource(resource_id)
+            resource.set_current_taskset (self.resourcetype, self.iteration, self.tasksetid)
 
         return ""
 
