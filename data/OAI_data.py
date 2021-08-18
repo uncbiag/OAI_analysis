@@ -321,6 +321,8 @@ class OAIImage:
                                        self.modality if (self.modality is not None) else '',
                                        self.part if (self.part is not None) else '',
                                        self.visit_description[self.visit_month] if (self.visit_month is not None ) else '')
+        else:
+            self.folder = os.path.join(processed_root, self.folder)
 
         task_folder = os.path.join(self.folder,task_name) if task_name else self.folder
 

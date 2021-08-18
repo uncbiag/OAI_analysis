@@ -19,6 +19,7 @@ from parsl.config import Config
 from parsl.executors import ThreadPoolExecutor
 from parsl import python_app, bash_app
 import parsl
+import subprocess
 
 worker_config = Config (
     executors = [
@@ -99,21 +100,23 @@ def retrieve_images (r, h):
     for image_id in images.keys():
         image_collectfrom = images[image_id]['collectfrom']
         image_uri = images[image_id]['uri']
+        image_location = images[image_id]
 
         if image_uri == get_own_remote_uri():
             images[image_id]['found'] = True
             continue
         else:
-            # send a request to the worker
-            rimage = h.rpc (b"workermanager.image.get",
-                            {'iteration':r['iteration'],
-                            'tasksetid':r['tasksetid'], 'imageid':image_id}).get()
+            images[image_id]['found'] = True
+            #TODO:copy the image
+            '''
+            subprocess.run(["scp", , "USER@SERVER:PATH"])
             if rimage['success'] == True:
                 images[image_id]['found'] = True
                 print ('image retrieved', image_id)
             else:
                 images[image_id]['found'] = False
                 print ('image not retrieved', image_id)
+            '''
 
     imagedata = []
 
@@ -302,7 +305,8 @@ def execute_workitem (r, h):
                'id': str(image_ids[index]),
                'status' : 'SUCCESS',
                'starttime' : str(starttime),
-               'endtime' : str(endtime)})
+               'endtime' : str(endtime),
+               'outputlocation' : str(image.folder)})
     print (datetime.datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid, 'report complete')
 
 futures = []

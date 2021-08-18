@@ -77,7 +77,9 @@ class Taskset:
         self.input[str(resource_id)]['is_complete'] = is_complete
 
     def get_complete (self, resource_id):
-        return self.input[str(resource_id)]['is_complete']
+        if resource_id in self.input.keys ():
+            return self.input[str(resource_id)]['is_complete']
+        return False
 
     def add_input (self, rmanager, imanager, pmanager, resource):
 
@@ -110,6 +112,7 @@ class Taskset:
                 self.input[resource.id]['images'][image_id]['collectfrom'] = resource.id
                 self.input[resource.id]['images'][image_id]['status'] = 'QUEUED'
                 self.input[resource.id]['images'][image_id]['reallocated'] = False
+                self.input[resource.id]['images'][image_id]['inputlocation'] = ''
             self.inputsize += self.input[resource.id]['count']
             return 0
         else:
@@ -166,6 +169,7 @@ class Taskset:
 
                         self.input[resource.id]['images'][image_keys[index]] = {}
                         self.input[resource.id]['images'][image_keys[index]]['data'] = input_taskset.input[resource.id]['images'][image_keys[index]]['data']
+                        self.input[resource.id]['images'][image_keys[index]]['inputlocation'] = input_taskset.input[resource.id]['images'][image_keys[index]]['outputlocation']
                         self.input[resource.id]['images'][image_keys[index]]['collectfrom'] = resource.id
                         self.input[resource.id]['images'][image_keys[index]]['status'] = 'QUEUED'
                         self.input[resource.id]['images'][image_keys[index]]['reallocated'] = False
@@ -203,6 +207,7 @@ class Taskset:
 
                             self.input[resource.id]['images'][image_keys[index]] = {}
                             self.input[resource.id]['images'][image_keys[index]]['data'] = input_taskset.input[resource_key]['images'][image_keys[index]]['data'] 
+                            self.input[resource.id]['images'][image_keys[index]]['inputlocation'] = input_taskset.input[resource_key]['images'][image_keys[index]]['outputlocation']
                             self.input[resource.id]['images'][image_keys[index]]['collectfrom'] = resource_key
                             self.input[resource.id]['images'][image_keys[index]]['status'] = 'QUEUED'
                             self.input[resource.id]['images'][image_keys[index]]['reallocated'] = False
@@ -225,75 +230,6 @@ class Taskset:
             self.input[resource.id]['count'] = total_count
 
         return 0
-
-    def submit_support (self, rmanager, pmanager, resource_ids):
-        print ('submitting support taskset', self.tasksetid)
-        taskset = {}
-        taskset['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
-        taskset['id'] = self.tasksetid
-        taskset['resourcetype'] = self.resourcetype
-        taskset['input'] = {}
-        taskset['iteration'] = self.iteration
-        if len (resource_ids) == 0:
-            resource_ids = self.input.keys ()
-
-        for resource_id in resource_ids:
-            taskset['input'][str(resource_id)] = {}
-            taskset['input'][str(resource_id)]['count'] = self.input[resource_id]['count']
-            taskset['input'][str(resource_id)]['images'] = self.input[resource_id]['images']
-
-            self.input[resource_id]['status'] = 'SCHEDULED'
-            self.input[resource_id]['scheduled'] = self.input[resource_id]['count']
-
-            images = self.input[resource_id]['images']
-
-            for image_id in images.keys ():
-                self.input[resource_id]['images'][image_id]['status'] = 'SCHEDULED'
-                self.input[resource_id]['images'][image_id]['scheduledtime'] = str(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
-
-        f = flux.Flux ()
-        r = f.rpc(b"parslmanager.taskset.submit", taskset)
-
-        for resource_id in resource_ids:
-            resource = rmanager.get_resource(resource_id)
-            resource.set_current_taskset (self.resourcetype, self.iteration, self.tasksetid)
-            resource.set_support_taskset (self.iteration, self.tasksetid, self.resourcetype)
-            resource.set_current_taskset (self.resourcetype, 'SUPPORT')
-        return ""
-
-    def submit_main (self, rmanager, pmanager, resource_ids):
-        print ('submitting main taskset', self.tasksetid)
-        taskset = {}
-        taskset['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
-        taskset['id'] = self.tasksetid
-        taskset['resourcetype'] = self.resourcetype
-        taskset['input'] = {}
-        taskset['iteration'] = self.iteration
-        if len (resource_ids) == 0:
-            resource_ids = self.input.keys ()
-
-        for resource_id in resource_ids:
-            taskset['input'][str(resource_id)] = {}
-            taskset['input'][str(resource_id)]['count'] = self.input[resource_id]['count']
-            taskset['input'][str(resource_id)]['images'] = self.input[resource_id]['images']
-            self.input[resource_id]['status'] = 'SCHEDULED'
-            self.input[resource_id]['scheduled'] = self.input[resource_id]['count']
-
-            images = self.input[resource_id]['images']
-            for image_id in images.keys ():
-                self.input[resource_id]['images'][image_id]['status'] = 'SCHEDULED'
-                self.input[resource_id]['images'][image_id]['scheduledtime'] = str(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
-
-        f = flux.Flux ()
-        f.rpc(b"parslmanager.taskset.submit", taskset)
-
-        for resource_id in resource_ids:
-            resource = rmanager.get_resource(resource_id)
-            resource.set_current_taskset (self.resourcetype, self.iteration, self.tasksetid)
-            resource.set_main_taskset (self.iteration, self.tasksetid, self.resourcetype)
-            resource.set_current_taskset (self.resourcetype, 'MAIN')
-
-        return ""
 
     def submit (self, rmanager, pmanager, resource_ids):
         print ('submitting taskset', self.tasksetid)
@@ -354,6 +290,7 @@ class Taskset:
                 self.input[resource_id]['images'][imageid]['status'] = 'SUCCESS'
                 self.input[resource_id]['images'][imageid]['starttime'] = data['starttime']
                 self.input[resource_id]['images'][imageid]['endtime'] = data['endtime']
+                self.input[resource_id]['images'][imageid]['outputlocation'] = data['outputlocation']
             elif status == 'FAILURE':
                 self.input[resource_id]['images'][imageid]['status'] = 'FAILURE'
             else:
