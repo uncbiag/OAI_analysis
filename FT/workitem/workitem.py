@@ -8,5 +8,6 @@ def workitem_reschedule():
     pass
 
 @plugins.register
-def handle_exception(entity, op):
+def handle_exception(**kwargs):
+    print (kwargs)
     print ('workitem resource')

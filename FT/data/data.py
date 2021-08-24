@@ -5,5 +5,5 @@ def data_recover():
     pass
 
 @plugins.register
-def handle_exception(entity, op):
-    print ('data resource')
+def handle_exception(**kwargs):
+    print (kwargs)

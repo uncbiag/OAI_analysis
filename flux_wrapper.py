@@ -340,10 +340,10 @@ def job_execute (h):
             print ('invalid return')
             time.sleep (5)
 
-
 if __name__ == "__main__":
     #register parsl manager's flux URI first with the workermanager
     h = flux.Flux()
+    h.rpc (b"FTmanager.resource.register", {"package": "FT", "name":"node", "path":"/mnt/beegfs/ssbehera/OAI_analysis"})
     entity = h.attr_get("entity").decode("utf-8")
     entityvalue = h.attr_get("entityvalue").decode("utf-8")
     load_config_file ('oaiconfig.yml')

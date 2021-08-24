@@ -1,6 +1,5 @@
 import sys
 import plugins
-from worker import *
 
 def node_allocate():
     print ('requesting new resource')
@@ -11,7 +10,9 @@ def node_restart():
     pass
 
 @plugins.register
-def handle_exception(entity, op):
+def handle_exception(**kwargs):
+    print (kwargs)
+    op = kwargs['op']
     if op == 'allocate':
         node_allocate ()
     elif op == 'restart':

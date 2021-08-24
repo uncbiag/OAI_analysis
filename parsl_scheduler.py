@@ -26,7 +26,9 @@ def app (command):
     return ''+command
 @bash_app
 def app1 (entity, entityvalue, scheduleruri):
-    return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} python3.6 flux_wrapper.py {}'.format('TASK', entityvalue, scheduleruri)
+    return "~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} sh -c 'flux module load pymod --verbose --path=/home/ssbehera/whesl/FTmanager FTmanager; python3.6 flux_wrapper.py {}'".format('TASK', entityvalue, scheduleruri)
+    #return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} flux module load pymod --verbose --path=/home/ssbehera/whesl/FTmanager FTmanager python3.6 flux_wrapper.py {}'.format ('TASK', entityvalue, scheduleruri)
+    #return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={}; flux module load pymod --verobse --path=/home/ssbehera/whesl/FTmanager FTmanager; python3.6 /home/ssbehera/whesl/whesl.py handler FT node /mnt/beegfs/ssbehera/OAI_analysis;  python3.6 flux_wrapper.py {}'.format('TASK', entityvalue, scheduleruri)
 
 def get_own_remote_uri():
     localuri = os.getenv('FLUX_URI')
@@ -65,17 +67,22 @@ def launch_worker (resource):
     future = app1 ('TASK', resource.hostname, get_own_remote_uri ())
     #app ('~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} python3.6 flux_wrapper.py {} {}'.format('TASK', resource.hostname, resource.hostname, get_own_remote_uri()))
     print ('launched', resource.hostname)
-    return future
+    return future, 'TASK', resource.hostname
 
-workers = {}
+worker_futures = {}
 
 def launch_workers (resources):
     for resource in resources:
-        future = launch_worker (resource)
-        workers[str (resource.id)] = future
+        ret = launch_worker (resource)
+        worker_futures[str (resource.id)] = ret
         time.sleep (5) #add sleep to avoid same exec dir
 
 def setup (resourcefile, pipelinefile, configfile, availablefile):
+
+    h = flux.Flux()
+
+    h.rpc (b"FTmanager.resource.register", {"package": "FT", "name":"node", "path":"/mnt/beegfs/ssbehera/OAI_analysis"})
+
     r = ResourceManager (resourcefile, availablefile)
     r.parse_resources ()
 
@@ -182,7 +189,7 @@ def get_taskset (taskset_info):
 
     return None
 
-def status (rmanager):
+def taskset_status (rmanager):
     global g_iterations
     global g_iteration
 
@@ -205,6 +212,21 @@ def status (rmanager):
             gpu_taskset.get_status (resource.id)
 
     print ('#########################')
+
+def worker_status ():
+    print ('*************************')
+    for worker in worker_futures.keys ():
+        future = worker_futures[worker][0]
+        if future.task_status() == 'failed':
+            #raise an exception
+            print (worker, 'failed')
+            entity = worker_futures[worker][1]
+            entityvalue = worker_futures[worker][2]
+            h = flux.Flux()
+            ownentity = h.attr_get("entity").decode("utf-8") 
+            ownentityvalue = h.attr_get("entityvalue").decode("utf-8")
+            h.rpc (b"exception.catch", {"exception":"nodefailure", "fromentity":ownentity, "fromentityvalue":ownentityvalue, "originentity":entity, "originentityvalue":entityvalue})
+    print ('*************************')
 
 def update_chunksize (taskset, resource_id, rmanager, pmanager):
 
@@ -434,7 +456,7 @@ def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
 
     while True:
 
-        status (rmanager)
+        taskset_status (rmanager)
 
         for resource in resources:
             cpu_free, gpu_free = is_free (rmanager, imanager, pmanager, resource)
@@ -453,6 +475,8 @@ def OAI_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
         print ('OAI_scheduler ():', 'sleeping for 5')
 
         time.sleep (5)
+
+        worker_status ()
 
 if __name__ == "__main__":
 
