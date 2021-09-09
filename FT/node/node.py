@@ -1,7 +1,8 @@
 import sys
 import plugins
+import os
 
-def node_allocate():
+def node_allocate(scheduler_pid, originentityvalue):
     print ('requesting new resource')
     pass
 
@@ -11,7 +12,7 @@ def node_restart():
 
 @plugins.register
 def handle_exception(**kwargs):
-    print (kwargs)
+    print (kwargs, os.getcwd ())
     op = kwargs['op']
     if op == 'allocate':
         node_allocate ()

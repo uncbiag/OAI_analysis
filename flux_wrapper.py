@@ -94,35 +94,33 @@ def get_own_remote_uri():
     remoteuri = localuri.replace("local://", "ssh://" + platform.node().split('.')[0])
     return remoteuri
 
-def retrieve_images (r, h):
-    images = r['images']
+def retrieve_image (r, h):
+    
+    image_collectfrom = r['collectfrom']
+    image_uri = r['uri']
+    image_location = r['inputlocation']
 
-    for image_id in images.keys():
-        image_collectfrom = images[image_id]['collectfrom']
-        image_uri = images[image_id]['uri']
-        image_location = images[image_id]
-
-        if image_uri == get_own_remote_uri():
+    if image_uri == get_own_remote_uri():
+        imagefound = True
+    else:
+        imagefound = True
+        #TODO:copy the image
+        '''
+        subprocess.run(["scp", , "USER@SERVER:PATH"])
+        if rimage['success'] == True:
             images[image_id]['found'] = True
-            continue
+            print ('image retrieved', image_id)
         else:
-            images[image_id]['found'] = True
-            #TODO:copy the image
-            '''
-            subprocess.run(["scp", , "USER@SERVER:PATH"])
-            if rimage['success'] == True:
-                images[image_id]['found'] = True
-                print ('image retrieved', image_id)
-            else:
-                images[image_id]['found'] = False
-                print ('image not retrieved', image_id)
-            '''
+            images[image_id]['found'] = False
+            print ('image not retrieved', image_id)
+        '''
 
     imagedata = []
 
-    for image_id in images.keys():
-        if images[image_id]['found'] == True:
-            imagedata.append (images[image_id]['data'])
+    print (r['data'])
+
+    if imagefound == True:
+        imagedata.append (r['data'])
 
     print (imagedata)
 
@@ -140,7 +138,7 @@ def retrieve_images (r, h):
 
     os.remove (platform_name + '.csv')
 
-    return list(images.keys()), OAI_data
+    return OAI_data
 
 def preprocess (analyzer, image):
     task_name = None if config_data['use_nifty_reg'] else 'avsm'
@@ -278,36 +276,33 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
 
 @python_app
 def execute_workitem (r, h):
-    tasksetid = r['tasksetid']
-    iteration = r['iteration']
+    imageid = r['id']
+    version = r['version']
 
-    print (datetime.datetime.now(), 'executing iteration', iteration, 'tasksetid', tasksetid)
+    print (datetime.datetime.now(), 'executing image', imageid, 'version', version)
 
     analyzer = build_default_analyzer ()
 
     pipelinestages = r['pipelinestages'].split (':')
 
-    image_ids, OAI_data = retrieve_images (r, h)
+    OAI_data = retrieve_image (r, h)
 
-    analysis_images = OAI_data.get_images ()
+    analysis_image = OAI_data.get_images ()[0]
 
-    index = 0
-    for i, image in enumerate (analysis_images):
-        starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        for pipelinestage in  pipelinestages:
-            execute_pipelinestage (OAI_data, analyzer,
-                                   pipelinestage, image)
-        endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    for pipelinestage in  pipelinestages:
+       execute_pipelinestage (OAI_data, analyzer,
+                              pipelinestage, analysis_image)
+    endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-        h.rpc (b"workermanager.workitem.report",
-               {'tasksetid' : tasksetid,
-               'iteration' : iteration,
-               'id': str(image_ids[index]),
-               'status' : 'SUCCESS',
-               'starttime' : str(starttime),
-               'endtime' : str(endtime),
-               'outputlocation' : str(image.folder)})
-    print (datetime.datetime.now(), 'iteration', iteration, 'tasksetid', tasksetid, 'report complete')
+    h.rpc (b"workermanager.workitem.report",
+           {'version' : version,
+            'id': imageid,
+            'status' : 'SUCCESS',
+            'starttime' : str(starttime),
+            'endtime' : str(endtime),
+            'outputlocation' : str(analysis_image.folder)})
+    print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
 
 futures = []
 
@@ -329,7 +324,7 @@ def job_execute (h):
 
         r = h.rpc (b"workermanager.workitem.get").get()
         if "empty" in r.keys():
-            print ('empty workqueue')
+            print (os.getcwd(), 'empty workqueue')
             time.sleep (5)
         elif "pipelinestages" in r.keys():
             print (r)

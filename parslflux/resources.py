@@ -2,203 +2,232 @@ import yaml
 import sys
 import operator
 import copy
+import datetime
 
-class Resource:
-    def __init__ (self, node, i):
-        self.id = "c" + str(i)
-        self.hostname = "c" + str (i)
+from parslflux.workitem import WorkItem
+from parslflux.workqueue import WorkItemQueue
+
+class CPU:
+    def __init__ (self, node):
         self.name = node['name']
-        self.RAM = node['RAM']
-        self.cpurating = node['rating']['avg']
-        self.gpuname = ''
-        self.available = True
-        self.timetowait = 0
-        self.cpucost = node['cpucost']
-        self.latencies = {}
-        self.workerid = ''
-        self.main_taskset = {}
-        self.support_taskset = {}
-        self.current_taskset = {}
-        self.cpuchunksize = {}
-        self.gpuchunksize = {}
-        self.main_iteration = 0
-        self.cputype = True
-        self.gputype = False
-        if 'SSD' in node:
-            for ssdnode in node['SSD']:
-                if 'range' in ssdnode:
-                    for ssdnoderange in ssdnode['range']:
-                        if ssdnoderange[0] <= i and i <= ssdnoderange[1]:
-                            self.ssdname = ssdnode['name']
-                            self.ssdsize = ssdnode['size']
-                            self.ssdlocation = ssdnode['location']
-                            return
-                else:
-                    self.ssdname = ssdnode['name']
-                    self.ssdsize = ssdnode['size']
-                    self.ssdlocation = ssdnode['location']
-        else:
-            self.ssdname = ''
-            self.ssdsize = 0
-            self.ssdlocation = ''
-
-    def set_main_taskset (self, iteration, tasksetid, resourcetype):
-        if resourcetype == 'CPU':
-            if 'GPU' in self.main_taskset.keys ():
-                print ('set_main_taskset (): delete M-GPU')
-
-                self.main_taskset.pop ('GPU')
-                if self.current_taskset['GPU'] == 'MAIN':
-                    self.current_taskset.pop ('GPU')
-
-            if 'CPU' in self.support_taskset.keys ():
-                print ('set_main_taskset (): delete S-CPU')
-                self.support_taskset.pop ('CPU')
-
-        if resourcetype == 'GPU':
-            if 'CPU' in self.main_taskset.keys ():
-                print ('set_main_taskset (): delete M-CPU')
-
-                self.main_taskset.pop ('CPU')
-                if self.current_taskset['CPU'] == 'MAIN':
-                    self.current_taskset.pop ('CPU')
-
-            if 'GPU' in self.support_taskset.keys ():
-                print ('set_main_taskset (): delete S-GPU')
-                self.support_taskset.pop ('GPU')
-
-        self.main_taskset[str(resourcetype)] = [iteration, tasksetid]
-
-    def get_main_taskset (self, resourcetype):
-        if resourcetype not in self.main_taskset.keys():
-            return None
-        return self.main_taskset[str(resourcetype)]
-
-    def set_support_taskset (self, iteration, tasksetid, resourcetype):
-        self.support_taskset[str(resourcetype)] = [iteration, tasksetid]
-
-    def get_support_taskset (self, resourcetype):
-        if resourcetype not in self.support_taskset.keys():
-            return None
-        return self.support_taskset[str(resourcetype)]
-
-    def set_current_taskset_1 (self, resourcetype, iteration): # 'cpu/gpu:support/main'
-        self.current_taskset[resourcetype] = iteration
-
-    def get_current_taskset_1 (self, resourcetype):
-        if resourcetype not in self.current_taskset.keys():
-            return None, None
-        if self.current_taskset[resourcetype] == 'MAIN':
-            return 'MAIN', self.get_main_taskset(resourcetype)
-        else:
-            return 'SUPPORT', self.get_support_taskset(resourcetype)
-
-    def set_current_taskset (self, resourcetype, iteration, tasksetid):
-        self.current_taskset.pop (resourcetype, None)
-
-        self.current_taskset[resourcetype] = [iteration, tasksetid]
-
-    def get_current_taskset (self, resourcetype):
-        if resourcetype not in self.current_taskset:
-            return None
-        return self.current_taskset[resourcetype]
-
-    def set_worker_id (self, workerid):
-        self.workerid = workerid
-
-    def get_worker_id (self):
-        return self.workerid
-
-    def add_gpu (self, gpu):
-        self.gpuname = gpu['name']
-        self.gpurating = gpu['rating']
-        self.gpucost = gpu['gpucost']
-        self.gputype = True
+        self.workqueue = WorkItemQueue ()
+        self.busy = False
+        self.last_completion_time = None
 
     def get_name (self):
         return self.name
 
-    def get_gpuname (self):
-        return self.gpuname
+    def is_busy (self):
+        return self.busy
 
-    def get_gpurating (self):
-        return self.gpurating
+    def set_busy (self, busy):
+        self.busy = busy
 
-    def set_gpurating (self, rating):
-        self.gpurating = rating
+    def set_last_completion_time (self, time):
+        self.last_completion_time = time
 
-    def get_cpurating (self):
-        return self.cpurating
+    def get_last_completion_time (self):
+        if self.last_completion_time == None:
+            return None
 
-    def set_cpurating (self, rating):
-        self.cpurating = rating
+        return datetime.datetime.strptime (self.last_completion_time, '%Y-%m-%d %H:%M:%S')
 
-    def get_chunksize (self, resourcetype, pipelinestages):
-        if resourcetype == 'CPU':
-            if pipelinestages not in self.cpuchunksize.keys():
-                self.cpuchunksize[pipelinestages] = 1
-            return self.cpuchunksize[pipelinestages]
+class GPU:
+    def __init__ (self, gpu):
+        self.name = gpu['name']
+        self.workqueue = WorkItemQueue ()
+        self.busy = False
+        self.last_completion_time = None
+
+    def get_name (self):
+        return self.name
+
+    def is_busy (self):
+        return self.busy
+
+    def set_busy (self, busy):
+        self.busy = busy
+
+    def set_last_completion_time (self, time):
+        self.last_completion_time = time
+
+    def get_last_completion_time (self):
+        if self.last_completion_time == None:
+            return None
+
+        return datetime.datetime.strptime (self.last_completion_time, '%Y-%m-%d %H:%M:%S')
+
+class Resource:
+
+    def __init__ (self, i):
+        self.id = "c" + str(i)
+        self.hostname = "c" + str (i)
+        self.cpu = None
+        self.gpu = None
+
+    def add_cpu (self, cpu):
+        self.cpu = CPU (cpu)
+
+    def add_gpu (self, gpu):
+        self.gpu = GPU (gpu)
+
+    def is_idle (self):
+        cpu_free = False
+        if self.cpu != None:
+            if self.cpu.is_busy () == False:
+                cpu_free = True
+
+        gpu_free = False
+        if self.gpu != None:
+            if self.gpu.is_busy () == False:
+                gpu_free = True
+
+        print ('is_idle ():', self.id, cpu_free, gpu_free)
+
+        return cpu_free, gpu_free
+
+    def is_empty (self):
+        cpu_empty = False
+
+        if self.cpu.workqueue.is_empty () == True:
+            cpu_empty = True
+
+        gpu_empty = False
+
+        if self.gpu.workqueue.is_empty () == True:
+            gpu_empty = True
+
+        print ('is_empty ():', self.id, cpu_empty, gpu_empty)
+
+        return cpu_empty, gpu_empty
+
+    def schedule (self, pmanager, resourcetype):
+        if resourcetype == 'CPU' and self.cpu == None:
+            print (self.id, 'CPU not available')
+            return
+        if resourcetype == 'GPU' and self.gpu == None:
+            print (self.id, 'GPU not available')
+            return
+
+        if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
+            self.cpu.workqueue.get_workitem ().submit (pmanager)
+            self.cpu.set_busy (True)
+            self.cpu.set_last_completion_time (None)
         else:
-            if pipelinestages not in self.gpuchunksize.keys():
-                self.gpuchunksize[pipelinestages] =1
-            return self.gpuchunksize[pipelinestages]
+            print (self.id, 'CPU no workitem available to schedule')
 
-    def set_chunksize (self, resourcetype, pipelinestages, chunksize):
-        if resourcetype == 'CPU':
-            self.cpuchunksize[pipelinestages] = chunksize
+        if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
+            self.gpu.workqueue.get_workitem ().submit (pmanager)
+            self.gpu.set_busy (True)
+            self.gpu.set_last_completion_time (None)
         else:
-            self.cpuchunksize[pipelinestages] = chunksize
+            print (self.id, 'GPU no workitem available to schedule')
 
-    def set_availability (self, availability):
-        self.available = availability
+    def get_status (self, pmanager):
+        print ('get_status ():', self.id)
+        #first cpu
+        if self.cpu != None and self.cpu.workqueue.is_empty () == False:
+            workitem = self.cpu.workqueue.get_workitem ()
+            ret, start_time, end_time = workitem.probe_status ()
+            if ret == True:
+                print ('cpu workitem complete')
+                self.cpu.set_busy (False)
+                self.cpu.set_last_completion_time (end_time)
+                self.add_count (pmanager.encode_pipeline_stages (self.pipelinestages))
+                self.add_exectime (pmanager.encode_pipeline_stages(self.pipelinestages), starttime, endtime)
 
-    def get_availability (self, availability):
-        return self.available
 
-    def set_timetowait (self, timetowait):
-        self.timetowait = timetowait
+        #now gpu
+        if self.gpu != None and self.gpu.workqueue.is_empty () == False:
+            workitem = self.gpu.workqueue.get_workitem ()
+            ret, start_time, end_time = workitem.probe_status ()
+            if ret == True:
+                print ('gpu workitem complete')
+                self.gpu.set_busy (False)
+                self.gpu.set_last_completion_time (end_time)
+                self.add_count (pmanager.encode_pipeline_stages (self.pipelinestages))
+                self.add_exectime (pmanager.encode_pipeline_stages(self.pipelinestages), starttime, endtime)
 
-    def get_timetowait (self):
-        return self.timetowait
+    def get_last_completion_time (self, resourcetype):
+        if resourcetype == 'CPU' and self.cpu != None:
+            return self.cpu.get_last_completion_time ()
 
-    def get_cpucost (self):
-        return self.cpucost
+        if resourcetype == 'GPU' and self.gpu != None:
+            return self.gpu.get_last_completion_time ()
 
-    def set_cpucost (self, cpucost):
-        self.cpucost = cpucost
 
-    def get_gpucost (self):
-        return self.gpucost
+    def add_workitem (self, workitem, resourcetype):
+        print ('add_workitem ()', self.id)
+        if resourcetype == 'CPU':
+            if self.cpu == None:
+                print (self.id, 'CPU not available')
+                return
+            self.cpu.workqueue.add_workitem (workitem)
 
-    def set_gpucost (self, gpucost):
-        self.gpucost = gpucost
+        if resourcetype == 'GPU':
+            if self.gpu == None:
+                print (self.id, 'GPU not available')
+                return
+            self.gpu.workqueue.add_workitem (workitem)
+
+
+    def pop_if_complete (self, resourcetype):
+        if resourcetype == 'CPU' and self.cpu == None:
+            print (self.id, 'CPU not available')
+            return None
+
+        if resourcetype == 'GPU' and self.cpu == None:
+            print (self.id, 'GPU not available')
+            return None
+
+        if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
+            if self.cpu.workqueue.get_workitem ().is_complete () == True:
+                print (self.id, 'CPU workitem complete')
+                workitem = self.cpu.workqueue.pop_workitem ()
+                return workitem
+
+        if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
+            if self.gpu.workqueue.get_workitem ().is_complete () == True:
+                print (self.id, 'GPU workitem complete')
+                workitem = self.gpu.workqueue.pop_workitem ()
+                return workitem
+
+        print (self.id, resourcetype, 'not complete')
+        return None
 
     def get_hostname (self):
         return self.hostname
 
-    def add_latency (self, pmanager, pipelinestages, latency):
-        encoded_pipelinestage = pmanager.encode_pipeline_stages(pipelinestages)
+    def get_count (self, pipelinestages):
+        if pipelinestages not in self.counts:
+            return 0
+        return self.counts[pipelinestages]
 
-        if encoded_pipelinestage in self.latencies.keys():
-            self.latencies[encoded_pipelinestage].append (latency)
+    def add_count (self, pipelinestages):
+        if pipelinestages in self.counts:
+            self.counts[pipelinestages] += 1
         else:
-            self.latencies[encoded_pipelinestage] = []
-            self.latencies[encoded_pipelinestage].append (latency)
+            self.counts[pipelinestages] = 1
 
-    def get_latency (self, pmanager, pipelinestages):
-        encoded_pipelinestage = pmanager.encode_pipeline_stages(pipelinestages)
-        if encoded_pipelinestage in self.latencies.keys():
-            total_latency = 0
-            latencies = self.latencies[encoded_pipelinestage]
-            for latency in latencies:
-                total_latency += latency
-            return total_latency / len(latencies)
+    def add_exectime (self, pipelinestages, starttime_s, endtime_s):
+        starttime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        endtime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timediff = endtime - starttime
+        seconds = timediff.total_seconds ()
+
+        if pipelinestages not in self.exectime:
+            self.exectimes[pipelinestages] = [seconds, 1]
         else:
-            return -1
+            avg_time = self.exectimes[pipelinestages][0]
+            count = self.exectimes[pipelinestages][1]
+            new_avg_time = ((avg_time * count) + seconds) / (count + 1)
+            self.exectimes[pipelinestages] = [new_avg_time, count + 1]
 
-    def print_data (self):
-        print (self.id, self.name, self.gpuname, self.cpucost, self.gpucost, self.cpurating, self.gpurating)
-        #print (self.latencies)
+    def get_exectime (self, pipelinestages):
+        if pipelinestage not in self.exectimes:
+            return 0
+        else:
+            return self.exectimes[pipelinestages][0]
 
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
@@ -206,19 +235,11 @@ class ResourceManager:
         self.availablefile = availablefile
         self.nodes = []
         self.reservednodes = []
-        self.nodescpuratings = []
-        self.nodesgpuratings = []
-        self.nodescpucost = []
-        self.nodesgpucost = []
         self.nodesdict = {}
         self.reservednodesdict = {}
-        self.maxcpucost = 0
-        self.maxgpucost = 0
-        self.total_gpus = 0
 
     def parse_resources (self):
         yaml_resourcefile = open (self.resourcefile)
-        print (yaml.__version__)
         resources = yaml.load (yaml_resourcefile, Loader = yaml.FullLoader)
 
         arc_resources = resources['arc']
@@ -229,14 +250,15 @@ class ResourceManager:
         for node in arc_resources['nodes']:
             for noderange in node['range']:
                 for i in range (noderange[0], noderange[1] + 1):
-                    self.nodesdict[i] = Resource (node, i)
+                    new_resource = Resource (i)
+                    new_resource.add_cpu (node)
+                    self.nodesdict[str(i)] = new_resource
 
         #parse gpus
         for gpu in arc_resources['gpus']:
             for gpurange in gpu['range']:
                 for i in range (gpurange[0], gpurange[1] + 1):
-                    self.nodesdict[i].add_gpu (gpu)
-                    self.total_gpus += 1
+                    self.nodesdict[str(i)].add_gpu (gpu)
 
     def purge_resources (self):
         available_resourcefile = open (self.availablefile)
@@ -246,61 +268,28 @@ class ResourceManager:
 
         if len (availableresources['available']) > 0:
             for i in availableresources['available']:
-                resources[i] = copy.deepcopy (self.nodesdict[i])
+                resources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
 
         if len (availableresources['reserved']) > 0:
             for i in availableresources['reserved']:
-                reservedresources[i] = copy.deepcopy (self.nodesdict[i])
+                reservedresources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
 
         self.nodesdict = resources
         self.reservednodesdict = reservedresources
 
-    def normalize (self):
-        maxcpurating = 0
-        maxgpurating = 0
-        maxcost = 0
-        for i in self.nodesdict.keys ():
-            if self.nodesdict[i].get_gpurating () > maxgpurating:
-                maxgpurating = self.nodesdict[i].get_gpurating ()
-            if self.nodesdict[i].get_cpurating () > maxcpurating:
-                maxcpurating = self.nodesdict[i].get_cpurating ()
-            if self.nodesdict[i].get_cpucost () > maxcost:
-                maxcost = self.nodesdict[i].get_cpucost ()
-            if self.nodesdict[i].get_gpucost () > maxcost:
-                maxcost = self.nodesdict[i].get_gpucost ()
-
-        self.maxcost = maxcost
-
-        for i in self.nodesdict.keys ():
-            self.nodesdict[i].set_gpurating (self.nodesdict[i].get_gpurating () / maxgpurating * 100)
-            self.nodesdict[i].set_cpurating (self.nodesdict[i].get_cpurating () / maxcpurating * 100)
-            self.nodesdict[i].set_cpucost (self.nodesdict[i].get_cpucost () / maxcost * 100)
-            self.nodesdict[i].set_gpucost (self.nodesdict[i].get_gpucost () / maxcost * 100)
-
-
-        #TODO: normalize for reserved nodes
-
         self.nodes = copy.deepcopy (list (self.nodesdict.values ()))
+        self.reservednodes = copy.deepcopy (list (self.reservednodesdict.values ()))
 
-        print (len(self.nodes), self.total_gpus)
-
-    def sort_by_cpu_ratings (self):
-        self.nodescpuratings = sorted (self.nodes, key=lambda x: x.cpurating)
-
-    def sort_by_gpu_ratings (self):
-        self.nodesgpuratings = sorted (self.nodes, key=lambda x: x.gpurating)
-
-    def sort_by_cpucost (self):
-        self.nodescpucost = sorted (self.nodes, key=lambda x: x.cpucost)
-
-    def sort_by_gpucost (self):
-        self.nodesgpucost = sorted (self.nodes, key=lambda x: x.gpucost)
+        print ('nodes:', len(self.nodes), 'reserved nodes:', len (self.reservednodes))
 
     def get_resource (self, resource_id):
         for node in self.nodes:
             if node.id == resource_id:
                 return node
         return None
+
+    def get_resources (self):
+        return self.nodes
 
     def request_reserved_resource (self):
         if len (self.reservednodesdict.keys()) > 0:
@@ -311,60 +300,3 @@ class ResourceManager:
             return new_resource
 
         return None
-
-    def get_resources (self):
-
-        return self.nodes
-        '''
-        if resourcetype == 'CPU':
-            return copy.deepcopy(self.nodes)
-        else:
-            gpuresources = []
-            for resource in self.nodes:
-                if resource.get_gpuname() == '':
-                    continue
-                gpuresources.append(resource)
-            return copy.deepcopy(gpuresources)
-        '''
-
-    def get_cpurating_type (self, cputype):
-        for key in self.nodesdict.keys ():
-            if self.nodesdict[key].get_name () == cputype:
-                return self.nodesdict[key].get_cpurating ()
-
-    def get_gpurating_type (self, gputype):
-        for key in self.nodesdict.keys ():
-            if self.nodesdict[key].get_gpuname () == gputype:
-                return self.nodesdict[key].get_gpurating ()
-
-    def get_latency (self, resourceid, pipelinestages):
-        return self.nodesdict[resourceid].get_latency (pipelinestages)
-
-    def print_data (self):
-        for i in self.nodes:
-            i.print_data ()
-        print ("###################")
-        for i in self.nodescpuratings:
-            i.print_data ()
-        print ("###################")
-        for i in self.nodesgpuratings:
-            i.print_data ()
-        print ("###################")
-        for i in self.nodescpucost:
-            i.print_data ()
-        print ("###################")
-        for i in self.nodesgpucost:
-            i.print_data ()
-
-if __name__ == "__main__":
-    resourcefile = sys.argv[1]
-    availablefile = sys.argv[2]
-    r = ResourceManager (resourcefile, availablefile)
-    r.parse_resources ()
-    r.purge_resources ()
-    r.normalize ()
-    r.sort_by_cpu_ratings ()
-    r.sort_by_gpu_ratings ()
-    r.sort_by_cpucost ()
-    r.sort_by_gpucost ()
-    r.print_data ()

@@ -64,7 +64,7 @@ class InputManager2:
 
         print (self.analysis_patients)
 
-        self.knee_type = 'LEFT_KNEE'
+        self.knee_type = ['LEFT_KNEE', 'RIGHT_KNEE']
         self.time_point = 12
 
         self.analysis_images = self.OAI_data.get_images(patient_id = self.analysis_patients,
