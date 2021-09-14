@@ -19,7 +19,7 @@ from parslflux.resources import ResourceManager
 from parslflux.pipeline import PipelineManager
 from parslflux.taskset import Taskset
 from parslflux.input import InputManager2
-from parslflux.scheduling_policy import Policy, FirstCompleteFirstServe
+from parslflux.scheduling_policy import Policy, FirstCompleteFirstServe, FastCompleteFirstServe, FastCompleteFirstServe2
 
 @bash_app
 def app (command):
@@ -492,7 +492,9 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
 
     time.sleep (40)
 
-    scheduling_policy = FirstCompleteFirstServe("FCFS")
+    #scheduling_policy = FirstCompleteFirstServe("FCFS")
+    #scheduling_policy = FastCompleteFirstServe("FCFS")
+    scheduling_policy = FastCompleteFirstServe2("FCFS")
 
     while True:
 
@@ -552,6 +554,21 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
         for idle_gpu in idle_gpus:
             print ('scheduling gpu', idle_gpu.id)
             idle_gpu.schedule (pmanager, 'GPU')
+
+        idle_cpus = []
+        idle_gpus = []
+
+        for resource in resources:
+            cpu_idle, gpu_idle = resource.is_idle ()
+
+            if cpu_idle == True:
+                idle_cpus.append (resource)
+            if gpu_idle == True:
+                idle_gpus.append (resource)
+
+        if len (idle_cpus) == len (resources) and len (idle_gpus) == len (resources):
+            print ('all tasks complete')
+            break
 
         time.sleep (5)
             

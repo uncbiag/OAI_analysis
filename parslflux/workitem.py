@@ -1,4 +1,5 @@
 from parslflux.pipeline import PipelineManager
+import datetime
 import flux
 
 class WorkItem:
@@ -23,6 +24,8 @@ class WorkItem:
 
     def set_resource_id (self, id):
         self.resourceid = id
+        if self.collectfrom == None:
+            self.collectfrom = id
 
     def set_complete (self, complete):
         self.iscomplete = complete
@@ -71,6 +74,8 @@ class WorkItem:
         workitem['inputlocation'] = self.inputlocation
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
+        self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        self.scheduletime = datetime.datetime.strptime (self.scheduletime, '%Y-%m-%d %H:%M:%S')
 
         print ('submit (): ', workitem)
 
@@ -98,11 +103,11 @@ class WorkItem:
         self.iscomplete = True
 
         if status == 'SUCCESS':
-            self.starttime = report['starttime']
-            self.endtime = report['endtime']
+            self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
+            self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
             self.outputlocation = report['outputlocation']
             self.status = 'SUCCESS'
-            print ('probe_status (complete):', self.id, self.version, self.starttime, self.endtime, self.resourceid)
+            print ('probe_status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid)
             return True, self.starttime, self.endtime
         else:
             self.status = 'FAILURE'

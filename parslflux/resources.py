@@ -30,7 +30,7 @@ class CPU:
         if self.last_completion_time == None:
             return None
 
-        return datetime.datetime.strptime (self.last_completion_time, '%Y-%m-%d %H:%M:%S')
+        return self.last_completion_time
 
 class GPU:
     def __init__ (self, gpu):
@@ -55,7 +55,7 @@ class GPU:
         if self.last_completion_time == None:
             return None
 
-        return datetime.datetime.strptime (self.last_completion_time, '%Y-%m-%d %H:%M:%S')
+        return self.last_completion_time
 
 class Resource:
 
@@ -64,6 +64,8 @@ class Resource:
         self.hostname = "c" + str (i)
         self.cpu = None
         self.gpu = None
+        self.exectimes = {}
+        self.counts = {}
 
     def add_cpu (self, cpu):
         self.cpu = CPU (cpu)
@@ -113,6 +115,7 @@ class Resource:
             self.cpu.workqueue.get_workitem ().submit (pmanager)
             self.cpu.set_busy (True)
             self.cpu.set_last_completion_time (None)
+            return
         else:
             print (self.id, 'CPU no workitem available to schedule')
 
@@ -120,6 +123,7 @@ class Resource:
             self.gpu.workqueue.get_workitem ().submit (pmanager)
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
+            return
         else:
             print (self.id, 'GPU no workitem available to schedule')
 
@@ -133,8 +137,8 @@ class Resource:
                 print ('cpu workitem complete')
                 self.cpu.set_busy (False)
                 self.cpu.set_last_completion_time (end_time)
-                self.add_count (pmanager.encode_pipeline_stages (self.pipelinestages))
-                self.add_exectime (pmanager.encode_pipeline_stages(self.pipelinestages), starttime, endtime)
+                self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
+                self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
 
 
         #now gpu
@@ -145,8 +149,8 @@ class Resource:
                 print ('gpu workitem complete')
                 self.gpu.set_busy (False)
                 self.gpu.set_last_completion_time (end_time)
-                self.add_count (pmanager.encode_pipeline_stages (self.pipelinestages))
-                self.add_exectime (pmanager.encode_pipeline_stages(self.pipelinestages), starttime, endtime)
+                self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
+                self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
 
     def get_last_completion_time (self, resourcetype):
         if resourcetype == 'CPU' and self.cpu != None:
@@ -157,7 +161,7 @@ class Resource:
 
 
     def add_workitem (self, workitem, resourcetype):
-        print ('add_workitem ()', self.id)
+        print ('add_workitem ():', self.id, workitem.id, workitem.version)
         if resourcetype == 'CPU':
             if self.cpu == None:
                 print (self.id, 'CPU not available')
@@ -185,14 +189,22 @@ class Resource:
                 print (self.id, 'CPU workitem complete')
                 workitem = self.cpu.workqueue.pop_workitem ()
                 return workitem
+            else:
+                 print (self.id, resourcetype, 'not complete')
+        else:
+             print (self.id, resourcetype, 'nothing scheduled')
 
         if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
             if self.gpu.workqueue.get_workitem ().is_complete () == True:
                 print (self.id, 'GPU workitem complete')
                 workitem = self.gpu.workqueue.pop_workitem ()
                 return workitem
+            else:
+                 print (self.id, resourcetype, 'not complete')
 
-        print (self.id, resourcetype, 'not complete')
+        else:
+             print (self.id, resourcetype, 'nothing scheduled')
+
         return None
 
     def get_hostname (self):
@@ -209,13 +221,11 @@ class Resource:
         else:
             self.counts[pipelinestages] = 1
 
-    def add_exectime (self, pipelinestages, starttime_s, endtime_s):
-        starttime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        endtime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    def add_exectime (self, pipelinestages, starttime, endtime):
         timediff = endtime - starttime
         seconds = timediff.total_seconds ()
 
-        if pipelinestages not in self.exectime:
+        if pipelinestages not in self.exectimes:
             self.exectimes[pipelinestages] = [seconds, 1]
         else:
             avg_time = self.exectimes[pipelinestages][0]
@@ -224,7 +234,7 @@ class Resource:
             self.exectimes[pipelinestages] = [new_avg_time, count + 1]
 
     def get_exectime (self, pipelinestages):
-        if pipelinestage not in self.exectimes:
+        if pipelinestages not in self.exectimes:
             return 0
         else:
             return self.exectimes[pipelinestages][0]
