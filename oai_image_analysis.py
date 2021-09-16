@@ -237,12 +237,14 @@ class OAIImageAnalysis:
         if overwrite or (not os.path.isfile(oai_image.warped_FC_mesh_file)):
             self.register.warp_mesh(oai_image.FC_mesh_file,
                                     oai_image.inv_transform_to_atlas,
+                                    self.atlas_image_file,
                                     oai_image.preprocessed_image_file,
                                     oai_image.warped_FC_mesh_file,
                                     inWorld=True,do_clean=False)
         if overwrite or (not os.path.isfile(oai_image.warped_TC_mesh_file)):
             self.register.warp_mesh(oai_image.TC_mesh_file,
                                     oai_image.inv_transform_to_atlas,
+                                    self.atlas_image_file,
                                     oai_image.preprocessed_image_file,
                                     oai_image.warped_TC_mesh_file,
                                     inWorld=True,do_clean=do_clean)

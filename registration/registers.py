@@ -92,7 +92,7 @@ class AVSMReg(Register):
                         num_proc=None):
         pass
 
-    def warp_points(self,points, inv_map,ref_img=None):
+    def warp_points(self,points, inv_map, atlas_img, ref_img=None):
         """
         in avsm the inv transform coord is from [0,1], so here we need to read mesh in voxel coord and then normalized it to [0,1],
         the last step is to transform warped mesh into word/ voxel coord
@@ -113,6 +113,9 @@ class AVSMReg(Register):
         spacing = img.GetSpacing()
         spacing = np.array(spacing)
 
+        atlas_img = sitk.ReadImage(atlas_img)
+        atlas_spacing = atlas_img.GetSpacing()
+
         points = points/spacing*standard_spacing
         points = points*2-1
         grid_sz =[1]+ [points.shape[0]]+ [1,1,3] # 1*N*1*1*3
@@ -123,11 +126,11 @@ class AVSMReg(Register):
         points_wraped=F.grid_sample(inv_map, grid, mode='bilinear', padding_mode='border') # 1*3*N*1*1
         points_wraped = points_wraped.detach().cpu().numpy()
         points_wraped = np.transpose(np.squeeze(points_wraped))
-        points_wraped = np.flip(points_wraped,1)/standard_spacing*spacing
+        points_wraped = np.flip(points_wraped,1)/standard_spacing*atlas_spacing
         return points_wraped
 
 
-    def warp_mesh(self, mesh_file, inv_transform_file, reference_image_file, warped_mesh_file=None, inWorld=False, do_clean=False):
+    def warp_mesh(self, mesh_file, inv_transform_file, atlas_image_file, reference_image_file, warped_mesh_file=None, inWorld=False, do_clean=False):
         """
         warp a surface mesh with given transform (affine, bspline et al.)
 
@@ -148,7 +151,7 @@ class AVSMReg(Register):
         points = csp.get_points_from_mesh(mesh_file).copy()
         transform = csp.get_voxel_to_world_transform_nifti(reference_image_file)
         points = csp.world_to_voxel_coord(points,transform)
-        warped_points = self.warp_points(points, inv_map, reference_image_file)
+        warped_points = self.warp_points(points, inv_map, atlas_image_file, reference_image_file)
         warped_points = csp.voxel_to_world_coord(warped_points,transform)
         csp.modify_mesh_with_new_vertices(mesh_file, warped_points, warped_mesh_file)
         if do_clean:
