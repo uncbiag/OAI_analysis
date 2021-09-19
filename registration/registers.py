@@ -52,13 +52,14 @@ class AVSMReg(Register):
     def register_image(self,target_path, moving_path,lmoving_path=None, ltarget_path=None,gpu_id=0,oai_image=None):
         output_path = os.path.join(os.path.split(oai_image.inv_transform_to_atlas)[0],'detailed')
         cmd = ''
+        cwd = os.getcwd () + '/'
         # cmd +='{} single_pair_atlas_registration.py -rt {} \
         # -s  {}  -t {}  -ls {}  -lt {}\
         # -ms {}\
         # -o {}\
         #  -g {}'.format(self.python_executable, self.refering_task_path,moving_path,target_path,lmoving_path,ltarget_path,self.mermaid_setting_path,output_path,gpu_id)
         cmd += '{} demo_for_easyreg_eval.py -s {} -t {} -ls {} -lt {} -ts {} -o {} -g {}'.\
-            format(self.python_executable, moving_path, target_path, lmoving_path, ltarget_path, self.mermaid_setting_path,output_path,gpu_id)
+            format(self.python_executable, moving_path, cwd + target_path, lmoving_path, ltarget_path, self.mermaid_setting_path, output_path,gpu_id)
         wd = os.getcwd()
         #subprocess.run('source activate torch4 && {} && source deactivate'.format(cmd),cwd=self.avsm_path, shell=True)
     

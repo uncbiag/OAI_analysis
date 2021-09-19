@@ -6,7 +6,7 @@
             192
         ],
         "load_training_data_into_memory": false,
-        "max_pair_for_loading": [
+        "max_num_for_loading": [
             1,
             1,
             -1,
@@ -35,8 +35,7 @@
             4
         ],
         "model": "reg_net",
-        "model_folder_path": "",
-        "model_path": "/nas/longleaf/home/mn/python/registration_net/mermaid/pretrained/pre_trained_model",
+        "model_path": "/mnt/beegfs/ssbehera/OAI_analysis/easyreg/demo/pretrained/pre_trained_model",
         "n_in_channel": 1,
         "method_name": "mermaid",
         "optim": {
@@ -53,8 +52,9 @@
             },
             "optim_type": "adam"
         },
+        "eval_metric_at_original_resol": true,
         "output_taking_original_image_format": true,
-        "save_original_image_by_type": [false, false, false, false, false, true],
+        "save_original_resol_by_type": [false, false, false, false, false, true,false,false],
         "print_step": [
             10,
             4,
@@ -63,6 +63,7 @@
         "print_val_detail": true,
         "reg": {
             "affine_net": {
+                "affine_fc_size": 432,
                 "acc_multi_step_loss": false,
                 "affine_net_iter": 7,
                 "epoch_activate_extern_loss": -1,
@@ -84,7 +85,7 @@
                 "epoch_activate_multi_step": 100,
                 "epoch_activate_sym": 200,
                 "load_trained_affine_net": true,
-                "mermaid_net_json_pth": "",
+                "mermaid_net_json_pth": "./demo_settings/mermaid/eval_network_vsvf/mermaid_nonp_settings.json",
                 "num_step": 2,
                 "optimize_momentum_network": false,
                 "reset_lr_for_multi_step": true,
@@ -94,9 +95,9 @@
                 "using_complex_net": true
             }
         },
-        "save_3d_img_on": false,
-        "save_extra_3d_img": false,
-        "save_fig_on": false,
+        "save_running_resolution_3d_img": false,
+        "save_extra_running_resolution_3d_img": true,
+        "save_fig_on": true,
         "train": false,
         "use_physical_coord": false,
         "val_period": 10,

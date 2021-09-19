@@ -416,9 +416,9 @@ class FirstCompleteFirstServe (Policy):
 
         print (sorted_completion_times)
 
-        #self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
+        self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
         #self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
-        self.sort_complete_workitems_by_latest_finish_time (resourcetype)
+        #self.sort_complete_workitems_by_latest_finish_time (resourcetype)
 
         for resource_id in sorted_completion_times.keys ():
             print (resource_id, resourcetype)

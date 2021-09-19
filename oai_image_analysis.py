@@ -18,6 +18,8 @@ from shape_analysis.cartilage_shape_processing import get_cartilage_surface_mesh
     map_thickness_to_atlas_mesh, surface_distance, map_thickness_to_2D_projection
 from data.pre_process import label2image, image_normalize, reset_sitk_image_coordinates, flip_left_right
 
+import torch
+
 class OAIImageAnalysis:
     def __init__(self,use_nifti=True):
         self.segmenter = Segmenter3DInPatchClassWise()
@@ -163,6 +165,7 @@ class OAIImageAnalysis:
 
             sitk.WriteImage(FC_probmap, oai_image.FC_probmap_file)
             sitk.WriteImage(TC_probmap, oai_image.TC_probmap_file)
+        torch.cuda.empty_cache()
 
 
     def extract_surface_mesh(self, oai_image, overwrite=False,coord='nifti'):

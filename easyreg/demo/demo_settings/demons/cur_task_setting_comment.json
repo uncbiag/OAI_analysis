@@ -1,0 +1,20 @@
+{
+    "dataset": {
+        "img_after_resize": "Important, the image resolution that models actually work on, the images will be first resampled to this resolution, set [-1,-1,-1] if take the original image resolution"
+    },
+    "tsk_set": {
+        "reg": {
+            "demons": {
+                "iter": "num of the iteration",
+                "nifty_bin": "the path of the nifty reg binary file",
+                "shrink_factors": "the multi-scale shrink factor in demons",
+                "shrink_sigma": "amount of smoothing which is done prior to resmapling the image using the given shrink factor",
+                "std": "the standard deviation in demon registration"
+            }
+        },
+        "save_running_resolution_3d_img": "saving fig",
+        "save_fig_on": "saving fig",
+        "train": "True, take the train mode",
+        "use_physical_coord": "Keep physical spacing"
+    }
+}

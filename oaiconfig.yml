@@ -1,8 +1,9 @@
 atlas_fc_mesh_path : ./data/atlas_FC_inner_mesh_world.ply
 atlas_image : ./atlas/atlas_60_LEFT_baseline_NMI/atlas.nii.gz
 atlas_tc_2d_map_path : ./data/TC_inner_embedded.npy
+atlas_fc_2d_map_path : ./data/FC_inner_embedded.npy
 atlas_tc_mesh_path : ./data/atlas_TC_inner_mesh_world.ply
-avsm_directory : /home/ssbehera/oai/easyreg
+avsm_directory : /mnt/beegfs/ssbehera/OAI_analysis/easyreg
 nifty_reg_directory : /home/ssbehera/oai/niftyreg/niftyreg-git/install/bin
 oai_data_directory : /mnt/beegfs/uray/
 oai_data_sheet : ./data/SEG_3D_DESS_allTmp1.csv
@@ -11,4 +12,4 @@ output_directory : /mnt/beegfs/ssbehera/results
 overwrite : false
 python_executable : /usr/bin/python3.6
 seed : 2018
-use_nifty_reg : true
+use_nifty_reg : false

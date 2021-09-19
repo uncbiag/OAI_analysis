@@ -1,0 +1,24 @@
+# pip requirements file
+
+
+cffi
+
+sphinx-gallery==0.3.1
+sphinx
+nbsphinx
+pynrrd
+progressbar2
+h5py
+
+future
+pandas
+openpyxl
+blosc
+ants
+
+webcolors
+
+
+
+gdown
+

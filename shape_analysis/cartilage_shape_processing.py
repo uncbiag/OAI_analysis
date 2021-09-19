@@ -12,10 +12,10 @@ import os
 import time
 from functools import partial
 from multiprocessing import Pool
+import multiprocessing
 from sklearn.cluster import KMeans
 import matplotlib as mpl
 from skimage import measure
-
 import pymesh
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
@@ -271,6 +271,8 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
 
         # keep growing neighbor ring size for smoothing untill no artifacts
         num_mesh_components = len(pymesh.separate_mesh(mesh))
+        print ("smooth_mesh_segmentation ():", len(pymesh.separate_mesh(inner_mesh)), len(pymesh.separate_mesh(outer_mesh)), num_mesh_components)
+        print (smooth_rings, max_rings)
         if (len(pymesh.separate_mesh(inner_mesh)) == num_mesh_components and
                 len(pymesh.separate_mesh(outer_mesh)) == num_mesh_components):
             print("Well smoothed mesh segmentation")
@@ -444,12 +446,12 @@ def get_cartilage_surface_mesh_from_segmentation_array(FC_prob, TC_prob, spacing
     if thickness:
         print("Compute FC mesh thickness")
         FC_thickness = compute_mesh_thickness(FC_mesh_main, cartilage='FC', smooth_rings=10, max_rings=None,
-                                              n_workers=20)
+                                              n_workers=multiprocessing.cpu_count())
         print('Done computing FC mesh thickness')
 
         print("Compute TC mesh thickness")
         TC_thickness = compute_mesh_thickness(TC_mesh_main, cartilage='TC', smooth_rings=10, max_rings=None,
-                                              n_workers=20)
+                                              n_workers=multiprocessing.cpu_count())
         print('Done computing TC mesh thickness')
 
     if transform:

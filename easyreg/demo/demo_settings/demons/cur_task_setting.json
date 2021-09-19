@@ -1,0 +1,24 @@
+{
+    "dataset": {
+        "img_after_resize": [
+            160,
+            384,
+            384
+        ]
+    },
+    "tsk_set": {
+        "model": "demons",
+        "method_name": "demons",
+        "reg": {
+            "demons": {
+                "iter": 500,
+                "nifty_bin": "/playpen-raid/zyshen/package/niftyreg-git/niftyreg_install/bin",
+                "std": 1.2
+            }
+        },
+        "save_running_resolution_3d_img": false,
+        "save_fig_on": true,
+        "train": false,
+        "use_physical_coord": false
+    }
+}

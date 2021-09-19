@@ -1,0 +1,5 @@
+./lung_examples/60_EXP.nii.gz     ./lung_examples/60_INSP.nii.gz     ./lung_examples/60_EXP_Label.nii.gz     ./lung_examples/60_INSP_Label.nii.gz
+./lung_examples/16_EXP.nii.gz     ./lung_examples/16_INSP.nii.gz     ./lung_examples/16_EXP_Label.nii.gz     ./lung_examples/16_INSP_Label.nii.gz
+./lung_examples/67_EXP.nii.gz     ./lung_examples/67_INSP.nii.gz     ./lung_examples/67_EXP_Label.nii.gz     ./lung_examples/67_INSP_Label.nii.gz
+./lung_examples/00_EXP.nii.gz     ./lung_examples/00_INSP.nii.gz     ./lung_examples/00_EXP_Label.nii.gz     ./lung_examples/00_INSP_Label.nii.gz
+./lung_examples/58_EXP.nii.gz     ./lung_examples/58_INSP.nii.gz     ./lung_examples/58_EXP_Label.nii.gz     ./lung_examples/58_INSP_Label.nii.gz

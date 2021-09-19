@@ -8,7 +8,7 @@ import yaml
 import pandas as pd
 
 import datetime
-from registration.registers import NiftyReg
+from registration.registers import NiftyReg, AVSMReg
 from segmentation.segmenter import Segmenter3DInPatchClassWise
 from oai_image_analysis import OAIImageAnalysis
 from data.OAI_data import OAIData, OAIImage, OAIPatients

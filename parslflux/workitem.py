@@ -74,6 +74,7 @@ class WorkItem:
         workitem['inputlocation'] = self.inputlocation
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
+        workitem['op'] = 'add'
         self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         self.scheduletime = datetime.datetime.strptime (self.scheduletime, '%Y-%m-%d %H:%M:%S')
 
