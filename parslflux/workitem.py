@@ -1,6 +1,7 @@
 from parslflux.pipeline import PipelineManager
 import datetime
 import flux
+from numpy import double
 
 class WorkItem:
     def __init__ (self, id, data, collectfrom, pipelinestages, resource_id, resourcetype, version, inputlocation):
@@ -64,7 +65,8 @@ class WorkItem:
     def print_data (self):
         print ('print_data ()', self.id, self.version, self.resourceid)
 
-    def submit (self, pmanager):
+    def submit (self, pmanager, timeout):
+        self.timeout = double (timeout)
         workitem = {}
         workitem['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
         workitem['id'] = self.id
@@ -75,6 +77,8 @@ class WorkItem:
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
         workitem['op'] = 'add'
+        #workitem['timeout'] = double (timeout)
+        workitem['timeout'] = double (150)
         self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         self.scheduletime = datetime.datetime.strptime (self.scheduletime, '%Y-%m-%d %H:%M:%S')
 
@@ -84,6 +88,20 @@ class WorkItem:
         f.rpc (b"parslmanager.workitem.submit", workitem)
 
         self.status = 'SCHEDULED'
+
+    def cancel (self):
+        workitem = {}
+        workitem['id'] = self.id
+        workitem['version'] = str (self.version)
+        workitem['op'] = 'cancel'
+        workitem['workerid'] = self.resourceid
+
+        print ('cancel ():', workitem)
+
+        f = flux.Flux ()
+        f.rpc (b"parslmanager.workitem.submit", workitem)
+
+        self.status = 'CANCELLING'
 
     def probe_status (self):
         print ('probe_status ():', self.id, self.version)
@@ -97,7 +115,7 @@ class WorkItem:
 
         if type (report) is not dict and report == 'empty':
             print ('empty report')
-            return False, None, None
+            return False, None, None, 'INCOMPLETE'
 
         status = report['status']
 
@@ -108,8 +126,17 @@ class WorkItem:
             self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
             self.outputlocation = report['outputlocation']
             self.status = 'SUCCESS'
-            print ('probe_status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid)
-            return True, self.starttime, self.endtime
-        else:
-            self.status = 'FAILURE'
-            return True, None, None
+            print ('probe_status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'success')
+            return True, self.starttime, self.endtime, 'SUCCESS'
+        elif status == 'FAILED':
+            self.status = 'FAILED'
+            self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
+            self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
+            print ('probe status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'failed')
+            return True, None, None, 'FAILED'
+        elif status == 'CANCELLED':
+            self.status = 'CANCELLED'
+            self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
+            self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
+            print ('probe status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'cancelled')
+            return True, None, None, 'CANCELLED'

@@ -19,7 +19,9 @@ from parsl.config import Config
 from parsl.executors import ThreadPoolExecutor
 from parsl import python_app, bash_app
 import parsl
+from parsl.app.errors import AppTimeout
 import subprocess
+from numpy import double
 
 worker_config = Config (
     executors = [
@@ -151,6 +153,7 @@ def preprocess (analyzer, image):
         err_msg = 'Could not preprocess image: {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def segmentation (analyzer, image):
     print ("[{}] Segmentation".format(str(image)))
@@ -160,6 +163,7 @@ def segmentation (analyzer, image):
         err_msg = 'Could not segment image: {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def extract_surface_mesh (analyzer, image):
     print ("[{}] Extract surface mesh".format(str(image)))
@@ -170,6 +174,7 @@ def extract_surface_mesh (analyzer, image):
         err_msg = 'Could not extract surface mesh {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def register_image_to_atlas (analyzer, image):
     print ("[{}] Register image to atlas".format (str(image)))
@@ -180,6 +185,7 @@ def register_image_to_atlas (analyzer, image):
         err_msg = 'Could not register image to atlas {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def warp_mesh (analyzer, image):
     print ("[{}] Warp Mesh".format (str(image)))
@@ -190,6 +196,7 @@ def warp_mesh (analyzer, image):
         err_msg = 'Could not warp mesh {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def eval_registration_surface_distance (analyzer, image):
     print ("[{}] Eval registration sufrace distance".format (str(image)))
@@ -200,6 +207,7 @@ def eval_registration_surface_distance (analyzer, image):
         err_msg = 'Could not eval registration {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
     print ("[{}] set atlas 2d map".format (str(image)))
 
@@ -211,6 +219,7 @@ def eval_registration_surface_distance (analyzer, image):
         err_msg = 'Could not set atlas 2d map {}'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
     print ("[{}] compute atlas 2D map".format (str(image)))
 
@@ -221,6 +230,7 @@ def eval_registration_surface_distance (analyzer, image):
         err_msg = 'Could not compute atlas 2D map'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def project_thickness_to_atlas (analyzer, image):
     print ("[{}] project thickness to atlas".format (str(image)))
@@ -232,7 +242,7 @@ def project_thickness_to_atlas (analyzer, image):
         err_msg = 'Could not project thickness to atlas'.format (str(image))
         print (err_msg)
         print (e)
-
+        raise Exception('Failure') from e
 
     print ("[{}] project thickness to 2D".format (str(image)))
 
@@ -243,6 +253,7 @@ def project_thickness_to_atlas (analyzer, image):
         err_msg = 'Could not project thickness to 2D'.format (str(image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
     print ("[{}] get surface distances eval".format (str(image)))
 
@@ -253,29 +264,66 @@ def project_thickness_to_atlas (analyzer, image):
         err_msg = 'Could not get surface distances evaluation'.format ((image))
         print (err_msg)
         print (e)
+        raise Exception('Failure') from e
 
 def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
     task_name = None if config_data['use_nifty_reg'] else 'avsm'
 
     OAI_data.set_processed_data_paths_without_creating_image_directories(config_data['output_directory'],
                                                                          task_name=task_name)
-    if pipelinestage == 'preprocess':
-        preprocess (analyzer, image)
-    elif pipelinestage == 'segmentation':
-        segmentation (analyzer, image)
-    elif pipelinestage == 'extractsurfacemesh':
-        extract_surface_mesh (analyzer, image)
-    elif pipelinestage == 'registerimagetoatlas':
-        register_image_to_atlas (analyzer, image)
-    elif pipelinestage == 'warpmesh':
-        warp_mesh (analyzer, image)
-    elif pipelinestage == 'evalregistration':
-        eval_registration_surface_distance (analyzer, image)
-    elif pipelinestage == 'projectthicknesstoatlas':
-        project_thickness_to_atlas (analyzer, image)
+
+    try:
+        if pipelinestage == 'preprocess':
+            preprocess (analyzer, image)
+        elif pipelinestage == 'segmentation':
+            segmentation (analyzer, image)
+        elif pipelinestage == 'extractsurfacemesh':
+            extract_surface_mesh (analyzer, image)
+        elif pipelinestage == 'registerimagetoatlas':
+            register_image_to_atlas (analyzer, image)
+        elif pipelinestage == 'warpmesh':
+            warp_mesh (analyzer, image)
+        elif pipelinestage == 'evalregistration':
+            eval_registration_surface_distance (analyzer, image)
+        elif pipelinestage == 'projectthicknesstoatlas':
+            project_thickness_to_atlas (analyzer, image)
+    except Exception as e:
+        raise Exception ('Failure') from e
 
 @python_app
-def execute_workitem (r, h):
+def execute_workitem (r, h, walltime = 1):
+    imageid = r['id']
+    version = r['version']
+
+    print (datetime.datetime.now(), 'executing image', imageid, 'version', version)
+
+    analyzer = build_default_analyzer ()
+
+    pipelinestages = r['pipelinestages'].split (':')
+
+    OAI_data = retrieve_image (r, h)
+
+    analysis_image = OAI_data.get_images ()[0]
+
+    starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        for pipelinestage in  pipelinestages:
+           execute_pipelinestage (OAI_data, analyzer,
+                                  pipelinestage, analysis_image)
+        endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        raise Exception ('Failure') from e
+
+    h.rpc (b"workermanager.workitem.report",
+           {'version' : version,
+            'id': imageid,
+            'status' : 'SUCCESS',
+            'starttime' : str(starttime),
+            'endtime' : str(endtime),
+            'outputlocation' : str(analysis_image.folder)})
+    print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
+
+def execute_workitem_single (r, h):
     imageid = r['id']
     version = r['version']
 
@@ -304,16 +352,32 @@ def execute_workitem (r, h):
             'outputlocation' : str(analysis_image.folder)})
     print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
 
-futures = []
+futures = {}
 
-def job_execute (h): 
+def job_execute (h):
     while True:
         is_slot_free = False
         while True:
             if len (futures) > 1:
-                for future in futures:
+                for future_key in futures.keys ():
+                    future_data = futures[future_key]
+                    future = future_data[0]
                     if future.done () == True:
-                        futures.remove (future)
+                        exception = future.exception(timeout=1)
+                        print ('exception', exception)
+                        if exception != None:
+                            r = future_data[2]
+                            imageid = r['id']
+                            version = r['version']
+                            print ('future', imageid, 'timedout')
+                            h.rpc (b"workermanager.workitem.report",
+                                   {'version' : version,
+                                    'id': imageid,
+                                    'status' : 'FAILED',
+                                    'starttime' : str (future_data[1]),
+                                    'endtime' : str (datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')),
+                                    'outputlocation' : ""})
+                        del futures[future_key]
                         is_slot_free = True
                         print (datetime.datetime.now(), 'free slot')
                         break
@@ -324,13 +388,31 @@ def job_execute (h):
 
         r = h.rpc (b"workermanager.workitem.get").get()
         if "empty" in r.keys():
+            print ('empty workqueue')
+            time.sleep (5)
+        else:
+            op = r['op']
+            if op == 'add':
+                print (r)
+                timeout = double (r['timeout'])
+                print (r['id'], timeout)
+                future = execute_workitem (r, h, walltime = timeout)
+                futures[r['id']] = [future, datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), r]
+                time.sleep (5)
+            else:
+                print ('invalid return')
+                time.sleep (5)
+
+
+def job_execute_single (h):
+    while True:
+        r = h.rpc (b"workermanager.workitem.get").get()
+        if "empty" in r.keys():
             print (os.getcwd(), 'empty workqueue')
             time.sleep (5)
         elif "pipelinestages" in r.keys():
-            print (r)
-            future = execute_workitem (r, h)
-            futures.append (future)
-            time.sleep (5)
+            print ('r')
+            execute_workitem_single (r, h)
         else:
             print ('invalid return')
             time.sleep (5)

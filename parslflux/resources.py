@@ -65,6 +65,7 @@ class Resource:
         self.cpu = None
         self.gpu = None
         self.exectimes = {}
+        self.max_exectimes = {}
         self.counts = {}
 
     def add_cpu (self, cpu):
@@ -103,7 +104,7 @@ class Resource:
 
         return cpu_empty, gpu_empty
 
-    def schedule (self, pmanager, resourcetype):
+    def schedule (self, rmanager, pmanager, resourcetype):
         if resourcetype == 'CPU' and self.cpu == None:
             print (self.id, 'CPU not available')
             return
@@ -112,7 +113,8 @@ class Resource:
             return
 
         if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
-            self.cpu.workqueue.get_workitem ().submit (pmanager)
+            timeout = self.get_timeout_value (rmanager, pmanager, resourcetype)
+            self.cpu.workqueue.get_workitem ().submit (pmanager, timeout)
             self.cpu.set_busy (True)
             self.cpu.set_last_completion_time (None)
             return
@@ -120,37 +122,88 @@ class Resource:
             print (self.id, 'CPU no workitem available to schedule')
 
         if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
-            self.gpu.workqueue.get_workitem ().submit (pmanager)
+            timeout = self.get_timeout_value (rmanager, pmanager, resourcetype)
+            self.gpu.workqueue.get_workitem ().submit (pmanager, timeout)
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
             return
         else:
             print (self.id, 'GPU no workitem available to schedule')
 
+    def get_timeout_value (self, rmanager, pmanager, resourcetype):
+        print ('get_timeout_value ():', self.id)
+
+        if resourcetype == 'CPU' and self.cpu != None and self.cpu.workqueue.is_empty () == False:
+            workitem = self.cpu.workqueue.get_workitem ()
+            workitem_pipelinestages = workitem.get_pipelinestages ()
+            encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+
+            max_exectime = self.get_max_exectime (encoded_workitem_pipelinestages) * 2
+
+            if max_exectime == 0:#first time execution
+                max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
+
+            if max_exectime == 0:#no one has completed their execution
+                max_exectime = 15 * 60
+
+            return max_exectime
+
+        if resourcetype == 'GPU' and self.gpu != None and self.gpu.workqueue.is_empty () == False:
+            workitem = self.gpu.workqueue.get_workitem ()
+            workitem_pipelinestages = workitem.get_pipelinestages ()
+            encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+
+            max_exectime = self.get_max_exectime (encoded_workitem_pipelinestages) * 2
+
+            if max_exectime == 0:#first time execution
+                max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
+
+            if max_exectime == 0:#no one has completed their execution
+                max_exectime = 15 * 60
+
+            return max_exectime
+
     def get_status (self, pmanager):
         print ('get_status ():', self.id)
         #first cpu
         if self.cpu != None and self.cpu.workqueue.is_empty () == False:
             workitem = self.cpu.workqueue.get_workitem ()
-            ret, start_time, end_time = workitem.probe_status ()
+            ret, start_time, end_time, status = workitem.probe_status ()
             if ret == True:
-                print ('cpu workitem complete')
-                self.cpu.set_busy (False)
-                self.cpu.set_last_completion_time (end_time)
-                self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
-
+                if status == 'SUCCESS':
+                    print ('cpu workitem complete')
+                    self.cpu.set_busy (False)
+                    self.cpu.set_last_completion_time (end_time)
+                    self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
+                    self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
+                elif status == 'FAILED':
+                    print ('cpu workitem failed')
+                    self.cpu.set_busy (False)
+                    self.cpu.set_last_completion_time (end_time)
+                elif status == 'CANCELLED':
+                    print ('cpu workitem cancelled')
+                    self.cpu.set_busy (False)
+                    self.cpu.set_last_completion_time (end_time)
 
         #now gpu
         if self.gpu != None and self.gpu.workqueue.is_empty () == False:
             workitem = self.gpu.workqueue.get_workitem ()
-            ret, start_time, end_time = workitem.probe_status ()
+            ret, start_time, end_time, status = workitem.probe_status ()
             if ret == True:
-                print ('gpu workitem complete')
-                self.gpu.set_busy (False)
-                self.gpu.set_last_completion_time (end_time)
-                self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
+                if status == 'SUCCESS':
+                    print ('gpu workitem complete')
+                    self.gpu.set_busy (False)
+                    self.gpu.set_last_completion_time (end_time)
+                    self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
+                    self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
+                elif status == 'FAILED':
+                    print ('gpu workitem failed')
+                    self.gpu.set_busy (False)
+                    self.gpu.set_last_completion_time (end_time)
+                elif status == 'CANCELLED':
+                    print ('gpu workitem cancelled')
+                    self.gpu.set_busy (False)
+                    self.gpu.set_last_completion_time (end_time)
 
     def get_last_completion_time (self, resourcetype):
         if resourcetype == 'CPU' and self.cpu != None:
@@ -158,7 +211,6 @@ class Resource:
 
         if resourcetype == 'GPU' and self.gpu != None:
             return self.gpu.get_last_completion_time ()
-
 
     def add_workitem (self, workitem, resourcetype):
         print ('add_workitem ():', self.id, workitem.id, workitem.version)
@@ -173,7 +225,6 @@ class Resource:
                 print (self.id, 'GPU not available')
                 return
             self.gpu.workqueue.add_workitem (workitem)
-
 
     def pop_if_complete (self, resourcetype):
         if resourcetype == 'CPU' and self.cpu == None:
@@ -227,11 +278,20 @@ class Resource:
 
         if pipelinestages not in self.exectimes:
             self.exectimes[pipelinestages] = [seconds, 1]
+            self.max_exectimes[pipelinestages] = seconds
         else:
+            if seconds > self.max_exectimes[pipelinestages]:
+                self.max_exectimes[pipelinestages] = seconds
             avg_time = self.exectimes[pipelinestages][0]
             count = self.exectimes[pipelinestages][1]
             new_avg_time = ((avg_time * count) + seconds) / (count + 1)
             self.exectimes[pipelinestages] = [new_avg_time, count + 1]
+
+    def get_max_exectime (self, pipelinestages):
+        if pipelinestages not in self.max_exectimes:
+            return 0
+        else:
+            return self.max_exectimes[pipelinestages]
 
     def get_exectime (self, pipelinestages):
         if pipelinestages not in self.exectimes:
@@ -291,6 +351,19 @@ class ResourceManager:
         self.reservednodes = copy.deepcopy (list (self.reservednodesdict.values ()))
 
         print ('nodes:', len(self.nodes), 'reserved nodes:', len (self.reservednodes))
+
+    def get_max_exectime (self, pipelinestages, resource_id):
+        resources = self.get_resources ()
+
+        max_exectime = 0
+        for resource in resources:
+            if resource.id == resource_id:
+                continue
+
+            if resource.get_max_exectime (pipelinestages) > max_exectime:
+                max_exectime = resource.get_max_exectime (pipelinestages)
+
+        return max_exectime
 
     def get_resource (self, resource_id):
         for node in self.nodes:

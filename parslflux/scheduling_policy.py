@@ -27,22 +27,36 @@ class Policy:
             self.cpuqueue.append (workitem)
             print (self.cpuqueue)
 
+    def pop_resubmit_workitem (self, resourcetype):
+        print ('pop_resubmit_workitem():', resourcetype)
+
+        if resourcetype == 'CPU':
+            if len (self.resubmitcpuqueue) > 0:
+                item = self.resubmitcpuqueue.pop (0)
+                return item
+            else:
+                print ('None')
+                return None
+        else:
+            if len (self.resubmitgpuqueue) > 0:
+                item = self.resubmitgpuqueue.pop (0)
+                return item
+            else:
+                print ('None')
+                return None
+
     def pop_pending_workitem (self, resourcetype):
         print ('pop_pending_workitem ():', resourcetype)
         if resourcetype == 'CPU':
             if len (self.gpuqueue) > 0:
-                print (self.gpuqueue)
-                item = self.gpuqueue.pop(0)
-                print (self.gpuqueue)
+                item = self.gpuqueue.pop (0)
                 return item
             else:
                 print ('None')
                 return None
         else:
             if len (self.cpuqueue) > 0:
-                print (self.cpuqueue)
-                item = self.cpuqueue.pop(0)
-                print (self.cpuqueue)
+                item = self.cpuqueue.pop (0)
                 return item
             else:
                 print ('None')
@@ -59,11 +73,11 @@ class Policy:
     def get_pending_workitems_count (self, resourcetype):
         print ('get_pending_workitems_count ():')
         if resourcetype == 'CPU':
-            print (resourcetype, len (self.cpuqueue))
+            print (resourcetype, len (self.gpuqueue))
             return len (self.gpuqueue)
 
         if resourcetype == 'GPU':
-            print (resourcetype, len (self.gpuqueue))
+            print (resourcetype, len (self.cpuqueue))
             return len (self.cpuqueue)
 
     def create_workitem (self, imanager, pmanager, resource_id, resourcetype):
@@ -115,26 +129,38 @@ class Policy:
 
     def sort_complete_workitems_by_earliest_schedule_time (self, resourcetype):
         if resourcetype == 'CPU':
+            self.resubmitcpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:x.scheduletime)
             self.gpuqueue = sorted (self.gpuqueue, key=lambda x:x.scheduletime)
+            print (self.resubmitcpuqueue)
             print (self.gpuqueue)
         else:
+            self.resubmitgpuqueue = sorted (self.resubmitgpuqueue, key=lambda x:x.scheduletime)
             self.cpuqueue = sorted (self.cpuqueue, key=lambda x:x.scheduletime)
+            print (self.resubmitgpuqueue)
             print (self.cpuqueue)
 
     def sort_complete_workitems_by_earliest_finish_time (self, resourcetype):
         if resourcetype == 'CPU':
+            self.resubmitcpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:x.endtime)
             self.gpuqueue = sorted (self.gpuqueue, key=lambda x:x.endtime)
+            print (self.resubmitcpuqueue)
             print (self.gpuqueue)
         else:
+            self.resubmitgpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:x.endtime)
             self.cpuqueue = sorted (self.cpuqueue, key=lambda x:x.endtime)
+            print (self.resubmitgpuqueue)
             print (self.cpuqueue)
 
     def sort_complete_workitems_by_latest_finish_time (self, resourcetype):
         if resourcetype == 'CPU':
+            self.resubmitcpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:x.endtime, reverse=True)
             self.gpuqueue = sorted (self.gpuqueue, key=lambda x:x.endtime, reverse=True)
+            print (self.resubmitcpuqueue)
             print (self.gpuqueue)
         else:
+            self.resubmitgpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:x.endtime, reverse=True)
             self.cpuqueue = sorted (self.cpuqueue, key=lambda x:x.endtime, reverse=True)
+            print (self.resubmitgpuqueue)
             print (self.cpuqueue)
 
 class FastCompleteFirstServe2 (Policy):
@@ -397,6 +423,66 @@ class FastCompleteFirstServe (Policy):
                 pending_workitem = pending_workitems_dict[workitem.get_id ()]
                 self.add_back_workitem (resourcetype, pending_workitem)
                 
+class FirstCompleteFirstServe2 (Policy):
+
+    def add_new_workitems (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
+        print ('add_new_workitems ():')
+        completion_times = {}
+
+        for resource in empty_resources:
+            completion_time = resource.get_last_completion_time (resourcetype)
+
+            if completion_time == None:
+                completion_times[resource.id] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                completion_times[resource.id] = datetime.datetime.strptime (completion_times[resource.id], '%Y-%m-%d %H:%M:%S')
+            else:
+                completion_times[resource.id] = completion_time
+
+        print (completion_times)
+
+        sorted_completion_times = dict(sorted(completion_times.items(), key=lambda item: item[1]))
+
+        print (sorted_completion_times)
+
+        #self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
+        self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
+        #self.sort_complete_workitems_by_latest_finish_time (resourcetype)
+
+        for resource_id in sorted_completion_times.keys ():
+            print (resource_id, resourcetype)
+            item_added = False
+            resource = rmanager.get_resource (resource_id)
+
+            resubmit_workitem = self.pop_resubmit_workitem (resourcetype)
+
+            if resubmit_workitem != None:
+                resubmit_workitem.print_data ()
+                resubmit_workitem.set_resource_id (resource_id)
+                resource.add_workitem (resubmit_workitem, resourcetype)
+                item_added = True
+
+            if item_added == False:
+                pending_workitem = self.pop_pending_workitem (resourcetype)
+
+                if pending_workitem != None:
+                    pending_workitem.print_data ()
+                    next_workitem = pending_workitem.compose_next_workitem (pmanager, resource_id, resourcetype)
+                    if next_workitem != None:
+                        resource.add_workitem (next_workitem, resourcetype)
+                        next_workitem.print_data()
+                        item_added = True
+
+            if item_added == False:
+                new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
+
+                if new_workitem != None:
+                    resource.add_workitem (new_workitem, resourcetype)
+                    new_workitem.print_data ()
+                    item_added = True
+
+            if item_added == False:
+                print ('add_workitems ()', resource_id, 'workitems not available')
+                break
 
 class FirstCompleteFirstServe (Policy):
 
@@ -409,6 +495,7 @@ class FirstCompleteFirstServe (Policy):
 
             if completion_time == None:
                 completion_times[resource.id] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                completion_times[resource.id] = datetime.datetime.strptime (completion_times[resource.id], '%Y-%m-%d %H:%M:%S')
             else:
                 completion_times[resource.id] = completion_time
 
