@@ -246,7 +246,11 @@ def smooth_mesh_segmentation(mesh, face_labels, smooth_rings, max_rings=None, n_
 
     assert smooth_rings <= max_rings, "ERROR: Smoothing rings must be no more than max rings"
 
+    print ('smooth_mesh_segmentation ():', 'before connectivity')
+
     mesh.enable_connectivity()
+
+    print ('smooth_mesh_segmentation ():', 'after connectivity')
 
     while True:
         # mn test; todo maybe, remove again; use fix_mesh instead?
@@ -309,6 +313,8 @@ def split_femoral_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_work
     bbox_min, bbox_max = mesh.bbox
     center = (bbox_min + bbox_max) / 2
 
+    print (' split_femoral_cartilage_surface ():', 'before')
+
     inner_outer_label_list = np.zeros(mesh.num_faces)  # up:1, down:-1
     for k in range(mesh.num_faces):
         # get the direction from the center to the current face centroid
@@ -320,6 +326,8 @@ def split_femoral_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_work
             inner_outer_label_list[k] = 1
         else:
             inner_outer_label_list[k] = -1
+
+    print (' split_femoral_cartilage_surface ():', 'after')
 
     return smooth_mesh_segmentation(mesh, inner_outer_label_list, smooth_rings=smooth_rings, max_rings=max_rings,
                                     n_workers=n_workers)
@@ -334,22 +342,38 @@ def split_tibial_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_worke
     :return: inner_mesh(label -1, surface touching bones), outer_mesh(label 1),
     inner_face_list(face indices of inner mesh), outer_face_list(face indices of outer mesh)
     """
+    print ('split_tibial_cartilage_surface ():', 'before')
+
     mesh.enable_connectivity()
+
+    print ('split_tibial_cartilage_surface ():', 'here 1')
 
     mesh.add_attribute("face_centroid")
     mesh.add_attribute("face_normal")
+
+    print ('split_tibial_cartilage_surface ():', 'here 2')
 
     mesh_centroids = mesh.get_attribute('face_centroid').reshape(-1, 3)
     mesh_centroids_normalized = (mesh_centroids - np.mean(mesh_centroids, axis=0)) / \
                                 (np.max(mesh_centroids, axis=0) - np.min(mesh_centroids, axis=0))
 
+    print ('split_tibial_cartilage_surface ():', 'here 3')
+
     mesh_normals = mesh.get_attribute('face_normal').reshape(-1, 3)
 
     # clustering normals
     features = np.concatenate((mesh_centroids_normalized * 2, mesh_normals * 1), axis=1)
+
+    np.set_printoptions(threshold=sys.maxsize)
+    print (features)
+
+    print ('split_tibial_cartilage_surface ():', 'here 4')
     est = KMeans(n_clusters=2)
+    print ('split_tibial_cartilage_surface ():', 'here 5')
     # est = SpectralClustering(n_clusters=2)
     labels = est.fit(features).labels_
+
+    print ('split_tibial_cartilage_surface ():', 'here 6')
 
     # transfer 0/1 labels to -1/1 labels
     inner_outer_label_list = labels * 2 - 1
@@ -357,6 +381,8 @@ def split_tibial_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_worke
     # set inner surface which contains mostly positive normals
     if mesh_normals[inner_outer_label_list == -1, 1].mean() < 0:
         inner_outer_label_list = -inner_outer_label_list
+
+    print ('split_tibial_cartilage_surface ():', 'after')
 
     return smooth_mesh_segmentation(mesh, inner_outer_label_list, smooth_rings=smooth_rings, max_rings=max_rings,
                                     n_workers=n_workers)

@@ -101,6 +101,8 @@ def retrieve_image (r, h):
     image_collectfrom = r['collectfrom']
     image_uri = r['uri']
     image_location = r['inputlocation']
+    image_id = r['id']
+    image_version = r['version']
 
     if image_uri == get_own_remote_uri():
         imagefound = True
@@ -132,13 +134,13 @@ def retrieve_image (r, h):
 
     platform_name = platform.node().split('.')[0]
 
-    image_data_sheet = image_df.to_csv (platform_name + '.csv')
+    image_data_sheet = image_df.to_csv (platform_name + str(image_id) + str(image_version) + '.csv')
 
     image_data_directory = config_data['oai_data_directory']
 
-    OAI_data = OAIData (platform_name + '.csv', image_data_directory)
+    OAI_data = OAIData (platform_name + str(image_id) + str(image_version) + '.csv', image_data_directory)
 
-    os.remove (platform_name + '.csv')
+    os.remove (platform_name + str(image_id) + str(image_version) + '.csv')
 
     return OAI_data
 
@@ -358,7 +360,7 @@ def job_execute (h):
     while True:
         is_slot_free = False
         while True:
-            if len (futures) > 1:
+            if len (futures) > 0:
                 for future_key in futures.keys ():
                     future_data = futures[future_key]
                     future = future_data[0]
@@ -381,6 +383,8 @@ def job_execute (h):
                         is_slot_free = True
                         print (datetime.datetime.now(), 'free slot')
                         break
+                if len (futures) < 2:
+                    is_slot_free = True
             else:
                 is_slot_free = True
             if is_slot_free == True:
@@ -396,7 +400,7 @@ def job_execute (h):
                 print (r)
                 timeout = double (r['timeout'])
                 print (r['id'], timeout)
-                future = execute_workitem (r, h, walltime = timeout)
+                future = execute_workitem (r, h, walltime = 100000)
                 futures[r['id']] = [future, datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), r]
                 time.sleep (5)
             else:

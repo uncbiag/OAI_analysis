@@ -137,9 +137,8 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
 
     time.sleep (40)
 
-    scheduling_policy = FirstCompleteFirstServe2("FCFS")
-    #scheduling_policy = FastCompleteFirstServe("FCFS")
-    #scheduling_policy = FastCompleteFirstServe2("FCFS")
+    #scheduling_policy = FirstCompleteFirstServe2("FCFS")
+    scheduling_policy = FastCompleteFirstServe2("FCFS")
 
     while True:
 

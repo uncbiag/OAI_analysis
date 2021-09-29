@@ -77,10 +77,11 @@ class WorkItem:
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
         workitem['op'] = 'add'
-        #workitem['timeout'] = double (timeout)
-        workitem['timeout'] = double (150)
+        workitem['timeout'] = double (timeout)
+        #workitem['timeout'] = double (150)
         self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         self.scheduletime = datetime.datetime.strptime (self.scheduletime, '%Y-%m-%d %H:%M:%S')
+        self.iscomplete = False
 
         print ('submit (): ', workitem)
 

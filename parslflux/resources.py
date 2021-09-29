@@ -144,7 +144,7 @@ class Resource:
                 max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
 
             if max_exectime == 0:#no one has completed their execution
-                max_exectime = 15 * 60
+                max_exectime = 20 * 60
 
             return max_exectime
 
