@@ -19,15 +19,18 @@ from parslflux.resources import ResourceManager
 from parslflux.pipeline import PipelineManager
 from parslflux.taskset import Taskset
 from parslflux.input import InputManager2
-from parslflux.scheduling_policy import Policy, FirstCompleteFirstServe, FastCompleteFirstServe, FastCompleteFirstServe2, FirstCompleteFirstServe2
+from parslflux.scheduling_policy import Policy
+
+from parslflux.FirstCompleteFirstServe import FirstCompleteFirstServe
+from parslflux.FastCompleteFirstServe import FastCompleteFirstServe
 
 @bash_app
 def app (command):
     print (command)
     return ''+command
 @bash_app
-def app1 (entity, entityvalue, scheduleruri):
-    return "~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} sh -c 'flux module load pymod --verbose --path=/home/ssbehera/whesl/FTmanager FTmanager; python3.6 flux_wrapper.py {}'".format('TASK', entityvalue, scheduleruri)
+def app1 (entity, entityvalue, scheduleruri, output_location):
+    return "~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} sh -c 'flux module load pymod --verbose --path=/home/ssbehera/whesl/FTmanager FTmanager; python3.6 flux_wrapper.py {} {}'".format('TASK', entityvalue, scheduleruri, output_location)
     #return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} flux module load pymod --verbose --path=/home/ssbehera/whesl/FTmanager FTmanager python3.6 flux_wrapper.py {}'.format ('TASK', entityvalue, scheduleruri)
     #return '~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={}; flux module load pymod --verobse --path=/home/ssbehera/whesl/FTmanager FTmanager; python3.6 /home/ssbehera/whesl/whesl.py handler FT node /mnt/beegfs/ssbehera/OAI_analysis;  python3.6 flux_wrapper.py {}'.format('TASK', entityvalue, scheduleruri)
 
@@ -65,7 +68,7 @@ def launch_worker (resource):
     options = '#SBATCH -w ' + resource.hostname
     config = get_launch_config (options)
     parsl.load (config)
-    future = app1 ('TASK', resource.hostname, get_own_remote_uri ())
+    future = app1 ('TASK', resource.hostname, get_own_remote_uri (), resource.output_location)
     #app ('~/local/bin/flux start -o,--setattr=entity={},--setattr=entityvalue={} python3.6 flux_wrapper.py {} {}'.format('TASK', resource.hostname, resource.hostname, get_own_remote_uri()))
     print ('launched', resource.hostname)
     return future, 'TASK', resource.hostname
@@ -138,7 +141,7 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
     time.sleep (40)
 
     #scheduling_policy = FirstCompleteFirstServe2("FCFS")
-    scheduling_policy = FastCompleteFirstServe2("FCFS")
+    scheduling_policy = FastCompleteFirstServe("FCFS")
 
     while True:
 

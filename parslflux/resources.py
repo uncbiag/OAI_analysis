@@ -337,8 +337,10 @@ class ResourceManager:
         reservedresources = {}
 
         if len (availableresources['available']) > 0:
-            for i in availableresources['available']:
-                resources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
+            for node in availableresources['available']:
+                nodeid = node['id']
+                resources[str(nodeid)] = copy.deepcopy (self.nodesdict[str(nodeid)])
+                resources[str(nodeid)].output_location = node['output_location']
 
         if len (availableresources['reserved']) > 0:
             for i in availableresources['reserved']:

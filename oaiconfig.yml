@@ -8,7 +8,7 @@ nifty_reg_directory : /home/ssbehera/oai/niftyreg/niftyreg-git/install/bin
 oai_data_directory : /mnt/beegfs/uray/
 oai_data_sheet : ./data/SEG_3D_DESS_allTmp1.csv
 oai_enrollees : ./data/EnrolleesTmp.txt
-output_directory : /mnt/beegfs/ssbehera/results
+output_directory : /tmp/ssbehera/
 overwrite : false
 python_executable : /usr/bin/python3.6
 seed : 2018

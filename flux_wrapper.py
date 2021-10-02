@@ -22,6 +22,7 @@ import parsl
 from parsl.app.errors import AppTimeout
 import subprocess
 from numpy import double
+import shutil
 
 worker_config = Config (
     executors = [
@@ -96,7 +97,8 @@ def get_own_remote_uri():
     remoteuri = localuri.replace("local://", "ssh://" + platform.node().split('.')[0])
     return remoteuri
 
-def retrieve_image (r, h):
+
+def construct_image (r, h):
     
     image_collectfrom = r['collectfrom']
     image_uri = r['uri']
@@ -104,27 +106,9 @@ def retrieve_image (r, h):
     image_id = r['id']
     image_version = r['version']
 
-    if image_uri == get_own_remote_uri():
-        imagefound = True
-    else:
-        imagefound = True
-        #TODO:copy the image
-        '''
-        subprocess.run(["scp", , "USER@SERVER:PATH"])
-        if rimage['success'] == True:
-            images[image_id]['found'] = True
-            print ('image retrieved', image_id)
-        else:
-            images[image_id]['found'] = False
-            print ('image not retrieved', image_id)
-        '''
-
     imagedata = []
 
-    print (r['data'])
-
-    if imagefound == True:
-        imagedata.append (r['data'])
+    imagedata.append (r['data'])
 
     print (imagedata)
 
@@ -145,11 +129,9 @@ def retrieve_image (r, h):
     return OAI_data
 
 def preprocess (analyzer, image):
-    task_name = None if config_data['use_nifty_reg'] else 'avsm'
 
     print("[{}] Preprocess".format(str(image)))
     try:
-        image.create_output_directory(task_name=task_name)
         analyzer.preprocess (image, overwrite=config_data['overwrite'])
     except Exception as e:
         err_msg = 'Could not preprocess image: {}'.format (str(image))
@@ -269,11 +251,6 @@ def project_thickness_to_atlas (analyzer, image):
         raise Exception('Failure') from e
 
 def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
-    task_name = None if config_data['use_nifty_reg'] else 'avsm'
-
-    OAI_data.set_processed_data_paths_without_creating_image_directories(config_data['output_directory'],
-                                                                         task_name=task_name)
-
     try:
         if pipelinestage == 'preprocess':
             preprocess (analyzer, image)
@@ -292,8 +269,72 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
     except Exception as e:
         raise Exception ('Failure') from e
 
+def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
+
+    task_name = None if config_data['use_nifty_reg'] else 'avsm'
+
+    os.makedirs (output_directory, exist_ok=True)
+
+    OAI_data.set_processed_data_paths_without_creating_image_directories (output_directory,
+                                                                          task_name=task_name)
+
+    image.create_output_directory(task_name=task_name)
+
+    image_collectfrom = r['collectfrom']
+    image_uri = r['uri']
+    image_location = r['inputlocation']
+    image_id = r['id']
+    image_version = r['version']
+
+    print ('retrieve_image', image_uri, get_own_remote_uri ())
+
+    if image_uri == get_own_remote_uri ():
+        return
+    else:
+        #copy the file to right location
+        srcs = []
+        dests = []
+        if pipelinestage == 'preprocess':
+            pass
+        elif pipelinestage == 'segmentation':
+            srcs.append (os.path.join (image_location, 'image_preprocessed.nii.gz'))
+            dests.append (image.folder)
+        elif pipelinestage == 'extractsurfacemesh':
+            srcs.append (os.path.join (image_location, 'image_preprocessed.nii.gz'))
+            srcs.append (os.path.join (image_location, 'FC_probmap.nii.gz'))
+            srcs.append (os.path.join (image_location, 'TC_probmap.nii.gz'))
+            dests.append (image.folder)
+            dests.append (image.folder)
+            dests.append (image.folder)
+        elif pipelinestage == 'registerimagetoatlas':
+            srcs.append (os.path.join (image_location, 'image_preprocessed.nii.gz'))
+            srcs.append (os.path.join(image_location, task_name, "FC_mesh_world.ply"))
+            srcs.append (os.path.join(image_location, task_name, "TC_mesh_world.ply"))
+            
+            dests.append (image.folder)
+            dests.append (os.path.join(image.folder, task_name))
+            dests.append (os.path.join(image.folder, task_name))
+        elif pipelinestage == 'warpmesh':
+            srcs.append (os.path.join(image_location, 'image_preprocessed.nii.gz'))
+            srcs.append (os.path.join(image_location, task_name, "FC_mesh_world.ply"))
+            srcs.append (os.path.join(image_location, task_name, "TC_mesh_world.ply"))
+            srcs.append (os.path.join(image_location, task_name, "inv_transform_to_atlas.nii.gz"))
+
+            dests.append (image.folder)
+            dests.append (os.path.join(image.folder, task_name))
+            dests.append (os.path.join(image.folder, task_name))
+            dests.append (os.path.join(image.folder, task_name))
+
+        print ('retrieve_image', srcs, dests)
+
+        index = 0
+        for src in srcs:
+            print ("scp", image_collectfrom + ':' + srcs[index], dests[index])
+            subprocess.run(["scp", image_collectfrom + ':' + srcs[index], dests[index]])
+            index += 1
+
 @python_app
-def execute_workitem (r, h, walltime = 1):
+def execute_workitem (r, h, output_directory, walltime = 1):
     imageid = r['id']
     version = r['version']
 
@@ -303,11 +344,14 @@ def execute_workitem (r, h, walltime = 1):
 
     pipelinestages = r['pipelinestages'].split (':')
 
-    OAI_data = retrieve_image (r, h)
+    OAI_data = construct_image (r, h)
 
     analysis_image = OAI_data.get_images ()[0]
 
     starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+    retrieve_image (r, h, OAI_data, analysis_image, pipelinestages[0], output_directory)
+
     try:
         for pipelinestage in  pipelinestages:
            execute_pipelinestage (OAI_data, analyzer,
@@ -356,7 +400,20 @@ def execute_workitem_single (r, h):
 
 futures = {}
 
-def job_execute (h):
+def job_execute (h, output_directory):
+
+    task_name = None if config_data['use_nifty_reg'] else 'avsm'
+
+    output_directory = output_directory + '/' + platform.node().split('.')[0]
+
+    try:
+        print (output_directory)
+        shutil.rmtree (output_directory, ignore_errors=True)
+
+    except Exception as e:
+        print ('directory not there')
+
+
     while True:
         is_slot_free = False
         while True:
@@ -397,10 +454,10 @@ def job_execute (h):
         else:
             op = r['op']
             if op == 'add':
-                print (r)
+                print (r, get_own_remote_uri ())
                 timeout = double (r['timeout'])
                 print (r['id'], timeout)
-                future = execute_workitem (r, h, walltime = 100000)
+                future = execute_workitem (r, h, output_directory, walltime = 100000)
                 futures[r['id']] = [future, datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), r]
                 time.sleep (5)
             else:
@@ -431,4 +488,4 @@ if __name__ == "__main__":
     h.rpc (b"workermanager.worker.register", {"workerid":entityvalue, "parsluri":sys.argv[1]})
     h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":entityvalue, "parenturi":sys.argv[1], "selfuri":get_own_remote_uri()})
     parsl.load (worker_config)
-    job_execute (h)
+    job_execute (h, sys.argv[2])

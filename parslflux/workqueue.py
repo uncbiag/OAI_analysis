@@ -13,7 +13,8 @@ class WorkItemQueue:
         if len (self.queue) == 0:
             return None
 
-        return self.queue.pop (0)
+        item = self.queue.pop (0)
+        return item
 
     def is_empty (self):
         if len (self.queue) == 0:

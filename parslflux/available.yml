@@ -1,2 +1,12 @@
-available: [47, 75, 78, 44, 98]
-reserved: [93]
+available:
+    - id: 44
+      output_location: /mnt/ext4
+    - id: 62
+      output_location: /tmp/
+    - id: 106
+      output_location: /tmp/
+    - id: 93
+      output_location: /mnt/ext4
+    - id: 98
+      output_location: /tmp/
+reserved: [94]
