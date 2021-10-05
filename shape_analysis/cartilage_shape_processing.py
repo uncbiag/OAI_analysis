@@ -364,9 +364,6 @@ def split_tibial_cartilage_surface(mesh, smooth_rings=1, max_rings=None, n_worke
     # clustering normals
     features = np.concatenate((mesh_centroids_normalized * 2, mesh_normals * 1), axis=1)
 
-    np.set_printoptions(threshold=sys.maxsize)
-    print (features)
-
     print ('split_tibial_cartilage_surface ():', 'here 4')
     est = KMeans(n_clusters=2)
     print ('split_tibial_cartilage_surface ():', 'here 5')

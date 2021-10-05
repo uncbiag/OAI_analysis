@@ -289,9 +289,10 @@ def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
     print ('retrieve_image', image_uri, get_own_remote_uri ())
 
     if image_uri == get_own_remote_uri ():
-        return
+        return '', ''
     else:
         #copy the file to right location
+        starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         srcs = []
         dests = []
         if pipelinestage == 'preprocess':
@@ -333,8 +334,13 @@ def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
             subprocess.run(["scp", image_collectfrom + ':' + srcs[index], dests[index]])
             index += 1
 
+        endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+        return starttime, endtime
+
 @python_app
 def execute_workitem (r, h, output_directory, walltime = 1):
+
     imageid = r['id']
     version = r['version']
 
@@ -350,7 +356,7 @@ def execute_workitem (r, h, output_directory, walltime = 1):
 
     starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-    retrieve_image (r, h, OAI_data, analysis_image, pipelinestages[0], output_directory)
+    r_starttime, r_endtime = retrieve_image (r, h, OAI_data, analysis_image, pipelinestages[0], output_directory)
 
     try:
         for pipelinestage in  pipelinestages:
@@ -366,6 +372,8 @@ def execute_workitem (r, h, output_directory, walltime = 1):
             'status' : 'SUCCESS',
             'starttime' : str(starttime),
             'endtime' : str(endtime),
+            'r_starttime' : str(r_starttime),
+            'r_endtime' : str(r_endtime),
             'outputlocation' : str(analysis_image.folder)})
     print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
 
@@ -401,6 +409,8 @@ def execute_workitem_single (r, h):
 futures = {}
 
 def job_execute (h, output_directory):
+
+    sys.stdout = open(os.devnull, 'w')
 
     task_name = None if config_data['use_nifty_reg'] else 'avsm'
 

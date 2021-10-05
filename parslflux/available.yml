@@ -1,12 +1,14 @@
 available:
-    - id: 44
+#    - id: 44
+#      output_location: /mnt/ext4
+    - id: 51
       output_location: /mnt/ext4
-    - id: 62
-      output_location: /tmp/
-    - id: 106
-      output_location: /tmp/
     - id: 93
       output_location: /mnt/ext4
-    - id: 98
-      output_location: /tmp/
+#    - id: 94
+#      output_location: /mnt/ext4
+#    - id: 78
+#      output_location: /mnt/ext4
+    - id: 77
+      output_location: /tmp
 reserved: [94]

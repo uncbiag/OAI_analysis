@@ -116,7 +116,7 @@ class WorkItem:
 
         if type (report) is not dict and report == 'empty':
             print ('empty report')
-            return False, None, None, 'INCOMPLETE'
+            return False, None, None, 'INCOMPLETE', 0
 
         status = report['status']
 
@@ -125,19 +125,43 @@ class WorkItem:
         if status == 'SUCCESS':
             self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
             self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
+            if report['r_starttime'] == '' or report['r_endtime'] == '':
+                self.r_starttime = ''
+                self.r_endtime = ''
+                r_timetaken = 0
+            else:
+                self.r_starttime = datetime.datetime.strptime (report['r_starttime'], '%Y-%m-%d %H:%M:%S')
+                self.r_endtime = datetime.datetime.strptime (report['r_endtime'], '%Y-%m-%d %H:%M:%S')
+                r_timetaken = (self.r_endtime - self.r_starttime).total_seconds ()
             self.outputlocation = report['outputlocation']
             self.status = 'SUCCESS'
             print ('probe_status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'success')
-            return True, self.starttime, self.endtime, 'SUCCESS'
+            return True, self.starttime, self.endtime, 'SUCCESS', r_timetaken
         elif status == 'FAILED':
             self.status = 'FAILED'
             self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
             self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
+            if report['r_starttime'] == '' or report['r_endtime'] == '':
+                self.r_starttime = ''
+                self.r_endtime = ''
+                r_timetaken = 0
+            else:
+                self.r_starttime = datetime.datetime.strptime (report['r_starttime'], '%Y-%m-%d %H:%M:%S')
+                self.r_endtime = datetime.datetime.strptime (report['r_endtime'], '%Y-%m-%d %H:%M:%S')
+                r_timetaken = (self.r_endtime - self.r_starttime).total_seconds ()
             print ('probe status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'failed')
-            return True, None, None, 'FAILED'
+            return True, None, None, 'FAILED', r_timetaken
         elif status == 'CANCELLED':
             self.status = 'CANCELLED'
             self.starttime = datetime.datetime.strptime (report['starttime'], '%Y-%m-%d %H:%M:%S')
             self.endtime = datetime.datetime.strptime (report['endtime'], '%Y-%m-%d %H:%M:%S')
+            if report['r_starttime'] == '' or report['r_endtime'] == '':
+                self.r_starttime = ''
+                self.r_endtime = ''
+                r_timetaken = 0
+            else:
+                self.r_starttime = datetime.datetime.strptime (report['r_starttime'], '%Y-%m-%d %H:%M:%S')
+                self.r_endtime = datetime.datetime.strptime (report['r_endtime'], '%Y-%m-%d %H:%M:%S')
+                r_timetaken = (self.r_endtime - self.r_starttime).total_seconds ()
             print ('probe status (complete):', self.id, self.version, self.scheduletime, self.starttime, self.endtime, self.resourceid, 'cancelled')
-            return True, None, None, 'CANCELLED'
+            return True, None, None, 'CANCELLED', r_timetaken

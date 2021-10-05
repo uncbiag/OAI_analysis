@@ -66,6 +66,7 @@ class Resource:
         self.gpu = None
         self.exectimes = {}
         self.max_exectimes = {}
+        self.transfertimes = {}
         self.counts = {}
 
     def add_cpu (self, cpu):
@@ -168,7 +169,7 @@ class Resource:
         #first cpu
         if self.cpu != None and self.cpu.workqueue.is_empty () == False:
             workitem = self.cpu.workqueue.get_workitem ()
-            ret, start_time, end_time, status = workitem.probe_status ()
+            ret, start_time, end_time, status, r_timetaken = workitem.probe_status ()
             if ret == True:
                 if status == 'SUCCESS':
                     print ('cpu workitem complete')
@@ -185,10 +186,12 @@ class Resource:
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
 
+                self.add_transfer_time (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), r_timetaken)
+
         #now gpu
         if self.gpu != None and self.gpu.workqueue.is_empty () == False:
             workitem = self.gpu.workqueue.get_workitem ()
-            ret, start_time, end_time, status = workitem.probe_status ()
+            ret, start_time, end_time, status, r_timetaken = workitem.probe_status ()
             if ret == True:
                 if status == 'SUCCESS':
                     print ('gpu workitem complete')
@@ -204,6 +207,8 @@ class Resource:
                     print ('gpu workitem cancelled')
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
+
+                self.add_transfer_time (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), r_timetaken)
 
     def get_last_completion_time (self, resourcetype):
         if resourcetype == 'CPU' and self.cpu != None:
@@ -287,6 +292,18 @@ class Resource:
             new_avg_time = ((avg_time * count) + seconds) / (count + 1)
             self.exectimes[pipelinestages] = [new_avg_time, count + 1]
 
+    def add_transfer_time (self, pipelinestages, timetaken):
+        if timetaken == 0:
+            return
+
+        if pipelinestages not in self.transfertimes:
+            self.transfertimes[pipelinestages] = [timetaken, 1]
+        else:
+            avg_time = self.transfertimes[pipelinestages][0]
+            count = self.transfertimes[pipelinestages][1]
+            new_transfer_time = ((avg_time * count) + timetaken) / (count + 1)
+            self.transfertimes[pipelinestages] = [new_transfer_time, count + 1]
+
     def get_max_exectime (self, pipelinestages):
         if pipelinestages not in self.max_exectimes:
             return 0
@@ -298,6 +315,46 @@ class Resource:
             return 0
         else:
             return self.exectimes[pipelinestages][0]
+
+    def get_transfertime (self, pipelinestages):
+        if pipelinestages not in self.exectimes:
+            return 0
+        else:
+            return self.transfertimes[pipelinestages][0]
+
+    def get_pfinish_time (self, pipelinestages, resourcetype):
+        if pipelinestages not in self.exectimes:
+            return 0
+        else:
+            if resourcetype == 'CPU' and self.cpu != None and self.cpu.workqueue.is_empty () == False:
+                workitem = self.cpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+
+                avg_exectime = self.get_exectime (encoded_workitem_pipelinestages)
+
+                current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
+
+                time_remaining = (current_time - workitem.scheduletime).total_seconds ()
+
+                return avg_exectime + time_remaining
+
+            if resourcetype == 'GPU' and self.gpu != None and self.gpu.workqueue.is_empty () == False:
+                workitem = self.gpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+
+                avg_exectime = self.get_exectime (encoded_workitem_pipelinestages)
+
+                current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
+
+                time_remaining = (current_time - workitem.scheduletime).total_seconds ()
+
+                return avg_exectime + time_remaining
+
+            return 0
 
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):

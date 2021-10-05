@@ -23,6 +23,7 @@ from parslflux.scheduling_policy import Policy
 
 from parslflux.FirstCompleteFirstServe import FirstCompleteFirstServe
 from parslflux.FastCompleteFirstServe import FastCompleteFirstServe
+from parslflux.FastCompleteFirstServe2 import FastCompleteFirstServe2
 
 @bash_app
 def app (command):
@@ -141,7 +142,8 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
     time.sleep (40)
 
     #scheduling_policy = FirstCompleteFirstServe2("FCFS")
-    scheduling_policy = FastCompleteFirstServe("FCFS")
+    #scheduling_policy = FastCompleteFirstServe("FCFS")
+    scheduling_policy = FastCompleteFirstServe2("FCFS")
 
     while True:
 

@@ -66,7 +66,7 @@ class AVSMReg(Register):
         print('Running registration: cmd = {}'.format(cmd))
         print('avsm_path = {}'.format(self.avsm_path))
 
-        process = subprocess.Popen(cmd, cwd=self.avsm_path,shell=True)
+        process = subprocess.Popen(cmd, cwd=self.avsm_path,shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         process.wait()
 
         print('registration done.')

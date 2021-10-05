@@ -52,7 +52,6 @@ class FastCompleteFirstServe (Policy):
 
             rankings[workitem.get_id ()] = sorted_exec_times
 
-
         print (rankings)
 
         if total_done < workitems_needed:
@@ -82,8 +81,7 @@ class FastCompleteFirstServe (Policy):
         if total_done < workitems_needed:
             workitems_needed = total_done
 
-                print (rankings)
-
+        print (rankings)
         print (workitems_needed)
 
         resources_done = {}
