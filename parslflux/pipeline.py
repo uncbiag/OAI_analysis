@@ -43,6 +43,9 @@ class PipelineManager:
             index += 1
         return output
 
+    def get_all_pipelinestages (self):
+        return self.pipelinestages
+
     def get_pipelinestages (self, current, resourcetype):
         if current == None:
             if self.pipelinestages[0].get_resourcetype () != resourcetype:

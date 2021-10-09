@@ -89,6 +89,9 @@ class InputManager2:
 
         return return_images
 
+    def add_back_images (self, count):
+        self.index -= count
+
     def get_remaining_count (self):
         return len (self.analysis_images) - self.index
 

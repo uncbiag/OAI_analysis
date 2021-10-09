@@ -10,7 +10,7 @@ from parslflux.scheduling_policy import Policy
 class FirstCompleteFirstServe (Policy):
 
     def add_new_workitems (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
-        print ('add_new_workitems ():')
+        #print ('add_new_workitems ():')
         completion_times = {}
 
         for resource in empty_resources:
@@ -22,18 +22,18 @@ class FirstCompleteFirstServe (Policy):
             else:
                 completion_times[resource.id] = completion_time
 
-        print (completion_times)
+        #print (completion_times)
 
         sorted_completion_times = dict(sorted(completion_times.items(), key=lambda item: item[1]))
 
-        print (sorted_completion_times)
+        #print (sorted_completion_times)
 
         self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
         #self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
         #self.sort_complete_workitems_by_latest_finish_time (resourcetype)
 
         for resource_id in sorted_completion_times.keys ():
-            print (resource_id, resourcetype)
+            #print (resource_id, resourcetype)
             item_added = False
             resource = rmanager.get_resource (resource_id)
 
@@ -65,5 +65,5 @@ class FirstCompleteFirstServe (Policy):
                     item_added = True
 
             if item_added == False:
-                print ('add_workitems ()', resource_id, 'workitems not available')
+                #print ('add_workitems ()', resource_id, 'workitems not available')
                 break

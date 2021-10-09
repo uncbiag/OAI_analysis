@@ -24,6 +24,11 @@ from parslflux.scheduling_policy import Policy
 from parslflux.FirstCompleteFirstServe import FirstCompleteFirstServe
 from parslflux.FastCompleteFirstServe import FastCompleteFirstServe
 from parslflux.FastCompleteFirstServe2 import FastCompleteFirstServe2
+from parslflux.FastCompleteFirstServe3 import FastCompleteFirstServe3
+from parslflux.FastCompleteFirstServe4 import FastCompleteFirstServe4
+from parslflux.FastCompleteFirstServe5 import FastCompleteFirstServe5
+from parslflux.FastCompleteFirstServe6 import FastCompleteFirstServe6
+from parslflux.DFS import DFS
 
 @bash_app
 def app (command):
@@ -132,6 +137,65 @@ pmanager= None
 def get_resource_manager ():
     return rmanager
 
+
+def DFS_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
+    global rmanager, imanager, pmanager
+
+    rmanager, imanager, pmanager = setup (resourcefile, pipelinefile, configfile, availablefile)
+
+    print ('DFS_scheduler ()', 'waiting for 40 secs')
+
+    time.sleep (40)
+
+    scheduling_policy = DFS ("DFS")
+
+    while True:
+        resources = rmanager.get_resources ()
+
+        for resource in resources:
+            resource.get_status_whole (pmanager)
+
+            scheduling_policy.remove_complete_workitem_whole (resource)
+
+        empty_resources = []
+
+        for resource in resources:
+            empty = resource.is_empty_whole ()
+
+            if empty == True:
+                empty_resources.append (resource)
+
+        #print (empty_resources)
+
+        if len (empty_resources) > 0:
+            scheduling_policy.add_new_workitems (rmanager, imanager, pmanager, empty_resources)
+
+        idle_resources = []
+
+        for resource in resources:
+            idle = resource.is_idle_whole ()
+
+            if idle == True:
+                idle_resources.append (resource)
+
+        for idle_resource in idle_resources:
+            #print ('scheduling cpu', idle_cpu.id)
+            idle_resource.schedule_whole (rmanager, pmanager)
+
+        idle_resources = []
+
+        for resource in resources:
+            idle = resource.is_idle_whole ()
+
+            if idle == True:
+                idle_resources.append (resource)
+
+        if len (idle_resources) == len (resources):
+            print ('all tasks complete')
+            break
+
+        time.sleep (1)
+
 def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost):
     global rmanager, imanager, pmanager
 
@@ -141,29 +205,33 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
 
     time.sleep (40)
 
-    #scheduling_policy = FirstCompleteFirstServe2("FCFS")
-    #scheduling_policy = FastCompleteFirstServe("FCFS")
-    scheduling_policy = FastCompleteFirstServe2("FCFS")
+    #scheduling_policy = FirstCompleteFirstServe("First-0")
+    #scheduling_policy = FastCompleteFirstServe("Fast-0")
+    #scheduling_policy = FastCompleteFirstServe2("Fast-1")
+    #scheduling_policy = FastCompleteFirstServe3("Fast-2")
+    #scheduling_policy = FastCompleteFirstServe4("Fast-3")
+    #scheduling_policy = FastCompleteFirstServe5("Fast-4")
+    scheduling_policy = FastCompleteFirstServe6("Fast-5")
 
     while True:
 
         resources = rmanager.get_resources ()
 
         for resource in resources:
-            print ('###########################')
+            #print ('###########################')
             resource.get_status (pmanager)
-            print ('###########################')
-            print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            #print ('###########################')
+            #print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             scheduling_policy.remove_complete_workitem (resource)
-            print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            #print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
         empty_cpus = []
         empty_gpus = []
 
         for resource in resources:
-            print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            #print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
             cpu_empty, gpu_empty = resource.is_empty ()
-            print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            #print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
             if cpu_empty == True:
                 empty_cpus.append (resource)
@@ -171,19 +239,19 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
                 empty_gpus.append (resource)
 
         if len (empty_cpus) > 0:
-            print ('****************************')
+            #print ('****************************')
             scheduling_policy.add_new_workitems (rmanager, imanager, pmanager, empty_cpus, 'CPU')
-            print ('****************************')
+            #print ('****************************')
         if len (empty_gpus) > 0:
-            print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+            #print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
             scheduling_policy.add_new_workitems (rmanager, imanager, pmanager, empty_gpus, 'GPU')
-            print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+            #print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
 
 
         idle_cpus = []
         idle_gpus = []
 
-        print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+        #print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
         for resource in resources:
             cpu_idle, gpu_idle = resource.is_idle ()
 
@@ -192,16 +260,16 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
             if gpu_idle == True:
                 idle_gpus.append (resource)
 
-        print (idle_cpus)
-        print (idle_gpus)
-        print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+        #print (idle_cpus)
+        #print (idle_gpus)
+        #print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
 
         for idle_cpu in idle_cpus:
-            print ('scheduling cpu', idle_cpu.id)
+            #print ('scheduling cpu', idle_cpu.id)
             idle_cpu.schedule (rmanager, pmanager, 'CPU')
 
         for idle_gpu in idle_gpus:
-            print ('scheduling gpu', idle_gpu.id)
+            #print ('scheduling gpu', idle_gpu.id)
             idle_gpu.schedule (rmanager, pmanager, 'GPU')
 
         idle_cpus = []
@@ -219,8 +287,8 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
             print ('all tasks complete')
             break
 
-        time.sleep (5)
-            
+        time.sleep (1)
+
 if __name__ == "__main__":
 
     configfile = sys.argv[1]
@@ -234,3 +302,5 @@ if __name__ == "__main__":
     cost = float (sys.argv[5])
 
     OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost)
+
+    #DFS_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost)

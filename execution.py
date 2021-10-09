@@ -24,14 +24,6 @@ import subprocess
 from numpy import double
 import shutil
 
-worker_config = Config (
-    executors = [
-        ThreadPoolExecutor(
-            label='worker_thread'
-        )
-    ]
-)
-
 config_data = {}
 
 def load_config_file(config_file):
@@ -81,38 +73,17 @@ def build_default_analyzer(ckpoint_folder=None, use_nifty=True,avsm_path=None):
     analyzer.set_preprocess(bias_correct=False, reset_coord=True, normalize_intensity=True, flip_to="LEFT")
     return analyzer
 
-pipelinestagemap = {'preprocess': './flux/preprocess.py',
-                    'segmentation': './flux/segmentation.py',
-                    'extractsurfacemesh': './flux/extractsurfacemesh.py',
-                    'registerimagetoatlas' : './flux/registerimgtoatlas.py',
-                    'warpmesh': './flux/warpmesh.py',
-                    'evalregistration': './flux/evalregsurfacedist.py',
-                    'setatlas2dmap': './flux/setatlas2dmap.py',
-                    'computeatlas2dmap': './flux/computeatlas2dmap.py',
-                    'projectthicknesstoatlas': './flux/projectthicknesstoatlas.py',
-                    'projectthicknessto2d': './flux/projectthicknessto2D.py'}
-
 def get_own_remote_uri():
     localuri = os.getenv('FLUX_URI')
     remoteuri = localuri.replace("local://", "ssh://" + platform.node().split('.')[0])
     return remoteuri
 
 
-def construct_image (r, h):
-    
-    image_collectfrom = r['collectfrom']
-    image_uri = r['uri']
-    image_location = r['inputlocation']
-    image_id = r['id']
-    image_version = r['version']
+def construct_image (image_id, image_version, data):
+    image_columns = ['Folder', 'ParticipantID', 'StudyDate', 'Barcode', 'StudyDescription', 'SeriesDescription']
 
     imagedata = []
-
-    imagedata.append (r['data'])
-
-    print (imagedata)
-
-    image_columns = ['Folder', 'ParticipantID', 'StudyDate', 'Barcode', 'StudyDescription', 'SeriesDescription']
+    imagedata.append (data)
 
     image_df = pd.DataFrame (imagedata, columns = image_columns)
 
@@ -269,7 +240,9 @@ def execute_pipelinestage (OAI_data, analyzer, pipelinestage, image):
     except Exception as e:
         raise Exception ('Failure') from e
 
-def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
+
+def retrieve_image (image_id, image_version, pipelinestage, image_collectfrom, \
+                    image_uri, image_location, image, output_directory, OAI_data):
 
     task_name = None if config_data['use_nifty_reg'] else 'avsm'
 
@@ -279,14 +252,6 @@ def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
                                                                           task_name=task_name)
 
     image.create_output_directory(task_name=task_name)
-
-    image_collectfrom = r['collectfrom']
-    image_uri = r['uri']
-    image_location = r['inputlocation']
-    image_id = r['id']
-    image_version = r['version']
-
-    print ('retrieve_image', image_uri, get_own_remote_uri ())
 
     if image_uri == get_own_remote_uri ():
         return '', ''
@@ -338,25 +303,47 @@ def retrieve_image (r, h, OAI_data, image, pipelinestage, output_directory):
 
         return starttime, endtime
 
-@python_app
-def execute_workitem (r, h, output_directory, walltime = 1):
+if __name__ == "__main__":
+    #register parsl manager's flux URI first with the workermanager
+    load_config_file ('oaiconfig.yml')
 
-    imageid = r['id']
-    version = r['version']
+    h = flux.Flux()
+    output_directory = sys.argv[1]
+    imageid = sys.argv[2]
+    version = sys.argv[3]
+    pipelinestages = sys.argv[4]
+    collectfrom = sys.argv[5]
+    image_uri = sys.argv[6]
+    data0 = sys.argv[7]
+    data1 = sys.argv[8]
+    data2 = sys.argv[9]
+    data3 = sys.argv[10]
+    data4 = sys.argv[11] + ' ' + sys.argv[12]
+    data5 = sys.argv[13]
 
-    print (datetime.datetime.now(), 'executing image', imageid, 'version', version)
+    if len (sys.argv) == 14:
+        image_location = ''
+    else:
+        image_location = sys.argv[14]
+
+    print (sys.argv)
+
+    data = [data0, data1, data2, data3, data4, data5]
+
+    print (data)
 
     analyzer = build_default_analyzer ()
 
-    pipelinestages = r['pipelinestages'].split (':')
+    pipelinestages = pipelinestages.split (':')
 
-    OAI_data = construct_image (r, h)
+    OAI_data = construct_image (imageid, version, data)
 
     analysis_image = OAI_data.get_images ()[0]
 
     starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-    r_starttime, r_endtime = retrieve_image (r, h, OAI_data, analysis_image, pipelinestages[0], output_directory)
+    r_starttime, r_endtime = retrieve_image (imageid, version, pipelinestages[0], collectfrom, \
+                                image_uri, image_location, analysis_image, output_directory, OAI_data)
 
     try:
         for pipelinestage in  pipelinestages:
@@ -376,158 +363,3 @@ def execute_workitem (r, h, output_directory, walltime = 1):
             'r_endtime' : str(r_endtime),
             'outputlocation' : str(analysis_image.folder)})
     print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
-
-def execute_workitem_single (r, h, output_directory):
-    imageid = r['id']
-    version = r['version']
-
-    print (datetime.datetime.now(), 'executing image', imageid, 'version', version)
-
-    analyzer = build_default_analyzer ()
-
-    pipelinestages = r['pipelinestages'].split (':')
-
-    OAI_data = construct_image (r, h)
-
-    analysis_image = OAI_data.get_images ()[0]
-
-    task_name = None if config_data['use_nifty_reg'] else 'avsm'
-
-    OAI_data.set_processed_data_paths_without_creating_image_directories (output_directory,
-                                                                          task_name=task_name)
-
-    analysis_image.create_output_directory(task_name=task_name)
-
-    starttime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-    for pipelinestage in  pipelinestages:
-       execute_pipelinestage (OAI_data, analyzer,
-                              pipelinestage, analysis_image)
-    endtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-
-    h.rpc (b"workermanager.workitem.report",
-           {'version' : version,
-            'id': imageid,
-            'status' : 'SUCCESS',
-            'starttime' : str(starttime),
-            'endtime' : str(endtime),
-            'outputlocation' : str(analysis_image.folder),
-            'r_starttime' : '',
-            'r_endtime' : ''})
-    print (datetime.datetime.now(), 'imageid', imageid, 'version', version, 'report complete')
-
-def job_execute_single (h, output_directory):
-    task_name = None if config_data['use_nifty_reg'] else 'avsm'
-
-    output_directory = output_directory + '/' + platform.node().split('.')[0]
-
-    try:
-        print (output_directory)
-        shutil.rmtree (output_directory, ignore_errors=True)
-
-    except Exception as e:
-        print ('directory not there')
-
-    os.makedirs (output_directory, exist_ok=True)
-
-    while True:
-        r = h.rpc (b"workermanager.workitem.get").get()
-        if "empty" in r.keys():
-            #print (os.getcwd(), 'empty workqueue')
-            time.sleep (1)
-        elif "pipelinestages" in r.keys():
-            print ('r')
-            execute_workitem_single (r, h, output_directory)
-        else:
-            print ('invalid return')
-            time.sleep (1)
-
-
-@bash_app
-def execute (output_directory, imageid, version, pipelinestages, collectfrom, image_uri, data0, data1, data2, data3, data4, data5, image_location):
-    return "python3.6 execution.py {} {} {} {} {} {} {} {} {} {} {} {} {}".format (output_directory, imageid, \
-            version, pipelinestages, collectfrom, image_uri, data0, data1, data2, data3, data4, data5, image_location)
-
-futures = {}
-
-def job_execute (h, output_directory):
-
-    task_name = None if config_data['use_nifty_reg'] else 'avsm'
-
-    output_directory = output_directory + '/' + platform.node().split('.')[0]
-
-    try:
-        print (output_directory)
-        shutil.rmtree (output_directory, ignore_errors=True)
-
-    except Exception as e:
-        print ('directory not there')
-
-
-    while True:
-        is_slot_free = False
-        while True:
-            if len (futures) > 0:
-                for future_key in futures.keys ():
-                    future_data = futures[future_key]
-                    future = future_data[0]
-                    if future.done () == True:
-                        exception = future.exception(timeout=1)
-                        print ('exception', exception)
-                        if exception != None:
-                            r = future_data[2]
-                            imageid = r['id']
-                            version = r['version']
-                            print ('future', imageid, 'timedout')
-                            h.rpc (b"workermanager.workitem.report",
-                                   {'version' : version,
-                                    'id': imageid,
-                                    'status' : 'FAILED',
-                                    'starttime' : str (future_data[1]),
-                                    'endtime' : str (datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')),
-                                    'outputlocation' : ""})
-                        del futures[future_key]
-                        is_slot_free = True
-                        #print (datetime.datetime.now(), 'free slot')
-                        break
-                if len (futures) < 2:
-                    is_slot_free = True
-            else:
-                is_slot_free = True
-            if is_slot_free == True:
-                break
-
-        r = h.rpc (b"workermanager.workitem.get").get()
-        if "empty" in r.keys():
-            #print ('empty workqueue')
-            time.sleep (1)
-        else:
-            op = r['op']
-            if op == 'add':
-                #print (r, get_own_remote_uri ())
-                timeout = double (r['timeout'])
-                data = r['data']
-                #print (data[0], data[1], data[2], data[3], data[4], data[5])
-                #print (output_directory, r['id'], r['version'], r['pipelinestages'], r['collectfrom'], r['uri'], r['inputlocation'])
-                #future=execute_workitem (r, h, output_directory, walltime=100000)
-                future = execute (str(output_directory), str(r['id']), str(r['version']), str(r['pipelinestages']), \
-                                  str(r['collectfrom']), str(r['uri']), str(data[0]), str(data[1]), \
-                                  str(data[2]), str(data[3]), str(data[4]), str(data[5]), str(r['inputlocation']))
-                futures[r['id']] = [future, datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), r]
-                time.sleep (1)
-            else:
-                print ('invalid return')
-                time.sleep (1)
-
-
-if __name__ == "__main__":
-    #register parsl manager's flux URI first with the workermanager
-    h = flux.Flux()
-    h.rpc (b"FTmanager.resource.register", {"package": "FT", "name":"node", "path":"/mnt/beegfs/ssbehera/OAI_analysis"})
-    entity = h.attr_get("entity").decode("utf-8")
-    entityvalue = h.attr_get("entityvalue").decode("utf-8")
-    load_config_file ('oaiconfig.yml')
-    h.rpc (b"workermanager.worker.register", {"workerid":entityvalue, "parsluri":sys.argv[1]})
-    h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":entityvalue, "parenturi":sys.argv[1], "selfuri":get_own_remote_uri()})
-    parsl.load (worker_config)
-    job_execute (h, sys.argv[2])
-    #job_execute_single (h, sys.argv[2])

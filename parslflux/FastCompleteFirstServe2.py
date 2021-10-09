@@ -7,7 +7,7 @@ from parslflux.workitem import WorkItem
 
 from parslflux.scheduling_policy import Policy
 
-class FastCompleteFirstServe (Policy):
+class FastCompleteFirstServe2 (Policy):
     def add_new_workitems (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')
 
@@ -46,13 +46,14 @@ class FastCompleteFirstServe (Policy):
             encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
             resources = rmanager.get_resources ()
-            exectimes = {}
+            pfinish_times = {}
             for resource in resources:
-                exectimes[resource.id] = resource.get_exectime (encoded_workitem_pipelinestages)
+                pfinish_times[resource.id] = resource.get_pfinish_time (pmanager, encoded_workitem_pipelinestages, resourcetype)
 
-            sorted_exec_times = dict(sorted(exectimes.items(), key=lambda item: item[1]))
+            sorted_pfinish_times = dict(sorted(pfinish_times.items(), key=lambda item: item[1]))
 
-            rankings[workitem.get_id ()] = sorted_exec_times
+            rankings[workitem.get_id ()] = sorted_pfinish_times
+
 
         #print (rankings)
 
@@ -73,23 +74,19 @@ class FastCompleteFirstServe (Policy):
                 encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
                 resources = rmanager.get_resources ()
-                exectimes = {}
+                pfinish_times = {}
                 for resource in resources:
-                    exectimes[resource.id] = resource.get_exectime (encoded_workitem_pipelinestages)
+                    pfinish_times[resource.id] = resource.get_pfinish_time (pmanager, encoded_workitem_pipelinestages, resourcetype)
 
-                sorted_exec_times = dict(sorted(exectimes.items(), key=lambda item: item[1]))
+                sorted_pfinish_times = dict(sorted(pfinish_times.items(), key=lambda item: item[1]))
 
-                rankings[workitem.get_id ()] = sorted_exec_times
+                rankings[workitem.get_id ()] = sorted_pfinish_times
         else:
             new_workitem = self.create_workitem (imanager, pmanager, None, resourcetype)
-            #print (new_workitem)
-
             if new_workitem != None:
                 workitems_dict[new_workitem.get_id ()] = new_workitem
-
-                new_workitems_dict[new_workitem.get_id ()] = new_workitem
-
                 total_done += 1
+                new_workitems_dict[new_workitem.get_id ()] = new_workitem
 
                 workitem_pipelinestages = new_workitem.get_pipelinestages ()
                 encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
@@ -97,11 +94,11 @@ class FastCompleteFirstServe (Policy):
                 resources = rmanager.get_resources ()
                 exectimes = {}
                 for resource in resources:
-                    exectimes[resource.id] = resource.get_exectime (encoded_workitem_pipelinestages)
+                    pfinish_times[resource.id] = resource.get_pfinish_time (pmanager, encoded_workitem_pipelinestages, resourcetype)
 
-                sorted_exec_times = dict(sorted(exectimes.items(), key=lambda item: item[1]))
+                sorted_pfinish_times = dict(sorted(pfinish_times.items(), key=lambda item: item[1]))
 
-                rankings[new_workitem.get_id ()] = sorted_exec_times
+                rankings[new_workitem.get_id ()] = sorted_pfinish_times
 
         rankings = dict (sorted (rankings.items(), key = lambda item:list (item[1].values ())[0], reverse=True))
 
@@ -115,6 +112,7 @@ class FastCompleteFirstServe (Policy):
         workitems_done = {}
 
         resources = rmanager.get_resources ()
+
         for resource in resources:
             if resource in empty_resources:
                 resources_done[resource.id] = False
@@ -193,6 +191,5 @@ class FastCompleteFirstServe (Policy):
             if workitem.get_id () in pending_workitems_dict:
                 pending_workitem = pending_workitems_dict[workitem.get_id ()]
                 self.add_back_workitem (resourcetype, pending_workitem)
-
             elif workitem.get_id () in new_workitems_dict:
                 imanager.add_back_images (1)

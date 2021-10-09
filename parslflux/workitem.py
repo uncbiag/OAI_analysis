@@ -63,7 +63,8 @@ class WorkItem:
         return next_workitem
 
     def print_data (self):
-        print ('print_data ()', self.id, self.version, self.resourceid)
+        #print ('print_data ()', self.id, self.version, self.resourceid)
+        pass
 
     def submit (self, pmanager, timeout):
         self.timeout = double (timeout)
@@ -105,17 +106,17 @@ class WorkItem:
         self.status = 'CANCELLING'
 
     def probe_status (self):
-        print ('probe_status ():', self.id, self.version)
+        #print ('probe_status ():', self.id, self.version)
         f = flux.Flux ()
         r = f.rpc ("parslmanager.workitem.status", {"workerid":self.resourceid, \
                    "id":self.id, "version":str(self.version)}).get ()
 
-        print ('report', r)
+        #print ('report', r)
 
         report = r['report']
 
         if type (report) is not dict and report == 'empty':
-            print ('empty report')
+            #print ('empty report')
             return False, None, None, 'INCOMPLETE', 0
 
         status = report['status']
