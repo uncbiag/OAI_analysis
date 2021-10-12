@@ -1,8 +1,8 @@
 available:
     - id: 44
       output_location: /mnt/ext4
-    - id: 51
-      output_location: /mnt/ext4
+#    - id: 51
+#      output_location: /mnt/ext4
     - id: 93
       output_location: /mnt/ext4
     - id: 98
@@ -10,5 +10,7 @@ available:
 #    - id: 78
 #      output_location: /mnt/ext4
     - id: 77
+      output_location: /tmp
+    - id: 47
       output_location: /tmp
 reserved: [78]

@@ -28,6 +28,9 @@ from parslflux.FastCompleteFirstServe3 import FastCompleteFirstServe3
 from parslflux.FastCompleteFirstServe4 import FastCompleteFirstServe4
 from parslflux.FastCompleteFirstServe5 import FastCompleteFirstServe5
 from parslflux.FastCompleteFirstServe6 import FastCompleteFirstServe6
+from parslflux.FastCompleteFirstServe5Alloc import FastCompleteFirstServe5Alloc
+from parslflux.FastCompleteFirstServe6Alloc import FastCompleteFirstServe6Alloc
+from parslflux.FastCompleteFirstServe7Alloc import FastCompleteFirstServe7Alloc
 from parslflux.DFS import DFS
 
 @bash_app
@@ -205,13 +208,16 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
 
     time.sleep (40)
 
-    #scheduling_policy = FirstCompleteFirstServe("First-0")
-    #scheduling_policy = FastCompleteFirstServe("Fast-0")
-    #scheduling_policy = FastCompleteFirstServe2("Fast-1")
-    #scheduling_policy = FastCompleteFirstServe3("Fast-2")
-    #scheduling_policy = FastCompleteFirstServe4("Fast-3")
-    #scheduling_policy = FastCompleteFirstServe5("Fast-4")
-    scheduling_policy = FastCompleteFirstServe6("Fast-5")
+    scheduling_policy = FirstCompleteFirstServe("First-0")
+    #scheduling_policy = FastCompleteFirstServe("Fast-1")
+    #scheduling_policy = FastCompleteFirstServe2("Fast-2")
+    #scheduling_policy = FastCompleteFirstServe3("Fast-3")
+    #scheduling_policy = FastCompleteFirstServe4("Fast-4")
+    #scheduling_policy = FastCompleteFirstServe5("Fast-5")
+    #scheduling_policy = FastCompleteFirstServe6("Fast-6")
+    #scheduling_policy = FastCompleteFirstServe5Alloc("Fast-5-Alloc")
+    #scheduling_policy = FastCompleteFirstServe6Alloc("Fast-6-Alloc")
+    #scheduling_policy = FastCompleteFirstServe7Alloc("Fast-7-Alloc")
 
     while True:
 

@@ -360,54 +360,63 @@ class Resource:
             return self.transfertimes[pipelinestages][0]
 
     def get_pfinish_time (self, pmanager, pipelinestages, resourcetype):
-        if pipelinestages not in self.exectimes:
-            return 0
-        else:
-            if resourcetype == 'CPU' and self.cpu != None:
-                if self.cpu.workqueue.is_empty () == False:
-                    workitem = self.cpu.workqueue.get_workitem ()
-                    workitem_pipelinestages = workitem.get_pipelinestages ()
-                    encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+        if resourcetype == 'CPU' and self.cpu != None:
+            if self.cpu.workqueue.is_empty () == False:
+                workitem = self.cpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
-                    current_exectime = self.get_exectime (encoded_workitem_pipelinestages)
+                current_exectime = self.get_exectime (encoded_workitem_pipelinestages)
 
-                    current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                    current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
+                current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
 
-                    if current_exectime == 0:
-                        time_remaining = 0
-                    else:
-                        time_remaining = current_exectime - (current_time - workitem.scheduletime).total_seconds ()
-
-                    new_exectime = self.get_exectime (pipelinestages)
-
-                    return new_exectime + time_remaining
+                if current_exectime == 0:
+                    time_remaining = 1000
                 else:
-                    return self.get_exectime (pipelinestages)
-
-            if resourcetype == 'GPU' and self.gpu != None:
-                if self.gpu.workqueue.is_empty () == False:
-                    workitem = self.gpu.workqueue.get_workitem ()
-                    workitem_pipelinestages = workitem.get_pipelinestages ()
-                    encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
-
-                    current_exectime = self.get_exectime (encoded_workitem_pipelinestages)
-
-                    current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                    current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
-
-                    if current_exectime == 0:
+                    time_remaining = current_exectime - ((current_time - workitem.scheduletime).total_seconds ())
+                    if time_remaining < 0:
                         time_remaining = 0
-                    else:
-                        time_remaining = current_exectime - (current_time - workitem.scheduletime).total_seconds ()
 
-                    new_exectime = self.get_exectime (pipelinestages)
+                new_exectime = self.get_exectime (pipelinestages)
 
-                    return new_exectime + time_remaining
+                if new_exectime == 0:
+                    new_exectime = 1000
+                return new_exectime + time_remaining
+            else:
+                if pipelinestages not in self.exectimes:
+                    return 0
+                return self.get_exectime (pipelinestages)
+
+        if resourcetype == 'GPU' and self.gpu != None:
+            if self.gpu.workqueue.is_empty () == False:
+                workitem = self.gpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
+
+                current_exectime = self.get_exectime (encoded_workitem_pipelinestages)
+
+                current_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                current_time = datetime.datetime.strptime (current_time, '%Y-%m-%d %H:%M:%S')
+
+                if current_exectime == 0:
+                    time_remaining = 1000
                 else:
-                    return self.get_exectime (pipelinestages)
+                    time_remaining = current_exectime - ((current_time - workitem.scheduletime).total_seconds ())
+                    if time_remaining < 0:
+                        time_remaining = 0
 
-            return 0
+                new_exectime = self.get_exectime (pipelinestages)
+
+                if new_exectime == 0:
+                    new_exectime = 1000
+                return new_exectime + time_remaining
+            else:
+                if pipelinestages not in self.exectimes:
+                    return 0
+                return self.get_exectime (pipelinestages)
+
+            return 1000
 
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
