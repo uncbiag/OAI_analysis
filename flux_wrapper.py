@@ -529,5 +529,5 @@ if __name__ == "__main__":
     h.rpc (b"workermanager.worker.register", {"workerid":entityvalue, "parsluri":sys.argv[1]})
     h.rpc (b"exception.register.info", {"jobname":"flux", "jobid":entityvalue, "parenturi":sys.argv[1], "selfuri":get_own_remote_uri()})
     parsl.load (worker_config)
-    job_execute (h, sys.argv[2])
-    #job_execute_single (h, sys.argv[2])
+    #job_execute (h, sys.argv[2])
+    job_execute_single (h, sys.argv[2])

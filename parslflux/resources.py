@@ -77,6 +77,12 @@ class Resource:
     def add_gpu (self, gpu):
         self.gpu = GPU (gpu)
 
+    def remove_cpu (self):
+        self.cpu = None
+
+    def remove_gpu (self):
+        self.gpu = None
+
     def is_idle (self):
         cpu_free = False
         if self.cpu != None:
@@ -107,12 +113,16 @@ class Resource:
     def is_empty (self):
         cpu_empty = False
 
-        if self.cpu.workqueue.is_empty () == True:
+        if self.cpu == None:
+            cpu_empty = False
+        elif self.cpu.workqueue.is_empty () == True:
             cpu_empty = True
 
         gpu_empty = False
 
-        if self.gpu.workqueue.is_empty () == True:
+        if self.gpu == None:
+            gpu_empty = False
+        elif self.gpu.workqueue.is_empty () == True:
             gpu_empty = True
 
         #print ('is_empty ():', self.id, cpu_empty, gpu_empty)
@@ -183,9 +193,11 @@ class Resource:
                 max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
 
             if max_exectime == 0:#no one has completed their execution
-                max_exectime = 15 * 60
+                max_exectime = 20 * 60
 
             return max_exectime
+
+        return 20 * 60
 
 
     def get_status_whole (self, pmanager):
@@ -282,7 +294,7 @@ class Resource:
             #print (self.id, 'CPU not available')
             return None
 
-        if resourcetype == 'GPU' and self.cpu == None:
+        if resourcetype == 'GPU' and self.gpu == None:
             #print (self.id, 'GPU not available')
             return None
 
@@ -416,7 +428,7 @@ class Resource:
                     return 0
                 return self.get_exectime (pipelinestages)
 
-            return 1000
+        return 1000
 
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
@@ -424,6 +436,8 @@ class ResourceManager:
         self.availablefile = availablefile
         self.nodes = []
         self.reservednodes = []
+        self.cpunodes = []
+        self.gpunodes = []
         self.nodesdict = {}
         self.reservednodesdict = {}
 
@@ -460,6 +474,14 @@ class ResourceManager:
                 nodeid = node['id']
                 resources[str(nodeid)] = copy.deepcopy (self.nodesdict[str(nodeid)])
                 resources[str(nodeid)].output_location = node['output_location']
+                if node['cpu'] == 0:
+                    resources[str(nodeid)].remove_cpu ()
+                else:
+                    self.cpunodes.append (copy.deepcopy (resources[str(nodeid)]))
+                if node['gpu'] == 0:
+                    resources[str(nodeid)].remove_gpu ()
+                else:
+                    self.gpunodes.append (copy.deepcopy (resources[str(nodeid)]))
 
         if len (availableresources['reserved']) > 0:
             for i in availableresources['reserved']:
@@ -485,6 +507,12 @@ class ResourceManager:
                 max_exectime = resource.get_max_exectime (pipelinestages)
 
         return max_exectime
+
+    def get_cpu_resources_count (self):
+        return len (self.cpunodes)
+
+    def get_gpu_resources_count (self):
+        return len (self.gpunodes)
 
     def get_resource (self, resource_id):
         for node in self.nodes:

@@ -289,7 +289,7 @@ def OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost
             if gpu_idle == True:
                 idle_gpus.append (resource)
 
-        if len (idle_cpus) == len (resources) and len (idle_gpus) == len (resources):
+        if len (idle_cpus) == rmanager.get_cpu_resources_count () and len (idle_gpus) == rmanager.get_gpu_resources_count ():
             print ('all tasks complete')
             break
 
@@ -307,6 +307,6 @@ if __name__ == "__main__":
 
     cost = float (sys.argv[5])
 
-    OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost)
+    #OAI_scheduler_2 (configfile, pipelinefile, resourcefile, availablefile, cost)
 
-    #DFS_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost)
+    DFS_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost)

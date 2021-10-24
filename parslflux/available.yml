@@ -1,16 +1,30 @@
 available:
     - id: 44
       output_location: /mnt/ext4
+      cpu: 1
+      gpu: 1
 #    - id: 51
 #      output_location: /mnt/ext4
     - id: 93
       output_location: /mnt/ext4
+      cpu: 1
+      gpu: 1
     - id: 98
       output_location: /tmp
+      cpu: 1
+      gpu: 1
 #    - id: 78
 #      output_location: /mnt/ext4
     - id: 77
       output_location: /tmp
-    - id: 47
+      cpu: 1
+      gpu: 1
+#    - id: 47
+#      output_location: /tmp
+#    - id: 29
+#      output_location: /mnt/ext4
+    - id: 99
       output_location: /tmp
+      cpu: 1
+      gpu: 1
 reserved: [78]
