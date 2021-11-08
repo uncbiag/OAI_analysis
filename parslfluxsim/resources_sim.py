@@ -194,7 +194,7 @@ class Resource:
             if ret == True:
                 self.set_busy (False)
 
-    def get_status (self, pmanager, threads, outputfile):
+    def get_status (self, rmanager, pmanager, threads, outputfile):
         #print ('get_status ():', self.id)
         #first cpu
         if self.cpu != None and self.cpu.workqueue.is_empty () == False:
@@ -206,7 +206,7 @@ class Resource:
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
                     self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                    self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
+                    rmanager.add_exectime (self.cpu.name, pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
                 elif status == 'FAILED':
                     #print ('cpu workitem failed')
                     self.cpu.set_busy (False)
@@ -228,7 +228,7 @@ class Resource:
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
                     self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                    self.add_exectime (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
+                    rmanager.add_exectime (self.gpu.name, pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
                 elif status == 'FAILED':
                     #print ('gpu workitem failed')
                     self.gpu.set_busy (False)
@@ -422,6 +422,8 @@ class ResourceManager:
         self.reservednodes = []
         self.nodesdict = {}
         self.reservednodesdict = {}
+        self.exectimes = {}
+        self.max_exectimes = {}
 
     def parse_resources (self):
         yaml_resourcefile = open (self.resourcefile)
@@ -461,10 +463,10 @@ class ResourceManager:
             for i in availableresources['reserved']:
                 reservedresources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
 
-        self.nodesdict = resources
+        self.availablenodesdict = resources
         self.reservednodesdict = reservedresources
 
-        self.nodes = copy.deepcopy (list (self.nodesdict.values ()))
+        self.nodes = copy.deepcopy (list (self.availablenodesdict.values ()))
         self.reservednodes = copy.deepcopy (list (self.reservednodesdict.values ()))
 
         print ('nodes:', len(self.nodes), 'reserved nodes:', len (self.reservednodes))
@@ -482,10 +484,41 @@ class ResourceManager:
 
         return max_exectime
 
+
+    def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
+        seconds = endtime - starttime
+
+        if resourcename not in self.exectimes:
+            self.exectimes[resourcename] = {}
+            self.max_exectimes[resourcename] = {}
+            if pipelinestages not in self.exectimes:
+                self.exectimes[resourcename][pipelinestages] = [seconds, 1]
+                self.max_exectimes[resourcename][pipelinestages] = seconds
+        else:
+            if pipelinestages not in self.exectimes:
+                self.exectimes[resourcename][pipelinestages] = [seconds, 1]
+                self.max_exectimes[resourcename][pipelinestages] = seconds
+            else:
+                if seconds > self.max_exectimes[resourcename][pipelinestages]:
+                    self.max_exectimes[resourcename][pipelinestages] = seconds
+                avg_time = self.exectimes[resourcename][pipelinestages][0]
+                count = self.exectimes[resourcename][pipelinestages][1]
+                new_avg_time = ((avg_time * count) + seconds) / (count + 1)
+                self.exectimes[resourcename][pipelinestages] = [new_avg_time, count + 1]
+
+        #print (self, self.exectimes)
+
     def get_resource (self, resource_id):
         for node in self.nodes:
             if node.id == resource_id:
                 return node
+        return None
+
+    def get_resource_exist (self, resource_id):
+        resource_id = resource_id[1:]
+        if resource_id in self.nodesdict.keys():
+            return self.nodesdict[resource_id]
+
         return None
 
     def get_resources (self):

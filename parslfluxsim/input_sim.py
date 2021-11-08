@@ -73,27 +73,23 @@ class InputManager2:
 
         print (len (self.analysis_images))
 
-        self.max_images = 0
 
-    def set_max_images (self, max_images):
-        self.max_images = max_images
+    def get_total_count (self):
+        return len (self.analysis_images)
 
     def get_images (self, count):
         return_images = {}
 
-        if count > self.max_images - self.index:
-            count = self.max_images - self.index
-
-        if count <= 0:
-            self.index = 0
+        if count > len(self.analysis_images) - self.index:
+            count = len(self.analysis_images) - self.index
 
         images = self.analysis_images[self.index:self.index + count]
 
         for image in images:
-            return_images[str(image.name)] = image.get_raw_info ()
+            return_images[str(image.name)] = image.get_raw_info()
         self.index = self.index + count
 
-        #print (return_images)
+        #print(return_images)
 
         return return_images
 
@@ -101,7 +97,7 @@ class InputManager2:
         self.index -= count
 
     def get_remaining_count (self):
-        return self.max_images - self.index
+        return len(self.analysis_images) - self.index
 
     def print_data (self):
         for image in self.analysis_images:

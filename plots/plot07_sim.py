@@ -8,7 +8,7 @@ matplotlib.rcParams['font.size'] = 15
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 if __name__ == "__main__":
-    imagesizes = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    imagesizes = [50, 100, 150, 200, 250]
     output_directory = "DFS_staging"
 
     total_times = []
@@ -43,18 +43,19 @@ if __name__ == "__main__":
 
         total_time = images[-1][4]
 
-        print (total_time)
+        print (float(total_time) * 3600)
 
         total_times.append(total_time)
 
-    plt.plot(imagesizes, total_times, lw=4)
 
-    plt.xticks(imagesizes)
+    #plt.plot(imagesizes, total_times, lw=4)
 
-    plt.xlabel("No. of Images")
-    plt.ylabel("Time Taken (hrs)")
+    #plt.xticks(imagesizes)
+
+    #plt.xlabel("No. of Images")
+    #plt.ylabel("Time Taken (hrs)")
 
     #plt.xlabel('Timeline (seconds)')
 
-    plt.show()
+    #plt.show()
     #plt.savefig('queued.png', dpi=400)

@@ -78,7 +78,7 @@ class WorkItem:
         workitem['workerid'] = self.resourceid
 
         #print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
-        thread_exec.interrupt (self.resourceid+':'+str(self.version))
+        thread_exec.interrupt (str(self.version))
 
         # workitem['timeout'] = double (150)
         #self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -100,7 +100,7 @@ class WorkItem:
         # print ('probe_status ():', self.id, self.version)
 
         if thread.iscomplete == True:
-            str = "probe_status (complete): {} {} {} {} {} success".format(self.id, self.version, thread.starttime, thread.endtime, self.resourceid)
+            str = "probe_status (complete): {} {} {} {} {} success {}".format(self.id, self.version, thread.starttime, thread.endtime, self.resourceid, thread.timeout)
             print (str)
             outputfile.write (str + "\n")
             self.iscomplete = True

@@ -5,14 +5,21 @@ from parslfluxsim.resources_sim import ResourceManager
 from oai_scheduler_sim import OAI_Scheduler
 from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
+from parslfluxsim.performance_sim import read_performance_data
 
+import csv
+from itertools import zip_longest
 
 from execution_sim import ExecutionSim, ExecutionSimThread
+import pandas as pd
 
 import simpy
+import matplotlib.pyplot as plt
 
+import numpy as np
 
-def read_performance_data (performancefile):
+'''
+def read_performance_data (rmanager, performancefile):
     completion_file = open(performancefile, "r")
     completion_lines = completion_file.readlines()
 
@@ -54,30 +61,56 @@ def read_performance_data (performancefile):
     for image in images:
         resource_id = image[2]
         version = image[1]
-        if resource_id not in resource_performance:
-            resource_performance[resource_id] = {}
-            if version not in resource_performance[resource_id]:
-                resource_performance[resource_id][version] = []
-                resource_performance[resource_id][version].append(image[5] - image[3])
-            else:
-                resource_performance[resource_id][version].append(image[5] - image[3])
+
+        resource = rmanager.get_resource_exist(resource_id)
+
+        if resource == None:
+            print ('resource id ', resource_id, 'invalid')
+
+        if int (version)% 2 == 0:
+            resourcetype = resource.cpu.name
         else:
-            if version not in resource_performance[resource_id]:
-                resource_performance[resource_id][version] = []
-                resource_performance[resource_id][version].append(image[5] - image[3])
+            resourcetype = resource.gpu.name
+
+        if resourcetype not in resource_performance:
+            resource_performance[resourcetype] = {}
+            if version not in resource_performance[resourcetype]:
+                resource_performance[resourcetype][version] = []
+                resource_performance[resourcetype][version].append(image[5] - image[3])
             else:
-                resource_performance[resource_id][version].append(image[5] - image[3])
+                resource_performance[resourcetype][version].append(image[5] - image[3])
+        else:
+            if version not in resource_performance[resourcetype]:
+                resource_performance[resourcetype][version] = []
+                resource_performance[resourcetype][version].append(image[5] - image[3])
+            else:
+                resource_performance[resourcetype][version].append(image[5] - image[3])
 
-    '''
     for resourceid in resource_performance.keys():
-        version_data = resource_performance[resourceid]['2']
-        resource_performance[resourceid]['2'] = resource_performance[resourceid]['4']
+        version_data = resource_performance[resourceid]['1']
+        resource_performance[resourceid]['1'] = resource_performance[resourceid]['4']
         resource_performance[resourceid]['4'] = version_data
-    '''
 
-    print (resource_performance)
+    #print (resource_performance)
+
+    from scipy.stats import anderson
+
+    for resourcetype in resource_performance.keys():
+        csv_columns = list (resource_performance[resourcetype].keys())
+
+        for version in resource_performance[resourcetype].keys():
+            csv_filename = resourcetype + version + '.csv'
+            data = {version:resource_performance[resourcetype][version]}
+            dataframe = pd.DataFrame.from_dict(data)
+            print (dataframe)
+            dataframe.to_csv(csv_filename, index=False)
+
+            #print (resourcetype, version, anderson(resource_performance[resourcetype][version]))
+            #plt.hist(resource_performance[resourcetype][version], bins=30)
+            #plt.show()
 
     return resource_performance
+'''
 
 rmanager = None
 imanager = None
@@ -148,23 +181,23 @@ def DFS_scheduler (configfile, pipelinefile, resourcefile, availablefile, cost):
 class Simulation:
     def __init__(self):
         self.env = simpy.Environment()
+        self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images, output_file):
-        self.performancedata = read_performance_data(performancefile)
-
-        for resource_id in self.performancedata.keys():
-            for version in self.performancedata[resource_id].keys():
-                print(resource_id, version, self.performancedata[resource_id][version])
 
         self.r = ResourceManager(resourcefile, availablefile)
+
+        print (self.r)
 
         self.r.parse_resources()
 
         self.r.purge_resources()
 
-        self.i = InputManager2(configfile)
+        self.performancedata = read_performance_data()
 
-        self.i.set_max_images (max_images)
+        print (self.performancedata)
+
+        self.i = InputManager2(configfile)
 
         self.p = PipelineManager(pipelinefile, cost)
 
@@ -176,11 +209,11 @@ class Simulation:
 
         for resource in self.r.get_resources():
             if resource.cpu != None:
-                cpu_thread = ExecutionSimThread(self.env, resource.id, 'CPU', self.performancedata)
+                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata, self.i.get_total_count())
             else:
                 cpu_thread = None
             if resource.gpu != None:
-                gpu_thread = ExecutionSimThread(self.env, resource.id, 'GPU', self.performancedata)
+                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata, self.i.get_total_count())
             else:
                 gpu_thread = None
             self.worker_threads[resource.id] = [cpu_thread, gpu_thread]
@@ -225,7 +258,7 @@ if __name__ == "__main__":
 
     availablefile = "parslflux/available.yml"
 
-    performancefile = "plots/run_33_100_44_51_77_93_98_First_0/complete.txt"
+    performancefile = "plots/run_55_250_44_77_93_98_99_First_0/complete.txt"
 
     cost = 1000
 
@@ -233,11 +266,12 @@ if __name__ == "__main__":
 
     os.makedirs(output_directory, exist_ok=True)
 
-    max_images = [28240]#[100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    max_images = [50]
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
         sim = Simulation()
         sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file)
         sim.run()
+        print (sim.r)
         print ('simulation ', i, 'complete')

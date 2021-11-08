@@ -73,7 +73,7 @@ H is the hatch used for identification of the different dataframe"""
 
 if __name__ == "__main__":
     #completion_file = open("run_12_50_44_47_75_78_98_Fast/complete.txt", "r")
-    completion_file = open("run_13_50_44_47_75_78_98_First_earliest_sched/complete.txt", "r")
+    completion_file = open("run_33_100_44_51_77_93_98_First_0/complete.txt", "r")
     completion_lines = completion_file.readlines()
 
     resource_data = {}

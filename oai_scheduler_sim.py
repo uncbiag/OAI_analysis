@@ -20,7 +20,7 @@ class OAI_Scheduler:
             while True:
                 for resource in resources:
                     # print ('###########################')
-                    resource.get_status(pmanager, self.worker_threads[resource.id], self.outputfile)
+                    resource.get_status(rmanager, pmanager, self.worker_threads[resource.id], self.outputfile)
                     # print ('###########################')
                     # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     scheduling_policy.remove_complete_workitem(resource)

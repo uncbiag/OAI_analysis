@@ -30,10 +30,17 @@ if __name__ == '__main__':
     # completion_file = open("run_32_50_44_51_77_93_98_Fast_0_desc_newwm_alloc_final/complete.txt", "r")#5393
     #completion_file = open("run_33_100_44_51_77_93_98_First_0/complete.txt", "r")#10480
     #completion_file = open("run_34_100_44_51_77_93_98_DFS/complete.txt", "r")#12753
-    completion_file = open("run_35_100_44_51_77_93_98_Fast_0_desc_alloc/complete.txt", "r")#10299
+    #completion_file = open("run_35_100_44_51_77_93_98_Fast_0_desc_alloc/complete.txt", "r")#10299
     #completion_file = open("run_36_50_44_51_77_93_98_Fast_1_desc_alloc/complete.txt", "r")
     #completion_file = open("run_37_100_44_47_77_93_98_Fast_0_desc_alloc/complete.txt", "r")#10273
     #completion_file = open("run_38_100_44_47_77_93_98_First_0/complete.txt", "r")#10316
+
+
+    completion_file = open("run_55_250_44_77_93_98_99_First_0/complete.txt", "r")#23177
+    #completion_file = open("run_44_200_44_77_93_98_99_First_0/complete.txt", "r")#19252
+    #completion_file = open("run_45_150_44_77_93_98_99_First_0/complete.txt", "r")#14431
+    #completion_file = open("run_46_100_44_77_93_98_99_First_0/complete.txt", "r")#9914
+    #completion_file = open("run_47_50_44_77_93_98_99_First_0/complete.txt", "r")#5023
     completion_lines = completion_file.readlines()
 
     images = []
@@ -84,7 +91,7 @@ if __name__ == '__main__':
 
     unique_images_data = dict(sorted(unique_images_data.items(), key=lambda item: item[1][0][0]))
 
-    resource_colors = {'c44':'red', 'c51':'blue', 'c93':'pink', 'c98':'green', 'c77': 'black'}
+    resource_colors = {'c44':'red', 'c99':'blue', 'c93':'pink', 'c98':'green', 'c77': 'black'}
     y = []
     x = []
     colors = []
@@ -92,10 +99,10 @@ if __name__ == '__main__':
     index = 0
     for unique_image_id in unique_images_data:
         unique_images = unique_images_data[unique_image_id]
-        print (index, len(unique_images))
+        #print (index, len(unique_images))
         version = 0
         for unique_image in unique_images:
-            print (index, unique_image_id, unique_image, unique_image[1] - unique_image[0])
+            #print (index, unique_image_id, unique_image, unique_image[1] - unique_image[0])
             y.append([index, index])
             x.append([unique_image[0], unique_image[1]])
             colors.append(resource_colors[unique_image[2]])
@@ -106,7 +113,9 @@ if __name__ == '__main__':
             version += 1
         index += 1
 
-    print (colors)
+    #print (colors)
+
+    print (len(x), len(y))
 
     fig,axe = plt.subplots()
 
@@ -119,7 +128,7 @@ if __name__ == '__main__':
         lines.append(Line2D([0], [0], color=resource_colors[resource_color], lw=2, linestyle='solid'))
         lines.append(Line2D([0], [0], color=resource_colors[resource_color], lw=2, linestyle='dotted'))
 
-    legends = ['C44(C)', 'C44(G)', 'C51(C)', 'C51(G)', 'C93(C)', 'C93(G)', 'C98(C)', 'C98(G)', 'C77(C)', 'C77(G)']
+    legends = ['C44(C)', 'C44(G)', 'C99(C)', 'C99(G)', 'C93(C)', 'C93(G)', 'C98(C)', 'C98(G)', 'C77(C)', 'C77(G)']
 
     axe.legend (lines, legends)
 

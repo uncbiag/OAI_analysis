@@ -8,7 +8,7 @@ matplotlib.rcParams['font.size'] = 15
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 if __name__ == "__main__":
-    completion_file = open("DFS_staging/200.txt", "r")
+    completion_file = open("DFS_staging/250.txt", "r")
     completion_lines = completion_file.readlines()
 
     resource_data = {}
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     for completion_line in completion_lines:
         _, _, imageid, version, starttime, endtime, resourceid, _ = completion_line.split(' ', 7)
 
-        print (starttime, endtime)
+        #print (starttime, endtime)
 
         starttime = int (float(starttime) * float(3600))
         endtime = int (float(endtime) * float(3600))
@@ -32,6 +32,7 @@ if __name__ == "__main__":
     images.sort(key=lambda x: x[3])
 
     total_time = images[-1][3]
+
 
     unique_queue_data = {}
 
@@ -107,5 +108,5 @@ if __name__ == "__main__":
 
     #plt.xlabel('Timeline (seconds)')
 
-    #plt.show()
-    plt.savefig('queued_sim200.png', dpi=400)
+    plt.show()
+    #plt.savefig('queued_sim250_swap_1_4.png', dpi=400)

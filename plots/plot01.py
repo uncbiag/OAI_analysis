@@ -87,10 +87,11 @@ def plot_results (results_file):
         if 'probe_status (complete):' in line:
 
             print(line)
-            _, _, image_id, version, starttime_date, starttime_time, endtime_date, endtime_time, resource_id = line.split(' ', 8)
+            _, _, imageid, version, _, _, startdate, starthour, enddate, endhour, resourceid, _ = line.split(
+                ' ', 11)
 
-            starttime = starttime_date + ' ' + starttime_time
-            endtime = endtime_date + ' ' + endtime_time
+            starttime = startdate + ' ' + starthour
+            endtime = enddate + ' ' + endhour
             starttime = datetime.datetime.strptime(starttime,
                                                    '%Y-%m-%d %H:%M:%S')
             endtime = datetime.datetime.strptime(endtime, '%Y-%m-%d %H:%M:%S')
@@ -106,13 +107,13 @@ def plot_results (results_file):
                 if last_end_time < endtime:
                     last_end_time = endtime
 
-            if resource_id in resource_performance.keys():
-                resource_performance_queue = resource_performance[resource_id]
-                resource_performance_queue.append([image_id, version, starttime, endtime])
+            if resourceid in resource_performance.keys():
+                resource_performance_queue = resource_performance[resourceid]
+                resource_performance_queue.append([imageid, version, starttime, endtime])
             else:
                 resource_performance_queue = []
-                resource_performance_queue.append([image_id, version, starttime, endtime])
-                resource_performance[resource_id] = resource_performance_queue
+                resource_performance_queue.append([imageid, version, starttime, endtime])
+                resource_performance[resourceid] = resource_performance_queue
         index += 1
     print (my_count)
 
@@ -217,5 +218,5 @@ def plot_results (results_file):
     plt.show()
 
 if __name__ == "__main__":
-    results_file = "run_0_50_51_96_98_44_47_First_random/output.txt"
+    results_file = "run_33_100_44_51_77_93_98_First_0/complete.txt"
     plot_results(results_file)

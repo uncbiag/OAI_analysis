@@ -6,10 +6,20 @@ atlas_tc_mesh_path : ./data/atlas_TC_inner_mesh_world.ply
 avsm_directory : /home/ssbehera/oai/new/OAI_analysis/easyreg
 nifty_reg_directory : /home/ssbehera/oai/niftyreg/niftyreg-git/install/bin
 oai_data_directory : /mnt/beegfs/uray/
-oai_data_sheet : ./data/SEG_3D_DESS_allTmp1.csv
+oai_data_sheet : ./data/SEG_3D_DESS_allTmp8.csv
 oai_enrollees : ./data/EnrolleesTmp.txt
 output_directory : /tmp/ssbehera/
 overwrite : false
 python_executable : /usr/bin/python3.6
 seed : 2018
 use_nifty_reg : false
+#6 EnrolleesTmp.txt
+  #    6 SEG_3D_DESS_allTmp.csv
+  #   51 SEG_3D_DESS_allTmp1.csv
+  #   31 SEG_3D_DESS_allTmp2.csv
+  #    2 SEG_3D_DESS_allTmp3.csv
+  #   11 SEG_3D_DESS_allTmp4.csv
+  #  101 SEG_3D_DESS_allTmp5.csv
+  #  151 SEG_3D_DESS_allTmp6.csv
+#  201 SEG_3D_DESS_allTmp7.csv
+#  251 SEG_3D_DESS_allTmp8.csv

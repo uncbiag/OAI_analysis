@@ -8,7 +8,7 @@ matplotlib.rcParams['font.size'] = 15
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
 if __name__ == "__main__":
-    completion_file = open("run_33_100_44_51_77_93_98_First_0/complete.txt", "r")
+    completion_file = open("run_46_100_44_77_93_98_99_First_0/complete.txt", "r")
     completion_lines = completion_file.readlines()
 
     resource_data = {}
@@ -125,4 +125,4 @@ if __name__ == "__main__":
     #plt.xlabel('Timeline (seconds)')
 
     #plt.show()
-    plt.savefig('queued.png', dpi=400)
+    plt.savefig('queued_100.png', dpi=400)

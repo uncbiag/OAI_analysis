@@ -1,6 +1,8 @@
 import simpy
 import random
-
+from scipy.stats import *
+import statistics
+import numpy as np
 class ExecutionSim:
     def __init__ (self, env, app):
         self.env = env
@@ -10,16 +12,51 @@ class ExecutionSim:
         return self.exe
 
 class ExecutionSimThread:
-    def __init__ (self, env, resourceid, resourcetype, performancedata):
+    def __init__ (self, env, resource, resourcetype, performancedata, total_image_count):
         self.env = env
         self.resourcetype = resourcetype
-        self.resourceid = resourceid
+        self.resource = resource
+        if self.resourcetype == 'CPU':
+            self.resourcename = self.resource.cpu.name
+        else:
+            self.resourcename = self.resource.gpu.name
         self.performancedata = performancedata
         self.iscomplete = False
         self.interrupts = 0
 
+        self.distributions = {}
+
+        for resourcename in performancedata.keys ():
+            if self.resourcename == resourcename:
+                for version in performancedata[resourcename].keys ():
+                    dist, shape, location, scale = performancedata[resourcename][version][0], performancedata[resourcename][version][1], \
+                        performancedata[resourcename][version][2], performancedata[resourcename][version][3]
+                    self.distributions[version] = {}
+                    if dist == 'lognorm':
+                        self.distributions[version]['0'] = lognorm.rvs (shape, location, scale, 10000)
+                    elif dist == 'gamma':
+                        self.distributions[version]['0'] = gamma.rvs (shape, location, scale, 10000)
+                    elif dist == 'gennorm':
+                        self.distributions[version]['0'] = gennorm.rvs (shape, location, scale, 10000)
+                    self.distributions[version]['1'] = [dist, shape, location, scale]
+                    print(self.resourcename, version, min(self.distributions[version]['0']), max(self.distributions[version]['0']), statistics.mean(self.distributions[version]['0']), np.median(self.distributions[version]['0']), mode(self.distributions[version]['0']))
+
+
+    def get_timeout (self, version):
+        dist = self.distributions[version]['1'][0]
+        shape = self.distributions[version]['1'][1]
+        location = self.distributions[version]['1'][2]
+        scale = self.distributions[version]['1'][3]
+
+        if dist == 'gamma':
+            return gamma.rvs(shape, location, scale, 1)[0]
+        elif dist == 'lognorm':
+            return lognorm.rvs(shape, location, scale, 1)[0]
+        elif dist == 'gennorm':
+            return gennorm.rvs(shape, location, scale, 1)[0]
+
     def run (self):
-        print (self.resourceid, self.resourcetype, 'started')
+        print (self.resource.id, self.resourcetype, 'started')
         while True:
             try:
                 #print ('sleeping')
@@ -27,14 +64,16 @@ class ExecutionSimThread:
                 continue
             except simpy.Interrupt as interrupt:
                 self.interrupts += 1
-                resource_id, version = interrupt.cause.split(":")
+                version = interrupt.cause
                 #print (self.resourceid, self.resourcetype, version, self.interrupts)
                 startime = self.env.now
-                timeouts = self.performancedata[resource_id][version]
+                timeout = self.get_timeout(version)
+                #timeout = self.distributions[version][random.randrange(len(self.distributions))]
+                #timeouts = self.performancedata[self.resourcename][version]
                 #timeout_max = max(timeouts)
                 #timeout_min = min(timeouts)
                 #timeout = random.randrange(timeout_min, timeout_max, 1)
-                timeout = sum(timeouts)/len(timeouts)
+                #timeout = sum(timeouts)/len(timeouts)
                 #print(self.resourceid, version, timeout_min, timeout_max, timeout/3600, self.interrupts)
                 yield self.env.timeout (timeout/3600)
                 endtime = self.env.now
