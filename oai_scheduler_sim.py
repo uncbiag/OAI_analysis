@@ -3,11 +3,54 @@ from parslfluxsim.FirstCompleteFirstServe_sim import FirstCompleteFirstServe
 from parslfluxsim.resources_sim import ResourceManager
 from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
+from execution_sim import ExecutionSim, ExecutionSimThread
 import simpy
 
 class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
+
+    def add_worker (self, rmanager, resource, cpuok, gpuok, cputype, gputype):
+        new_resource = rmanager.get_new_resource ()
+        if resource != None and cpuok == True:
+            new_resource.add_cpu (resource.cpu.name)
+        if resource != None and gpuok == True:
+            new_resource.add_gpu (resource.gpu.name)
+
+        if resource == None:
+            if cpuok == True:
+                new_resource.add_cpu (cputype)
+            if gpuok == True:
+                new_resource.add_gpu (gputype)
+
+        if new_resource.cpu != None:
+            new_resource.cpu.reinit ()
+
+        if new_resource.gpu != None:
+            new_resource.gpu.reinit ()
+
+        if new_resource.cpu != None:
+            cpu_thread = ExecutionSimThread(self.env, new_resource, 'CPU', self.performancedata)
+        else:
+            cpu_thread = None
+
+        if resource.gpu != None:
+            gpu_thread = ExecutionSimThread(self.env, new_resource, 'GPU', self.performancedata)
+        else:
+            gpu_thread = None
+
+        self.worker_threads[new_resource.id] = [cpu_thread, gpu_thread]
+
+        if cpu_thread != None:
+            cpu_thread_exec = ExecutionSim(self.env, cpu_thread)
+        else:
+            cpu_thread_exec = None
+        if gpu_thread != None:
+            gpu_thread_exec = ExecutionSim(self.env, gpu_thread)
+        else:
+            gpu_thread_exec = None
+
+        self.workers[new_resource.id] = [cpu_thread_exec, gpu_thread_exec]
 
     def run (self, rmanager, imanager, pmanager):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')
@@ -16,6 +59,18 @@ class OAI_Scheduler:
 
         resources = rmanager.get_resources()
 
+        first_pipelinestages = pmanager.get_pipelinestages (None, 'CPU')
+        if first_pipelinestages == None:
+            first_resourcetype = 'GPU'
+        else:
+            first_resourcetype = 'CPU'
+
+        while True:
+            new_workitem = scheduling_policy.create_workitem (imanager, pmanager, None, first_resourcetype)
+            if new_workitem == None:
+                break
+            pmanager.add_workitem_queue (new_workitem, self.env.now)
+
         try:
             while True:
                 for resource in resources:
@@ -23,7 +78,7 @@ class OAI_Scheduler:
                     resource.get_status(rmanager, pmanager, self.worker_threads[resource.id], self.outputfile)
                     # print ('###########################')
                     # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    scheduling_policy.remove_complete_workitem(resource)
+                    scheduling_policy.remove_complete_workitem(resource, pmanager, self.env)
                     # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
                 #scaling up code goes here
@@ -86,6 +141,7 @@ class OAI_Scheduler:
 
                 if len(idle_cpus) == len(resources) and len(idle_gpus) == len(resources):
                     print('all tasks complete')
+                    pmanager.print_data()
                     break
 
                 yield self.env.timeout(5/3600)

@@ -5,8 +5,13 @@ import datetime
 from parslflux.workqueue import WorkItemQueue
 
 class CPU:
-    def __init__ (self, node):
-        self.name = node['name']
+    def __init__ (self, name):
+        self.name = name
+        self.workqueue = WorkItemQueue ()
+        self.busy = False
+        self.last_completion_time = None
+
+    def reinit (self):
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
@@ -30,8 +35,13 @@ class CPU:
         return self.last_completion_time
 
 class GPU:
-    def __init__ (self, gpu):
-        self.name = gpu['name']
+    def __init__ (self, name):
+        self.name = name
+        self.workqueue = WorkItemQueue ()
+        self.busy = False
+        self.last_completion_time = None
+
+    def reinit (self):
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
@@ -424,6 +434,15 @@ class ResourceManager:
         self.reservednodesdict = {}
         self.exectimes = {}
         self.max_exectimes = {}
+        self.new_resource_id = 150
+
+    def get_new_resource (self):
+        resource = Resource (self.new_resource_id_start)
+        self.new_resource_id += 1
+        return resource
+
+    def add_resource (self, new_resource):
+        self.nodes.append (new_resource)
 
     def parse_resources (self):
         yaml_resourcefile = open (self.resourcefile)
@@ -438,14 +457,14 @@ class ResourceManager:
             for noderange in node['range']:
                 for i in range (noderange[0], noderange[1] + 1):
                     new_resource = Resource (i)
-                    new_resource.add_cpu (node)
+                    new_resource.add_cpu (node['name'])
                     self.nodesdict[str(i)] = new_resource
 
         #parse gpus
         for gpu in arc_resources['gpus']:
             for gpurange in gpu['range']:
                 for i in range (gpurange[0], gpurange[1] + 1):
-                    self.nodesdict[str(i)].add_gpu (gpu)
+                    self.nodesdict[str(i)].add_gpu (gpu['name'])
 
     def purge_resources (self):
         available_resourcefile = open (self.availablefile)

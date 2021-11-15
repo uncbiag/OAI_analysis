@@ -209,11 +209,11 @@ class Simulation:
 
         for resource in self.r.get_resources():
             if resource.cpu != None:
-                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata, self.i.get_total_count())
+                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata)
             else:
                 cpu_thread = None
             if resource.gpu != None:
-                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata, self.i.get_total_count())
+                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata)
             else:
                 gpu_thread = None
             self.worker_threads[resource.id] = [cpu_thread, gpu_thread]
@@ -237,6 +237,7 @@ class Simulation:
         self.scheduler.workers = self.workers
         self.scheduler.worker_threads = self.worker_threads
         self.scheduler.outputfile = output_file
+        self.scheduler.performancedata = self.performancedata
         self.env.process(self.scheduler.run(self.r, self.i, self.p))
 
         print ('done')

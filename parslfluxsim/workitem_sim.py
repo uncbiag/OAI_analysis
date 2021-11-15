@@ -49,7 +49,7 @@ class WorkItem:
     def get_pipelinestages(self):
         return self.pipelinestages
 
-    def update_outputlocation(seld, location):
+    def update_outputlocation(self, location):
         self.outputlocation = location
 
     def compose_next_workitem(self, pmanager, resource_id, resourcetype):

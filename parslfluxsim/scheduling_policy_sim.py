@@ -3,6 +3,7 @@ from parslfluxsim.workitem_sim import WorkItem
 class Policy(object):
     def __init__ (self, name):
         self.name = name
+        self.newworkitemqueue = []
         self.cpuqueue = []
         self.gpuqueue = []
         self.resubmitcpuqueue = []
@@ -65,6 +66,13 @@ class Policy(object):
         else:
             return self.cpuqueue.copy ()
 
+    def get_new_workitem(self, resourcetype):
+        new_workitem = None
+        if len (self.newworkitemqueue) > 0:
+            if resourcetype == self.newworkitemqueue[0].resourcetype:
+                new_workitem = self.newworkitemqueue.pop(0)
+        return new_workitem
+
     def get_pending_workitems_count (self, resourcetype):
         #print ('get_pending_workitems_count ():')
         if resourcetype == 'CPU':
@@ -113,9 +121,11 @@ class Policy(object):
                                  pipelinestages, resource_id, resourcetype, \
                                  0, '')
 
+        self.newworkitemqueue.append(new_workitem)
+
         return new_workitem
 
-    def remove_complete_workitem (self, resource):
+    def remove_complete_workitem (self, resource, pmanager, env):
         #print ('remove_complete_workitem ():', resource.id)
         cpu_workitem = resource.pop_if_complete ('CPU')
 
@@ -124,6 +134,8 @@ class Policy(object):
             if cpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to cpuqueue')
                 self.cpuqueue.append (cpu_workitem)
+                print (cpu_workitem.id)
+                pmanager.add_workitem_queue (cpu_workitem, env.now)
             else:
                 #print ('adding to resubmitcpuqueue')
                 self.resubmitcpuqueue.append (cpu_workitem)
@@ -135,6 +147,8 @@ class Policy(object):
             if gpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to gpuqueue')
                 self.gpuqueue.append (gpu_workitem)
+                print(gpu_workitem.id)
+                pmanager.add_workitem_queue(gpu_workitem, env.now)
             else:
                 #print ('adding to resubmitgpuqueue')
                 self.resubmitgpuqueue.append (gpu_workitem)

@@ -12,7 +12,7 @@ class ExecutionSim:
         return self.exe
 
 class ExecutionSimThread:
-    def __init__ (self, env, resource, resourcetype, performancedata, total_image_count):
+    def __init__ (self, env, resource, resourcetype, performancedata):
         self.env = env
         self.resourcetype = resourcetype
         self.resource = resource

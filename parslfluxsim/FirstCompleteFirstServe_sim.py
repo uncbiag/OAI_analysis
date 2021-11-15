@@ -60,9 +60,11 @@ class FirstCompleteFirstServe (Policy):
                         item_added = True
 
             if item_added == False:
-                new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
+                #new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
+                new_workitem = self.get_new_workitem(resourcetype)
 
                 if new_workitem != None:
+                    new_workitem.set_resource_id (resource_id)
                     resource.add_workitem (new_workitem, resourcetype)
                     new_workitem.print_data ()
                     item_added = True
