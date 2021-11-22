@@ -77,6 +77,7 @@ class Resource:
         self.max_exectimes = {}
         self.transfertimes = {}
         self.counts = {}
+        self.executionqueues = [-1, -1]
 
     def add_cpu (self, cpu):
         self.cpu = CPU (cpu)
@@ -268,12 +269,14 @@ class Resource:
                 #print (self.id, 'CPU not available')
                 return
             self.cpu.workqueue.add_workitem (workitem)
+            self.executionqueues[0] = workitem.version
 
         if resourcetype == 'GPU':
             if self.gpu == None:
                 #print (self.id, 'GPU not available')
                 return
             self.gpu.workqueue.add_workitem (workitem)
+            self.executionqueues[1] = workitem.version
 
     def pop_if_complete_whole (self):
         if self.workqueue.is_empty () == False:
@@ -289,7 +292,7 @@ class Resource:
             #print (self.id, 'CPU not available')
             return None
 
-        if resourcetype == 'GPU' and self.cpu == None:
+        if resourcetype == 'GPU' and self.gpu == None:
             #print (self.id, 'GPU not available')
             return None
 
@@ -297,13 +300,32 @@ class Resource:
             if self.cpu.workqueue.get_workitem ().is_complete () == True:
                 #print (self.id, 'CPU workitem complete')
                 workitem = self.cpu.workqueue.pop_workitem ()
+                self.executionqueues[0] = -1
                 return workitem
 
         if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
             if self.gpu.workqueue.get_workitem ().is_complete () == True:
                 #print (self.id, 'GPU workitem complete')
                 workitem = self.gpu.workqueue.pop_workitem ()
+                self.executionqueues[1] = -1
                 return workitem
+
+        return None
+
+    def get_workitem (self, resourcetype):
+        if resourcetype == 'CPU' and self.cpu == None:
+            return None
+
+        if resourcetype == 'GPU' and self.gpu == None:
+            return None
+
+        if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
+            workitem = self.cpu.workqueue.get_workitem()
+            return workitem
+
+        if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
+            workitem = self.gpu.workqueue.get_workitem()
+            return workitem
 
         return None
 
@@ -542,6 +564,15 @@ class ResourceManager:
 
     def get_resources (self):
         return self.nodes
+
+    def get_resources_type (self, resourcetype):
+        resources = []
+        for resource in self.nodes:
+            if resourcetype == 'CPU' and resource.cpu != None:
+                resources.append(resource)
+            elif resourcetype == 'GPU' and resource.gpu != None:
+                resources.append(resource)
+        return resources
 
     def request_reserved_resource (self):
         if len (self.reservednodesdict.keys()) > 0:
