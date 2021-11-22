@@ -125,6 +125,7 @@ class Policy(object):
 
         return new_workitem
 
+    #*******#
     def remove_complete_workitem (self, resource, pmanager, env):
         #print ('remove_complete_workitem ():', resource.id)
         cpu_workitem = resource.pop_if_complete ('CPU')
@@ -135,6 +136,7 @@ class Policy(object):
                 #print ('adding to cpuqueue')
                 self.cpuqueue.append (cpu_workitem)
                 print (cpu_workitem.id)
+                pmanager.remove_executor(cpu_workitem, resource)
                 pmanager.add_workitem_queue (cpu_workitem, env.now)
             else:
                 #print ('adding to resubmitcpuqueue')
@@ -148,6 +150,7 @@ class Policy(object):
                 #print ('adding to gpuqueue')
                 self.gpuqueue.append (gpu_workitem)
                 print(gpu_workitem.id)
+                pmanager.remove_executor(gpu_workitem, resource)
                 pmanager.add_workitem_queue(gpu_workitem, env.now)
             else:
                 #print ('adding to resubmitgpuqueue')

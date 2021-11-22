@@ -9,6 +9,7 @@ import simpy
 class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
+        self.max_first_stage_size = 30
 
     def add_worker (self, rmanager, resource, cpuok, gpuok, cputype, gputype):
         new_resource = rmanager.get_new_resource ()
@@ -69,7 +70,6 @@ class OAI_Scheduler:
             new_workitem = scheduling_policy.create_workitem (imanager, pmanager, None, first_resourcetype)
             if new_workitem == None:
                 break
-            pmanager.add_workitem_queue (new_workitem, self.env.now)
 
         try:
             while True:
@@ -104,6 +104,8 @@ class OAI_Scheduler:
                     # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
                     scheduling_policy.add_new_workitems(rmanager, imanager, pmanager, empty_gpus, 'GPU')
                    # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+
+                pmanager.close_phases (rmanager, self.env.now)
 
                 idle_cpus = []
                 idle_gpus = []
@@ -141,7 +143,7 @@ class OAI_Scheduler:
 
                 if len(idle_cpus) == len(resources) and len(idle_gpus) == len(resources):
                     print('all tasks complete')
-                    pmanager.print_data()
+                    pmanager.print_stage_queue_data()
                     break
 
                 yield self.env.timeout(5/3600)
