@@ -131,6 +131,8 @@ class OAI_Scheduler:
                     # print ('scheduling gpu', idle_gpu.id)
                     idle_gpu.schedule(rmanager, pmanager, 'GPU', self.workers[idle_gpu.id][1].get_exec(), self.env)
 
+                pmanager.predict_execution(rmanager, pmanager, self.env.now)
+
                 idle_cpus = []
                 idle_gpus = []
 
