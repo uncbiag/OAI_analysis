@@ -4,15 +4,16 @@ from parslfluxsim.resources_sim import Resource
 import statistics
 
 class Phase:
-    def __init__(self, pipelinestage, starttime):
+    def __init__(self, pipelinestage):
         self.pipelinestage = pipelinestage
-        self.starttime = starttime
+        self.starttime = -1
         self.current_count = 0
         self.total_count = 0
         self.target = -1
         self.timestamps = {}
         self.endtime = -1
-        self.active = True
+        self.active = False
+        self.complete = False
         self.current_executors = []
         self.workitems = []
         self.pstarttime = -1
@@ -35,6 +36,10 @@ class Phase:
             self.current_executors.remove(resource.id)
 
     def add_workitem (self, workitem, currenttime):
+        if self.active == False:
+            self.active = True
+            self.starttime = currenttime
+            print(self.pipelinestage, 'activate phase', self.current_count)
         self.current_count += 1
         self.total_count += 1
         self.timestamps[workitem.id + ':' + str (currenttime)] = self.current_count
@@ -49,6 +54,7 @@ class Phase:
 
     def close_phase (self, nowtime):
         self.active = False
+        self.complete = True
         self.endtime = nowtime
         print('phase closed', self.pipelinestage, self.starttime, self.endtime, self.total_count)
 
@@ -64,9 +70,10 @@ class PipelineStage:
         self.resourcetype = pipelinestage['resource']
         self.phases = []
 
-    def add_phase (self, currenttime):
-        print(self.name, 'add phase', currenttime)
-        new_phase = Phase(self.name, currenttime)
+    def init_phase (self):
+        print(self.name, 'init phase')
+
+        new_phase = Phase(self.name)
         self.phases.append(new_phase)
         return new_phase
 
@@ -78,6 +85,15 @@ class PipelineStage:
 
     def get_name (self):
         return self.name
+
+    def get_phase_length (self):
+        index = 0
+        for phase in self.phases:
+            if phase.active == True or phase.complete == True:
+                index += 1
+            else:
+                break
+        return index
 
     def get_phase (self, workitem):
         index = 0
@@ -97,39 +113,26 @@ class PipelineStage:
 
         return None
 
-    def get_latest_phase (self):
-        if len (self.phases) < 1:
-            return None
-
-        return self.phases[-1]
-
     def add_workitem_index (self, index, workitem, current_time):
-        if index <= (len (self.phases) - 1):
-            if self.phases[index].active == False:
-                phase = self.add_phase(current_time)
-            else:
-                phase = self.phases[index]
 
-            phase.add_workitem (workitem, current_time)
-        else:
-            phase = self.add_phase(current_time)
-            phase.add_workitem(workitem, current_time)
+        phase = self.phases[index]
+
+        if phase.active == False:
+            phase.active = True
+            phase.starttime = current_time
+
+        phase.add_workitem (workitem, current_time)
 
         #print(self.name, 'add workitem index', workitem.id, len(self.phases) - 1, phase.current_count)
 
-    def add_workitem (self, workitem, current_time):
-        if len (self.phases) > 0:
-            latest_phase = self.phases[-1]
-            if latest_phase.active == False:
-                latest_phase = self.add_phase(current_time)
-        else:
-            latest_phase = self.add_phase(current_time)
+    def add_new_workitem (self, workitem, current_time):
+        latest_phase = self.phases[-2]
 
         latest_phase.add_workitem(workitem, current_time)
         #print (self.name, 'add workitem', workitem.id, len (self.phases) - 1, latest_phase.current_count)
 
     def close_phase (self, currenttime):
-        current_phase = self.phases[-1]
+        current_phase = self.phases[-2]
         current_phase.set_endtime (currenttime)
 
     def add_executor (self, workitem, resource):
@@ -253,14 +256,14 @@ class PipelineManager:
 
                         prev_pipelinestage_phase_pending_output = prev_pipelinestage_phase.pending_output
 
-                        print(current_time, 'predict_execution 2.5.0', index, pipelinestage_index, pipelinestage.name,
-                              current_static_work, avg_service_rate, prev_pipelinestage_phase.service_rate,
-                              prev_pipelinestage_phase_pending_output, phase.current_count, phase.total_count, len (phase.current_executors))
+                        #print(current_time, 'predict_execution 2.5.0', index, pipelinestage_index, pipelinestage.name,
+                        #      current_static_work, avg_service_rate, prev_pipelinestage_phase.service_rate,
+                        #      prev_pipelinestage_phase_pending_output, phase.current_count, phase.total_count, len (phase.current_executors))
 
                         total_time = 0
                         total_work = 0
                         while True:
-                            print (current_time, 'predict_execution 2.5.1', index, pipelinestage_index, pipelinestage.name, current_static_work, avg_service_rate, prev_pipelinestage_phase.service_rate, prev_pipelinestage_phase_pending_output, phase.current_count, phase.total_count, len (phase.current_executors))
+                            #print (current_time, 'predict_execution 2.5.1', index, pipelinestage_index, pipelinestage.name, current_static_work, avg_service_rate, prev_pipelinestage_phase.service_rate, prev_pipelinestage_phase_pending_output, phase.current_count, phase.total_count, len (phase.current_executors))
                             phase.pendtime += current_static_work / avg_service_rate
                             current_exec_time = current_static_work / avg_service_rate
                             total_time += current_exec_time
@@ -299,10 +302,12 @@ class PipelineManager:
 
         index = 0
 
-        #print ('close phases size', len (self.pipelinestages[0].phases))
+        init_length = self.pipelinestages[0].get_phase_length ()
 
-        while index < len (self.pipelinestages[0].phases):
-            #print ('close phases index', index)
+        print ('close phases size', init_length)
+
+        while index < init_length:
+            print ('close phases index', index)
             prev_phase_closed = False
 
             if index == 0:
@@ -310,17 +315,16 @@ class PipelineManager:
             else:
                 last_pipelinestage_index = 0
                 for pipelinestage in self.pipelinestages:
-                    if len (pipelinestage.phases) > index - 1:
+                    if pipelinestage.get_phase_length () > index - 1:
                         last_pipelinestage_index += 1
                     else:
                         break
 
                 last_pipelinestage = self.pipelinestages[last_pipelinestage_index - 1]
 
-                #print ('close_phases last stage size', len (last_pipelinestage.phases))
-
-                #print ('close_phases', index, last_pipelinestage.phases[index - 1].pipelinestage, last_pipelinestage.phases[index - 1].active)
-                if last_pipelinestage.phases[index - 1].active == False:
+                print ('close_phases last stage size', last_pipelinestage.get_phase_length ())
+                print ('close_phases', index, last_pipelinestage.phases[index - 1].pipelinestage, last_pipelinestage.phases[index - 1].active)
+                if last_pipelinestage.phases[index - 1].active == False: #TODO: only if same stage type otherwise should proceed
                     prev_phase_closed = True
 
             if prev_phase_closed == False:
@@ -329,18 +333,19 @@ class PipelineManager:
             pipelinestage_index = 0
 
             for pipelinestage in self.pipelinestages:
-                if index < len (pipelinestage.phases):
+                if index < pipelinestage.get_phase_length ():
                     phase = pipelinestage.phases[index]
                 else:
                     break
 
-                if phase.active == False:
+                if phase.active == False and phase.complete == True:
                     pipelinestage_index += 1
                     continue
+                elif phase.active == False:
+                    break
 
                 if pipelinestage_index == 0:
                     prev_closed = True
-
                 else:
                     prev_pipelinestage = self.pipelinestages[pipelinestage_index - 1]
                     prev_pipelinestage_phase = prev_pipelinestage.phases[index]
@@ -363,8 +368,8 @@ class PipelineManager:
                 for resource in current_resources:
                     workitem = resource.get_workitem(pipelinestage.resourcetype)
 
-                    #if workitem != None:
-                    #   print ('close phases', pipelinestage.name, resource.id, workitem.version, index, pipelinestage_index)
+                    if workitem != None:
+                       print ('close phases', pipelinestage.name, resource.id, workitem.version, index, pipelinestage_index)
 
                     if workitem != None and int(workitem.version) == pipelinestage_index:
                         none_executing = False
@@ -410,16 +415,33 @@ class PipelineManager:
             if pipelinestage_add != None:
                 if pipelinestage_add.resourcetype != pipelinestage_remove.resourcetype:
                     add_phase = pipelinestage_add.get_phase_index (remove_phase_index)
-                    #print ('add_workitem_queue2', add_phase)
-                    if add_phase != None:
-                        add_phase.add_workitem (workitem, current_time)
-                    else:
-                        pipelinestage_add.add_workitem_index (remove_phase_index, workitem, current_time)
+                    add_phase.add_workitem (workitem, current_time)
         else:
             pipelinestage_add = self.pipelinestages[int(workitem.version)]
-            #if len (pipelinestage_add.phases) > 0:
-            #    print (len (pipelinestage_add.phases), pipelinestage_add.phases[-1].active)
-            pipelinestage_add.add_workitem (workitem, current_time)
+            if pipelinestage_add.index == 0:
+                if len (pipelinestage_add.phases) == 0:
+                    self.build_phases(2)
+                else:
+                    if pipelinestage_add.phases[-2].active == False and pipelinestage_add.phases[-2].complete == True:
+                        self.build_phases(1)
+            else:
+                print ('add_workitem_queue', 'oops')
+            pipelinestage_add.add_new_workitem (workitem, current_time)
+
+    def build_phases (self, count):
+        for i in range(0, count):
+            index = 0
+            prev_resourcetype = None
+            while True:
+                if index >= len (self.pipelinestages):
+                    print ('build phases', i, index, len (self.pipelinestages))
+                    break
+                current_stage = self.pipelinestages[index]
+                if prev_resourcetype == None or current_stage.resourcetype != prev_resourcetype:
+                    current_stage.init_phase ()
+                    prev_resourcetype = current_stage.resourcetype
+                index += 1
+
 
     def print_stage_queue_data (self):
         for index in range (0, len(self.pipelinestages[0].phases)):
