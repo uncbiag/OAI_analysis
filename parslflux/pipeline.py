@@ -304,10 +304,10 @@ class PipelineManager:
 
         init_length = self.pipelinestages[0].get_phase_length ()
 
-        print ('close phases size', init_length)
+        #print ('close phases size', init_length)
 
         while index < init_length:
-            print ('close phases index', index)
+            #print ('close phases index', index)
             prev_phase_closed = False
 
             if index == 0:
@@ -322,8 +322,8 @@ class PipelineManager:
 
                 last_pipelinestage = self.pipelinestages[last_pipelinestage_index - 1]
 
-                print ('close_phases last stage size', last_pipelinestage.get_phase_length ())
-                print ('close_phases', index, last_pipelinestage.phases[index - 1].pipelinestage, last_pipelinestage.phases[index - 1].active)
+                #print ('close_phases last stage size', last_pipelinestage.get_phase_length ())
+                #print ('close_phases', index, last_pipelinestage.phases[index - 1].pipelinestage, last_pipelinestage.phases[index - 1].active)
                 if last_pipelinestage.phases[index - 1].active == False: #TODO: only if same stage type otherwise should proceed
                     prev_phase_closed = True
 
@@ -368,8 +368,8 @@ class PipelineManager:
                 for resource in current_resources:
                     workitem = resource.get_workitem(pipelinestage.resourcetype)
 
-                    if workitem != None:
-                       print ('close phases', pipelinestage.name, resource.id, workitem.version, index, pipelinestage_index)
+                    #if workitem != None:
+                    #   print ('close phases', pipelinestage.name, resource.id, workitem.version, index, pipelinestage_index)
 
                     if workitem != None and int(workitem.version) == pipelinestage_index:
                         none_executing = False
