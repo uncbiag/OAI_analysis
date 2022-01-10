@@ -104,8 +104,8 @@ class Policy(object):
     def create_workitem (self, imanager, pmanager, resource_id, resourcetype):
         #print ('create_workitem ():', resourcetype)
 
-        pipelinestages = pmanager.get_pipelinestages (None, resourcetype)
-        if pipelinestages == None:
+        pipelinestage = pmanager.get_pipelinestage (None, resourcetype)
+        if pipelinestage == None:
             #print ('None')
             return None
 
@@ -118,7 +118,7 @@ class Policy(object):
         image_key = list (images.keys())[0]
 
         new_workitem = WorkItem (image_key, images[image_key], None, \
-                                 pipelinestages, resource_id, resourcetype, \
+                                 pipelinestage, resource_id, resourcetype, \
                                  0, '')
 
         self.newworkitemqueue.append(new_workitem)
@@ -135,7 +135,6 @@ class Policy(object):
             if cpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to cpuqueue')
                 self.cpuqueue.append (cpu_workitem)
-                print (cpu_workitem.id)
                 pmanager.remove_executor(cpu_workitem, resource)
                 pmanager.add_workitem_queue (cpu_workitem, env.now)
             else:
@@ -149,7 +148,6 @@ class Policy(object):
             if gpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to gpuqueue')
                 self.gpuqueue.append (gpu_workitem)
-                print(gpu_workitem.id)
                 pmanager.remove_executor(gpu_workitem, resource)
                 pmanager.add_workitem_queue(gpu_workitem, env.now)
             else:
@@ -168,6 +166,14 @@ class Policy(object):
             self.cpuqueue = sorted (self.cpuqueue, key=lambda x:x.scheduletime)
             #print (self.resubmitgpuqueue)
            # print (self.cpuqueue)
+
+    def sort_complete_workitems_by_stage_id (self, resourcetype):
+        if resourcetype == 'CPU':
+            self.resubmitcpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:(x.phase_index, x.version))
+            self.gpuqueue = sorted (self.gpuqueue, key=lambda x:(x.phase_index, x.version))
+        else:
+            self.resubmitgpuqueue = sorted(self.resubmitgpuqueue, key=lambda x: (x.phase_index, x.version))
+            self.cpuqueue = sorted(self.cpuqueue, key=lambda x: (x.phase_index, x.version))
 
     def sort_complete_workitems_by_earliest_finish_time (self, resourcetype):
         if resourcetype == 'CPU':

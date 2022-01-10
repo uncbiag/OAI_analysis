@@ -10,6 +10,7 @@ class CPU:
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
+        self.idle_periods = []
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -29,10 +30,21 @@ class CPU:
         self.last_completion_time = time
 
     def get_last_completion_time (self):
-        if self.last_completion_time == None:
-            return None
-
         return self.last_completion_time
+
+    def clear_completion_time (self):
+        self.last_completion_time = None
+
+    def add_idle_period (self, now):
+        self.idle_periods.append ([self.last_completion_time, now])
+
+    def report_idle_periods(self, sincetime):
+        ret = []
+        for idle_period in self.idle_periods:
+            if idle_period[1] > sincetime:
+                ret.append(idle_period)
+
+        return ret
 
 class GPU:
     def __init__ (self, name):
@@ -40,6 +52,7 @@ class GPU:
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
+        self.idle_periods = []
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -59,10 +72,21 @@ class GPU:
         self.last_completion_time = time
 
     def get_last_completion_time (self):
-        if self.last_completion_time == None:
-            return None
-
         return self.last_completion_time
+
+    def clear_completion_time (self):
+        self.last_completion_time = None
+
+    def add_idle_period (self, now):
+        self.idle_periods.append ([self.last_completion_time, now])
+
+    def report_idle_periods (self, sincetime):
+        ret = []
+        for idle_period in self.idle_periods:
+            if idle_period[1] > sincetime:
+                ret.append (idle_period)
+
+        return  ret
 
 class Resource:
 
@@ -127,6 +151,33 @@ class Resource:
 
         return cpu_empty, gpu_empty
 
+    def clear_completion_times (self):
+        if self.cpu != None:
+            self.cpu.clear_completion_time ()
+
+        if self.gpu != None:
+            self.gpu.clear_completion_time ()
+
+    def add_idle_period (self, resourcetype, now):
+        if resourcetype == 'CPU' and self.cpu != None:
+            if self.cpu.get_last_completion_time () != None:
+                self.cpu.add_idle_period (now)
+
+        if resourcetype == 'GPU' and self.gpu != None:
+            if self.gpu.get_last_completion_time () != None:
+                self.gpu.add_idle_period (now)
+
+    def report_idle_periods (self, sincetime):
+        cpu_idle_periods = None
+        if self.cpu != None:
+            cpu_idle_periods = self.cpu.report_idle_periods (sincetime)
+
+        gpu_idle_periods = None
+        if self.gpu != None:
+            gpu_idle_periods = self.gpu.report_idle_periods(sincetime)
+
+        return cpu_idle_periods, gpu_idle_periods
+
     def schedule (self, rmanager, pmanager, resourcetype, thread_exec, env):
         if resourcetype == 'CPU' and self.cpu == None:
             #print (self.id, 'CPU not available')
@@ -137,6 +188,7 @@ class Resource:
 
         if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
             timeout = self.get_timeout_value (rmanager, pmanager, resourcetype)
+            self.add_idle_period(resourcetype, env.now)
             self.cpu.workqueue.get_workitem ().submit (pmanager, timeout, thread_exec, env)
             self.cpu.set_busy (True)
             self.cpu.set_last_completion_time (None)
@@ -144,6 +196,7 @@ class Resource:
 
         if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
             timeout = self.get_timeout_value (rmanager, pmanager, resourcetype)
+            self.add_idle_period(resourcetype, env.now)
             self.gpu.workqueue.get_workitem ().submit (pmanager, timeout, thread_exec, env)
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
@@ -168,12 +221,11 @@ class Resource:
         if resourcetype == 'CPU' and self.cpu != None and self.cpu.workqueue.is_empty () == False:
             workitem = self.cpu.workqueue.get_workitem ()
             workitem_pipelinestages = workitem.get_pipelinestages ()
-            encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
-            max_exectime = self.get_max_exectime (encoded_workitem_pipelinestages) * 2
+            max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
             if max_exectime == 0:#first time execution
-                max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
+                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id) * 2
 
             if max_exectime == 0:#no one has completed their execution
                 max_exectime = 20 * 60
@@ -183,12 +235,11 @@ class Resource:
         if resourcetype == 'GPU' and self.gpu != None and self.gpu.workqueue.is_empty () == False:
             workitem = self.gpu.workqueue.get_workitem ()
             workitem_pipelinestages = workitem.get_pipelinestages ()
-            encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
-            max_exectime = self.get_max_exectime (encoded_workitem_pipelinestages) * 2
+            max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
             if max_exectime == 0:#first time execution
-                max_exectime = rmanager.get_max_exectime (encoded_workitem_pipelinestages, self.id) * 2
+                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id) * 2
 
             if max_exectime == 0:#no one has completed their execution
                 max_exectime = 15 * 60
@@ -216,9 +267,9 @@ class Resource:
                     #print ('cpu workitem complete')
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
-                    self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                    rmanager.add_exectime (self.cpu.name, pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
-                    self.add_exectime(pmanager.encode_pipeline_stages(workitem.get_pipelinestages()), start_time,
+                    self.add_count (workitem.get_pipelinestages ())
+                    rmanager.add_exectime (self.cpu.name, workitem.get_pipelinestages (), start_time, end_time)
+                    self.add_exectime(workitem.get_pipelinestages(), start_time,
                                       end_time)
                 elif status == 'FAILED':
                     #print ('cpu workitem failed')
@@ -240,9 +291,9 @@ class Resource:
                     #print ('gpu workitem complete')
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
-                    self.add_count (pmanager.encode_pipeline_stages (workitem.get_pipelinestages ()))
-                    rmanager.add_exectime (self.gpu.name, pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), start_time, end_time)
-                    self.add_exectime(pmanager.encode_pipeline_stages(workitem.get_pipelinestages()), start_time,
+                    self.add_count (workitem.get_pipelinestages ())
+                    rmanager.add_exectime (self.gpu.name, workitem.get_pipelinestages (), start_time, end_time)
+                    self.add_exectime(workitem.get_pipelinestages (), start_time,
                                       end_time)
                 elif status == 'FAILED':
                     #print ('gpu workitem failed')
@@ -383,7 +434,28 @@ class Resource:
         if pipelinestages not in self.exectimes:
             return 0
         else:
-            return self.exectimes[pipelinestages][0] / 3600
+            return self.exectimes[pipelinestages][0]
+
+    def get_exectime_pipelinestages (self, pmanager, pipelinestages, resourcetype):
+        if resourcetype == 'CPU' and self.cpu != None:
+            encoded_pipelinestages = pmanager.encode_pipeline_stages (pipelinestages)
+            exectime = self.get_exectime(encoded_pipelinestages)
+            if exectime == 0:
+                return None
+            else:
+                return exectime
+        else:
+            return None
+
+        if resourcetype == 'GPU' and self.gpu != None:
+            encoded_pipelinestages = pmanager.encode_pipeline_stages (pipelinestages)
+            exectime = self.get_exectime(encoded_pipelinestages)
+            if exectime == 0:
+                return None
+            else:
+                return exectime
+        else:
+            return None
 
     def get_exectime_current (self, pmanager, resourcetype):
 
@@ -424,9 +496,8 @@ class Resource:
             if self.cpu.workqueue.is_empty () == False:
                 workitem = self.cpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
-                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
-                exectime = self.get_exectime (encoded_workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages)
 
                 if exectime == 0:
                     return None
@@ -440,9 +511,8 @@ class Resource:
             if self.gpu.workqueue.is_empty () == False:
                 workitem = self.gpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
-                encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
 
-                exectime = self.get_exectime (encoded_workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages)
 
                 if exectime == 0:
                     return None
@@ -533,7 +603,6 @@ class ResourceManager:
                 max_exectime = resource.get_max_exectime (pipelinestages)
 
         return max_exectime
-
 
     def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
         seconds = endtime - starttime

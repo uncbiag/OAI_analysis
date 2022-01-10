@@ -183,7 +183,7 @@ class Simulation:
         self.env = simpy.Environment()
         self.r = None
 
-    def setup(self, resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images, output_file):
+    def setup(self, resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images, output_file, batchsize):
 
         self.r = ResourceManager(resourcefile, availablefile)
 
@@ -199,7 +199,7 @@ class Simulation:
 
         self.i = InputManager2(configfile)
 
-        self.p = PipelineManager(pipelinefile, cost)
+        self.p = PipelineManager(pipelinefile, cost, batchsize)
 
         self.p.parse_pipelines()
 
@@ -238,7 +238,7 @@ class Simulation:
         self.scheduler.worker_threads = self.worker_threads
         self.scheduler.outputfile = output_file
         self.scheduler.performancedata = self.performancedata
-        self.env.process(self.scheduler.run(self.r, self.i, self.p))
+        self.env.process(self.scheduler.run(self.r, self.i, self.p, batchsize))
 
         print ('done')
 
@@ -261,18 +261,19 @@ if __name__ == "__main__":
 
     performancefile = "plots/run_55_250_44_77_93_98_99_First_0/complete.txt"
 
+    batchsize = 20
+
     cost = 1000
 
     output_directory = "plots/DFS_staging"
 
     os.makedirs(output_directory, exist_ok=True)
 
-    max_images = [50]
+    max_images = [100]
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
-        sim = Simulation()
-        sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file)
-        sim.run()
-        print (sim.r)
+        sim = Simulation ()
+        sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file, batchsize)
+        sim.run ()
         print ('simulation ', i, 'complete')

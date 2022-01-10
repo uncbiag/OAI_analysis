@@ -31,7 +31,8 @@ class FirstCompleteFirstServe (Policy):
 
         #print (sorted_completion_times)
 
-        self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
+        self.sort_complete_workitems_by_stage_id (resourcetype)
+        #self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
         #self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
         #self.sort_complete_workitems_by_latest_finish_time (resourcetype)
 
@@ -56,7 +57,7 @@ class FirstCompleteFirstServe (Policy):
                     next_workitem = pending_workitem.compose_next_workitem (pmanager, resource_id, resourcetype)
                     if next_workitem != None:
                         resource.add_workitem (next_workitem, resourcetype)
-                        pmanager.add_executor (next_workitem, resource)
+                        pmanager.add_executor (next_workitem, resource, self.env.now)
                         next_workitem.print_data()
                         item_added = True
 
@@ -68,7 +69,7 @@ class FirstCompleteFirstServe (Policy):
                     new_workitem.set_resource_id (resource_id)
                     resource.add_workitem (new_workitem, resourcetype)
                     pmanager.add_workitem_queue(new_workitem, self.env.now)
-                    pmanager.add_executor (new_workitem, resource)
+                    pmanager.add_executor (new_workitem, resource, self.env.now)
                     new_workitem.print_data ()
                     item_added = True
 

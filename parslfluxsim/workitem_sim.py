@@ -7,10 +7,11 @@ from execution_sim import ExecutionSim
 
 
 class WorkItem:
-    def __init__(self, id, data, collectfrom, pipelinestages, resource_id, resourcetype, version, inputlocation):
+    def __init__(self, id, data, collectfrom, pipelinestage, resource_id, resourcetype, version, inputlocation):
         self.id = id
         self.version = version
-        self.pipelinestages = pipelinestages
+        self.pipelinestage = pipelinestage
+        self.phase_index = -1
         self.data = data
         if collectfrom == None:
             self.collectfrom = resource_id
@@ -43,36 +44,33 @@ class WorkItem:
     def get_status(self):
         return self.status
 
-    def get_lastpipelinestage(self):
-        return self.pipelinestages[-1]
-
-    def get_pipelinestages(self):
-        return self.pipelinestages
+    def get_pipelinestages (self):
+        return self.pipelinestage.name
 
     def update_outputlocation(self, location):
         self.outputlocation = location
 
     def compose_next_workitem(self, pmanager, resource_id, resourcetype):
 
-        new_pipelinestages = pmanager.get_pipelinestages(self.pipelinestages[-1], resourcetype)
+        new_pipelinestage = pmanager.get_pipelinestage(self.pipelinestage, resourcetype)
 
-        if new_pipelinestages == None:
+        if new_pipelinestage == None:
             return None
 
         next_workitem = WorkItem(self.id, self.data, self.resourceid, \
-                                 new_pipelinestages, resource_id, resourcetype, \
+                                 new_pipelinestage, resource_id, resourcetype, \
                                  self.version + 1, self.outputlocation)
 
         return next_workitem
 
     def print_data(self):
-        # print ('print_data ()', self.id, self.version, self.resourceid)
+        #print ('print_data ()', self.id, self.version, self.resourceid)
         pass
 
     def submit(self, pmanager, timeout, thread_exec, env):
         self.timeout = double(timeout)
         workitem = {}
-        workitem['pipelinestages'] = pmanager.encode_pipeline_stages(self.pipelinestages)
+        workitem['pipelinestages'] = self.pipelinestage.name
         workitem['version'] = str(self.version)
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
@@ -101,13 +99,13 @@ class WorkItem:
 
         if thread.iscomplete == True:
             str = "probe_status (complete): {} {} {} {} {} success {}".format(self.id, self.version, thread.starttime, thread.endtime, self.resourceid, thread.timeout)
-            print (str)
+            #print (str)
             outputfile.write (str + "\n")
             self.iscomplete = True
             self.starttime = thread.starttime
             self.endtime = thread.endtime
             self.status = 'SUCCESS'
             thread.iscomplete = False
-            return True, self.starttime * 3600, self.endtime * 3600, 'SUCCESS', thread.timeout
+            return True, self.starttime, self.endtime, 'SUCCESS', thread.timeout
 
         return False, None, None, 'INCOMPLETE', 0
