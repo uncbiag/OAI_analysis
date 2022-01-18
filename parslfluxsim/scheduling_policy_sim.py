@@ -73,6 +73,9 @@ class Policy(object):
                 new_workitem = self.newworkitemqueue.pop(0)
         return new_workitem
 
+    def add_back_new_workitem (self, workitem):
+        self.newworkitemqueue.insert(0, workitem)
+
     def get_pending_workitems_count (self, resourcetype):
         #print ('get_pending_workitems_count ():')
         if resourcetype == 'CPU':
@@ -168,12 +171,31 @@ class Policy(object):
            # print (self.cpuqueue)
 
     def sort_complete_workitems_by_stage_id (self, resourcetype):
+        #print ('sort_complete_workitems_by_stage_id ()')
         if resourcetype == 'CPU':
+            #print('CPU')
             self.resubmitcpuqueue = sorted (self.resubmitcpuqueue, key=lambda x:(x.phase_index, x.version))
+            if len (self.gpuqueue) >= 2:
+                for item in self.gpuqueue:
+                    item.print_data ()
+            #print ('$$$$$$$$$$$$$$')
             self.gpuqueue = sorted (self.gpuqueue, key=lambda x:(x.phase_index, x.version))
+            if len (self.gpuqueue) >= 2:
+                for item in self.gpuqueue:
+                    item.print_data ()
+            #print ('##############')
         else:
+            #print('GPU')
             self.resubmitgpuqueue = sorted(self.resubmitgpuqueue, key=lambda x: (x.phase_index, x.version))
+            if len (self.cpuqueue) >= 2:
+                for item in self.cpuqueue:
+                    item.print_data()
+            #print('$$$$$$$$$$$$$$$')
             self.cpuqueue = sorted(self.cpuqueue, key=lambda x: (x.phase_index, x.version))
+            if len (self.cpuqueue) >= 2:
+                for item in self.cpuqueue:
+                    item.print_data()
+            #print('##############')
 
     def sort_complete_workitems_by_earliest_finish_time (self, resourcetype):
         if resourcetype == 'CPU':

@@ -60,11 +60,12 @@ class WorkItem:
         next_workitem = WorkItem(self.id, self.data, self.resourceid, \
                                  new_pipelinestage, resource_id, resourcetype, \
                                  self.version + 1, self.outputlocation)
+        next_workitem.phase_index = self.phase_index
 
         return next_workitem
 
     def print_data(self):
-        #print ('print_data ()', self.id, self.version, self.resourceid)
+        #print ('print_data ()', self.id, self.version, self.phase_index, self.resourceid)
         pass
 
     def submit(self, pmanager, timeout, thread_exec, env):

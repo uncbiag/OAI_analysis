@@ -191,7 +191,7 @@ class Simulation:
 
         self.r.parse_resources()
 
-        self.r.purge_resources()
+        #self.r.purge_resources()
 
         self.performancedata = read_performance_data()
 
@@ -255,7 +255,7 @@ if __name__ == "__main__":
 
     pipelinefile = "parslflux/pipeline.yml"
 
-    resourcefile = "parslflux/resources.yml"
+    resourcefile = "parslflux/resources2.yml"
 
     availablefile = "parslflux/available.yml"
 
@@ -269,7 +269,7 @@ if __name__ == "__main__":
 
     os.makedirs(output_directory, exist_ok=True)
 
-    max_images = [100]
+    max_images = [40]
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")

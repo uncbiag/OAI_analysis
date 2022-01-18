@@ -35,13 +35,19 @@ class CPU:
     def clear_completion_time (self):
         self.last_completion_time = None
 
-    def add_idle_period (self, now):
-        self.idle_periods.append ([self.last_completion_time, now])
+    def set_idle_start_time (self, time):
+        self.idle_start_time = time
 
-    def report_idle_periods(self, sincetime):
+    def add_idle_period (self, now):
+        if self.idle_start_time != None:
+            self.idle_periods.append ([self.idle_start_time, now])
+        #self.idle_periods.append ([self.last_completion_time, now])
+
+    def report_idle_periods(self, starttime, endtime):
         ret = []
         for idle_period in self.idle_periods:
-            if idle_period[1] > sincetime:
+            if (idle_period[0] <= starttime and idle_period[1] > starttime) or \
+                (idle_period[0] >= starttime and idle_period[0] <= endtime):
                 ret.append(idle_period)
 
         return ret
@@ -77,16 +83,22 @@ class GPU:
     def clear_completion_time (self):
         self.last_completion_time = None
 
-    def add_idle_period (self, now):
-        self.idle_periods.append ([self.last_completion_time, now])
+    def set_idle_start_time (self, time):
+        self.idle_start_time = time
 
-    def report_idle_periods (self, sincetime):
+    def add_idle_period (self, now):
+        if self.idle_start_time != None:
+            self.idle_periods.append ([self.idle_start_time, now])
+        #self.idle_periods.append ([self.last_completion_time, now])
+
+    def report_idle_periods(self, starttime, endtime):
         ret = []
         for idle_period in self.idle_periods:
-            if idle_period[1] > sincetime:
-                ret.append (idle_period)
+            if (idle_period[0] <= starttime and idle_period[1] > starttime) or \
+                (idle_period[0] >= starttime and idle_period[0] <= endtime):
+                ret.append(idle_period)
 
-        return  ret
+        return ret
 
 class Resource:
 
@@ -108,6 +120,12 @@ class Resource:
 
     def add_gpu (self, gpu):
         self.gpu = GPU (gpu)
+
+    def remove_cpu (self):
+        self.cpu = None
+
+    def remove_gpu (self):
+        self.gpu = None
 
     def is_idle (self):
         cpu_free = False
@@ -139,12 +157,16 @@ class Resource:
     def is_empty (self):
         cpu_empty = False
 
-        if self.cpu.workqueue.is_empty () == True:
+        if self.cpu == None:
+            cpu_empty = False
+        elif self.cpu.workqueue.is_empty() == True:
             cpu_empty = True
 
         gpu_empty = False
 
-        if self.gpu.workqueue.is_empty () == True:
+        if self.gpu == None:
+            gpu_empty = False
+        elif self.gpu.workqueue.is_empty() == True:
             gpu_empty = True
 
         #print ('is_empty ():', self.id, cpu_empty, gpu_empty)
@@ -158,23 +180,30 @@ class Resource:
         if self.gpu != None:
             self.gpu.clear_completion_time ()
 
-    def add_idle_period (self, resourcetype, now):
+    def set_idle_start_time (self, resourcetype, now):
         if resourcetype == 'CPU' and self.cpu != None:
-            if self.cpu.get_last_completion_time () != None:
-                self.cpu.add_idle_period (now)
+            self.cpu.set_idle_start_time (now)
 
         if resourcetype == 'GPU' and self.gpu != None:
-            if self.gpu.get_last_completion_time () != None:
-                self.gpu.add_idle_period (now)
+            self.gpu.set_idle_start_time (now)
 
-    def report_idle_periods (self, sincetime):
+    def add_idle_period (self, resourcetype, now):
+        if resourcetype == 'CPU' and self.cpu != None:
+            #if self.cpu.get_last_completion_time () != None:
+            self.cpu.add_idle_period (now)
+
+        if resourcetype == 'GPU' and self.gpu != None:
+            #if self.gpu.get_last_completion_time () != None:
+            self.gpu.add_idle_period (now)
+
+    def report_idle_periods (self, starttime, endtime):
         cpu_idle_periods = None
         if self.cpu != None:
-            cpu_idle_periods = self.cpu.report_idle_periods (sincetime)
+            cpu_idle_periods = self.cpu.report_idle_periods (starttime, endtime)
 
         gpu_idle_periods = None
         if self.gpu != None:
-            gpu_idle_periods = self.gpu.report_idle_periods(sincetime)
+            gpu_idle_periods = self.gpu.report_idle_periods(starttime, endtime)
 
         return cpu_idle_periods, gpu_idle_periods
 
@@ -267,6 +296,7 @@ class Resource:
                     #print ('cpu workitem complete')
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
+                    self.cpu.set_idle_start_time (end_time)
                     self.add_count (workitem.get_pipelinestages ())
                     rmanager.add_exectime (self.cpu.name, workitem.get_pipelinestages (), start_time, end_time)
                     self.add_exectime(workitem.get_pipelinestages(), start_time,
@@ -291,6 +321,7 @@ class Resource:
                     #print ('gpu workitem complete')
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
+                    self.gpu.set_idle_start_time(end_time)
                     self.add_count (workitem.get_pipelinestages ())
                     rmanager.add_exectime (self.gpu.name, workitem.get_pipelinestages (), start_time, end_time)
                     self.add_exectime(workitem.get_pipelinestages (), start_time,
@@ -491,7 +522,7 @@ class Resource:
         else:
             return self.transfertimes[pipelinestages][0]
 
-    def get_work_left (self, pmanager, resourcetype, current_time):
+    def get_work_left (self, resourcetype, current_time):
         if resourcetype == 'CPU' and self.cpu != None:
             if self.cpu.workqueue.is_empty () == False:
                 workitem = self.cpu.workqueue.get_workitem ()
@@ -536,6 +567,10 @@ class ResourceManager:
         self.exectimes = {}
         self.max_exectimes = {}
         self.new_resource_id = 150
+        self.cpunodes = []
+        self.gpunodes = []
+        self.cpuid_counter = 0
+        self.gpuid_counter = 0
 
     def get_new_resource (self):
         resource = Resource (self.new_resource_id_start)
@@ -546,6 +581,35 @@ class ResourceManager:
         self.nodes.append (new_resource)
 
     def parse_resources (self):
+        yaml_resourcefile = open (self.resourcefile)
+        resources = yaml.load (yaml_resourcefile, Loader=yaml.FullLoader)
+
+        for cputype in resources['available']['CPU']:
+            print (cputype)
+            count = cputype['count']
+            for i in range (0, count):
+                new_resource = Resource ('c' + str(self.cpuid_counter))
+                new_resource.add_cpu(cputype['id'])
+                self.nodesdict[new_resource.id] = new_resource
+                self.cpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
+                self.cpuid_counter += 1
+
+        for gputype in resources['available']['GPU']:
+            count = gputype['count']
+            for i in range (0, count):
+                new_resource = Resource ('g' + str(self.gpuid_counter))
+                new_resource.add_gpu(gputype['id'])
+                self.nodesdict[new_resource.id] = new_resource
+                self.gpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
+                self.gpuid_counter += 1
+
+        self.availablenodesdict = self.nodesdict
+
+        self.nodes = copy.deepcopy(list(self.availablenodesdict.values()))
+
+        print (self.nodes)
+
+    def parse_resources_old (self):
         yaml_resourcefile = open (self.resourcefile)
         resources = yaml.load (yaml_resourcefile, Loader = yaml.FullLoader)
 
@@ -579,6 +643,15 @@ class ResourceManager:
                 resources[str(nodeid)] = copy.deepcopy (self.nodesdict[str(nodeid)])
                 resources[str(nodeid)].output_location = node['output_location']
 
+                if node['cpu'] == 0:
+                    resources[str(nodeid)].remove_cpu ()
+                else:
+                    self.cpunodes.append (copy.deepcopy (resources[str(nodeid)]))
+                if node['gpu'] == 0:
+                    resources[str(nodeid)].remove_gpu ()
+                else:
+                    self.gpunodes.append (copy.deepcopy (resources[str(nodeid)]))
+
         if len (availableresources['reserved']) > 0:
             for i in availableresources['reserved']:
                 reservedresources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
@@ -603,6 +676,12 @@ class ResourceManager:
                 max_exectime = resource.get_max_exectime (pipelinestages)
 
         return max_exectime
+
+    def get_cpu_resources_count (self):
+        return len (self.cpunodes)
+
+    def get_gpu_resources_count (self):
+        return len (self.gpunodes)
 
     def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
         seconds = endtime - starttime

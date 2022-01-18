@@ -74,16 +74,18 @@ class OAI_Scheduler:
         resources = rmanager.get_resources ()
 
         for resource in resources:
-            cpu_idle_periods, gpu_idle_periods = resource.report_idle_periods (since_time)
+            cpu_idle_periods, gpu_idle_periods = resource.report_idle_periods (since_time, current_time)
 
-            print (cpu_idle_periods)
-            print (gpu_idle_periods)
+            if cpu_idle_periods != None:
+                print ('CPU', cpu_idle_periods)
+            if gpu_idle_periods != None:
+                print ('GPU', gpu_idle_periods)
 
             if cpu_idle_periods != None:
                 total_idle_period = 0
                 for period in cpu_idle_periods:
                     total_idle_period += period[1] - period[0]
-                print (resource.id, 'CPU', current_time - since_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
+                print (resource.id, 'CPU', since_time, current_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
 
             if gpu_idle_periods != None:
                 total_idle_period = 0
@@ -103,6 +105,26 @@ class OAI_Scheduler:
 
         for resource in resources:
             resource.clear_completion_times ()
+
+    def set_init_idle_start_times (self, rmanager, now):
+        resources = rmanager.get_resources ()
+
+        for resource in resources:
+            resource.set_idle_start_time ('CPU', now)
+            resource.set_idle_start_time ('GPU', now)
+
+    def set_idle_start_times (self, rmanager, now):
+        resources = rmanager.get_resources ()
+
+        for resource in resources:
+            cpu_idle, gpu_idle = resource.is_idle ()
+            if cpu_idle == True and resource.cpu.idle_start_time < now:
+                resource.cpu.add_idle_period (now)
+                resource.cpu.set_idle_start_time (now)
+
+            if gpu_idle == True and resource.gpu.idle_start_time < now:
+                resource.gpu.add_idle_period (now)
+                resource.gpu.set_idle_start_time (now)
 
     def run1 (self, rmanager, imanager, pmanager, batchsize):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')
@@ -335,6 +357,10 @@ class OAI_Scheduler:
             if new_workitem == None:
                 break
 
+        last_phase_closed_time = self.env.now
+
+        self.set_init_idle_start_times (rmanager, self.env.now)
+
         try:
             while True:
                 for resource in resources:
@@ -370,7 +396,7 @@ class OAI_Scheduler:
                    # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
 
                 # close the completed phases
-                last_phase_closed_index = pmanager.close_phases_fixed(rmanager, self.env.now)
+                last_phase_closed_index = pmanager.close_phases_fixed(rmanager, self.env.now, False)
 
                 idle_cpus = []
                 idle_gpus = []
@@ -399,6 +425,9 @@ class OAI_Scheduler:
                 #predict the execution pattern
                 #pmanager.predict_execution(rmanager, pmanager, self.env.now)
                 if last_phase_closed_index != None:
+                    self.set_idle_start_times (rmanager, self.env.now)
+                    self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
+                    last_phase_closed_time = self.env.now
                     pmanager.predict_execution_fixed (rmanager, pmanager, self.env.now, batchsize, last_phase_closed_index)
 
                 idle_cpus = []
@@ -411,7 +440,13 @@ class OAI_Scheduler:
                     if gpu_idle == True:
                         idle_gpus.append(resource)
 
-                if len(idle_cpus) == len(resources) and len(idle_gpus) == len(resources):
+                #print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
+                if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
+                        idle_gpus) == rmanager.get_gpu_resources_count():
+                    last_phase_closed_index = pmanager.close_phases_fixed(rmanager, self.env.now, True)
+                    self.set_idle_start_times(rmanager, self.env.now)
+                    if self.env.now > last_phase_closed_time:
+                        self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
                     print('all tasks complete')
                     pmanager.print_stage_queue_data()
                     break
