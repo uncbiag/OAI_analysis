@@ -76,10 +76,12 @@ class OAI_Scheduler:
         for resource in resources:
             cpu_idle_periods, gpu_idle_periods = resource.report_idle_periods (since_time, current_time)
 
+            '''
             if cpu_idle_periods != None:
                 print ('CPU', cpu_idle_periods)
             if gpu_idle_periods != None:
                 print ('GPU', gpu_idle_periods)
+            '''
 
             if cpu_idle_periods != None:
                 total_idle_period = 0
@@ -91,7 +93,7 @@ class OAI_Scheduler:
                 total_idle_period = 0
                 for period in gpu_idle_periods:
                     total_idle_period += period[1] - period[0]
-                print (resource.id, 'GPU', current_time - since_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
+                print (resource.id, 'GPU', since_time, current_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
 
     def add_idle_periods (self, rmanager, now):
         resources = rmanager.get_resources ()
@@ -428,7 +430,7 @@ class OAI_Scheduler:
                     self.set_idle_start_times (rmanager, self.env.now)
                     self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
                     last_phase_closed_time = self.env.now
-                    pmanager.predict_execution_fixed (rmanager, pmanager, self.env.now, batchsize, last_phase_closed_index)
+                    pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index)
 
                 idle_cpus = []
                 idle_gpus = []

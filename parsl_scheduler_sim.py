@@ -269,7 +269,7 @@ if __name__ == "__main__":
 
     os.makedirs(output_directory, exist_ok=True)
 
-    max_images = [40]
+    max_images = [200]
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")

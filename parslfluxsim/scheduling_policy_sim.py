@@ -138,7 +138,7 @@ class Policy(object):
             if cpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to cpuqueue')
                 self.cpuqueue.append (cpu_workitem)
-                pmanager.remove_executor(cpu_workitem, resource)
+                pmanager.remove_executor(cpu_workitem, resource, env.now)
                 pmanager.add_workitem_queue (cpu_workitem, env.now)
             else:
                 #print ('adding to resubmitcpuqueue')
@@ -151,7 +151,7 @@ class Policy(object):
             if gpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to gpuqueue')
                 self.gpuqueue.append (gpu_workitem)
-                pmanager.remove_executor(gpu_workitem, resource)
+                pmanager.remove_executor(gpu_workitem, resource, env.now)
                 pmanager.add_workitem_queue(gpu_workitem, env.now)
             else:
                 #print ('adding to resubmitgpuqueue')
