@@ -59,7 +59,10 @@ if __name__ == "__main__":
         exit_queue[exit_queue_index] -= 1
         if int(image[1]) < len(queues) - 1:
             entry_queue[entry_queue_index] += 1
-            print(image, entry_queue_index, exit_queue_index)
+            print(image, str(int(image[1])), exit_queue_index, str(int(image[1]) + 1), entry_queue_index)
+
+    for queue in queues:
+        print (queue)
 
     data_points = []
     queue_index = 0
@@ -75,14 +78,17 @@ if __name__ == "__main__":
         queue_index += 1
         data_points.append(new_data_points)
 
+    labels = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']
+
+    #data_points = [data_points[0]]
+    #labels = [labels[0]]
+
     for data_point in data_points:
         print(data_point)
 
     fig, axes = plt.subplots(5, 1, sharex=True)
 
-    print (fig, axes)
-
-    labels = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']
+    #print (fig, axes)
 
     index = 0
     for data_point in data_points:
@@ -108,5 +114,5 @@ if __name__ == "__main__":
 
     #plt.xlabel('Timeline (seconds)')
 
-    #plt.show()
-    plt.savefig('queued_sim200_equal_input.png', dpi=400)
+    plt.show()
+    #plt.savefig('queued_sim200_equal_input.png', dpi=400)

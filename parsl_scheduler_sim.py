@@ -183,7 +183,8 @@ class Simulation:
         self.env = simpy.Environment()
         self.r = None
 
-    def setup(self, resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images, output_file, batchsize):
+    def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
+              performancefile, max_images, output_file, batchsize, no_of_prediction_phases):
 
         self.r = ResourceManager(resourcefile, availablefile)
 
@@ -199,7 +200,7 @@ class Simulation:
 
         self.i = InputManager2(configfile)
 
-        self.p = PipelineManager(pipelinefile, cost, batchsize)
+        self.p = PipelineManager(pipelinefile, cost, batchsize, no_of_prediction_phases)
 
         self.p.parse_pipelines()
 
@@ -267,6 +268,8 @@ if __name__ == "__main__":
 
     output_directory = "plots/DFS_staging"
 
+    no_of_prediction_phases = 3
+
     os.makedirs(output_directory, exist_ok=True)
 
     max_images = [200]
@@ -274,6 +277,6 @@ if __name__ == "__main__":
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
         sim = Simulation ()
-        sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file, batchsize)
+        sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')

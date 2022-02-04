@@ -37,7 +37,7 @@ class FirstCompleteFirstServe (Policy):
 
             new_workitem = self.get_new_workitem(resourcetype)
 
-            if new_workitem != None:
+            if new_workitem != None:#make sure we process the stage 0's items first since they are not in the pending queue
                 index = pmanager.check_new_workitem_index (new_workitem)
                 pending_workitems = self.get_pending_workitems (resourcetype)
                 if len (pending_workitems) > 0 and index <= pending_workitems[0].phase_index:
