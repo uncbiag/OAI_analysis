@@ -554,7 +554,7 @@ class Resource:
 
                 return work_remaining
 
-            return None
+        return None
 
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
