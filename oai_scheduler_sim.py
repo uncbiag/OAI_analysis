@@ -9,7 +9,6 @@ import simpy
 class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
-        self.max_first_stage_size = 30
 
     def add_worker (self, rmanager, resource, cpuok, gpuok, cputype, gputype):
         new_resource = rmanager.get_new_resource ()
@@ -398,7 +397,7 @@ class OAI_Scheduler:
                    # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
 
                 # close the completed phases
-                last_phase_closed_index = pmanager.close_phases_fixed(rmanager, self.env.now, False)
+                last_phase_closed_index = pmanager.close_phases_fixed(rmanager, False)
 
                 idle_cpus = []
                 idle_gpus = []
@@ -430,7 +429,7 @@ class OAI_Scheduler:
                     self.set_idle_start_times (rmanager, self.env.now)
                     self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
                     last_phase_closed_time = self.env.now
-                    pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index)
+                    pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index, self.no_of_prediction_phases)
 
                 idle_cpus = []
                 idle_gpus = []
@@ -445,7 +444,7 @@ class OAI_Scheduler:
                 #print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
                 if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
                         idle_gpus) == rmanager.get_gpu_resources_count():
-                    last_phase_closed_index = pmanager.close_phases_fixed(rmanager, self.env.now, True)
+                    last_phase_closed_index = pmanager.close_phases_fixed(rmanager, True)
                     self.set_idle_start_times(rmanager, self.env.now)
                     if self.env.now > last_phase_closed_time:
                         self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)

@@ -84,7 +84,7 @@ class Phase:
         self.ptotal_count = self.total_count
         self.add_timestamps[workitem.id + ':' + str (currenttime)] = self.current_count
         self.workitems.append(workitem.id)
-        #print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count)
+        #print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
 
     def remove_workitem (self, currenttime, workitem):
         self.current_count -= 1
@@ -96,7 +96,7 @@ class Phase:
         if self.total_complete == 1:
             self.first_workitem_completion_time = currenttime
             self.pfirst_workitem_completion_time = currenttime
-        #print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count)
+        #print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
 
     def close_phase (self):
         self.active = False
@@ -172,7 +172,7 @@ class Phase:
 
 
 class PipelineStage:
-    def __init__ (self, stageindex, names, resourcetype, no_of_prediction_phases):
+    def __init__ (self, stageindex, names, resourcetype):
         index = 0
         self.name = names[index]
         index += 1
@@ -182,7 +182,6 @@ class PipelineStage:
         self.index = stageindex
         self.resourcetype = resourcetype
         self.phases = []
-        self.no_of_prediction_phases = no_of_prediction_phases
 
     def create_phase (self):
         print(self.name, 'create phase')
@@ -236,11 +235,11 @@ class PipelineStage:
 
         #print(self.name, 'add workitem index', workitem.id, len(self.phases) - 1, phase.current_count)
 
-    def add_new_workitem (self, workitem, current_time):
-        latest_phase = self.phases[-(self.no_of_prediction_phases + 1)]
+    def add_new_workitem (self, workitem, current_time, last_first_phase_closed_index):
+        latest_phase = self.phases[last_first_phase_closed_index + 1]
 
         latest_phase.add_workitem(workitem, current_time)
-        workitem.phase_index = len (self.phases) - (self.no_of_prediction_phases + 1)
+        workitem.phase_index = last_first_phase_closed_index + 1
         #print (self.name, 'add new workitem', workitem.id, workitem.phase_index, latest_phase.current_count)
 
     def add_executor (self, workitem, resource, now):
@@ -575,12 +574,14 @@ class PipelineStage:
             self.phases[index].print_data ()
 
 class PipelineManager:
-    def __init__ (self, pipelinefile, budget, batchsize, no_of_prediction_phases):
+    def __init__ (self, pipelinefile, budget, batchsize, max_images):
         self.pipelinefile = pipelinefile
         self.pipelinestages = []
         self.batchsize = batchsize
         self.budget = budget
-        self.no_of_prediction_phases = no_of_prediction_phases
+        self.last_last_phase_closed_index = -1
+        self.last_first_phase_closed_index = -1
+        self.no_of_columns = int(math.ceil(max_images / batchsize))
 
     def parse_pipelines (self):
         pipelinedatafile = open (self.pipelinefile)
@@ -605,13 +606,13 @@ class PipelineManager:
             if current_resourcetype == pipelinestage_resourcetypes[index]:
                 current_names.append(pipelinestage_names[index])
             else:
-                self.pipelinestages.append (PipelineStage(current_index, current_names, current_resourcetype, self.no_of_prediction_phases))
+                self.pipelinestages.append (PipelineStage(current_index, current_names, current_resourcetype))
                 current_index = index
                 current_names.clear()
                 current_resourcetype = pipelinestage_resourcetypes[index]
                 current_names.append(pipelinestage_names[index])
             index += 1
-        self.pipelinestages.append(PipelineStage(current_index, current_names, current_resourcetype, self.no_of_prediction_phases))
+        self.pipelinestages.append(PipelineStage(current_index, current_names, current_resourcetype))
 
     def get_idle_periods(self, end_times, finish_time):
         idle_periods = {}
@@ -631,7 +632,7 @@ class PipelineManager:
             for current_index in range(start_index, len (pipelinestage.phases)):
                 pipelinestage.phases[current_index].prediction_reset ()
 
-    def predict_execution_fixed (self, rmanager, current_time, batchsize, last_phase_index_closed):
+    def predict_execution_fixed (self, rmanager, current_time, batchsize, last_phase_index_closed, no_of_prediction_phases):
         index = last_phase_index_closed + 1
 
         total_cpu_idle_periods = {}
@@ -641,7 +642,7 @@ class PipelineManager:
 
         self.prediction_reset (index)
 
-        while index < last_phase_index_closed + (self.no_of_prediction_phases + 1):
+        while index < last_phase_index_closed + (no_of_prediction_phases + 1) and index < self.no_of_columns:
 
             cpu_idle_periods = []
             gpu_idle_periods = []
@@ -935,7 +936,7 @@ class PipelineManager:
             print('cpu idle periods before precompute ()', index, cpu_idle_periods)
             print('gpu idle periods before precompute ()', index, gpu_idle_periods)
 
-            self.pre_compute_prediction(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index, last_phase_index_closed + self.no_of_prediction_phases)
+            self.pre_compute_prediction(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index)
 
             print(index - 1, '***************************************************************')
 
@@ -944,7 +945,7 @@ class PipelineManager:
             #new_cpu_idle_periods, new_gpu_idle_periods, early_outputs_dict, work_done_dict = \
             #    self.calculate_early_computation(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index, phase.pendtime)
 
-    def pre_compute_prediction (self, rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, phase_index, target_phase_index):
+    def pre_compute_prediction (self, rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, phase_index):
 
         current_phase_index = phase_index
         new_cpu_idle_periods = cpu_idle_periods
@@ -957,7 +958,7 @@ class PipelineManager:
         #print('print_prediction_data ()', self.pcurrent_executors)
 
         #sorted_cpu_idle_periods, sorted_gpu_idle_periods, starttimes_dict, output_times_dict, p_output_times_dict, work_done_dict, fractional_work_dict
-        while current_phase_index <= target_phase_index:
+        while current_phase_index < self.no_of_columns:
             if phase_index == current_phase_index:
                 fractional_work_allowed = True
             else:
@@ -1155,13 +1156,13 @@ class PipelineManager:
         return sorted_cpu_idle_periods, sorted_gpu_idle_periods, starttimes_dict, work_done_dict, fractional_work_dict
 
 
-    def close_phases_fixed (self, rmanager, nowtime, anyway):
+    def close_phases_fixed (self, rmanager, anyway):
         cpu_resources = rmanager.get_resources_type('CPU')
         gpu_resources = rmanager.get_resources_type('GPU')
 
-        index = 0
+        index = self.last_last_phase_closed_index + 1
 
-        length = len(self.pipelinestages[0].phases) - 1
+        length = len(self.pipelinestages[0].phases)
 
         # print ('close phases size', init_length)
         latest_last_phase_closed = None
@@ -1181,6 +1182,9 @@ class PipelineManager:
                     phase.close_phase()
                     if current_index_pipelinestage_index == len (self.pipelinestages) - 1:
                         latest_last_phase_closed = index
+                        self.last_last_phase_closed_index = index
+                    elif current_index_pipelinestage_index == 0:
+                        self.last_first_phase_closed_index = index
                 current_index_pipelinestage_index += 1
 
             index += 1
@@ -1311,7 +1315,7 @@ class PipelineManager:
                 print ('add_workitem_queue', 'oops', pipelinestage_add.index)
             pipelinestage_add.add_new_workitem (workitem, current_time)
 
-    def add_workitem_queue (self, workitem, current_time):
+    def add_workitem_queue (self, workitem, current_time, new_workitem_index = -1):
         pipelinestage_remove = None
         pipelinestage_add = None
 
@@ -1329,7 +1333,7 @@ class PipelineManager:
 
             if pipelinestage_remove != None:
                 remove_phase, remove_phase_index = pipelinestage_remove.get_phase (workitem)
-                #print ('add_workitem_queue1', remove_phase, remove_phase_index)
+                #print ('add_workitem_queue1', remove_phase.pipelinestage, remove_phase_index)
                 if remove_phase != None:
                     remove_phase.remove_workitem (current_time, workitem)
 
@@ -1340,36 +1344,25 @@ class PipelineManager:
         else:
             pipelinestage_add = self.pipelinestages[int(workitem.version)]
             if pipelinestage_add.index == 0:
-                if len (pipelinestage_add.phases) == 0:
-                    print ('build phases', self.no_of_prediction_phases + 1)
-                    self.build_phases(self.no_of_prediction_phases + 1)
+                if new_workitem_index == -1:
+                    pipelinestage_add.add_new_workitem(workitem, current_time, self.last_first_phase_closed_index)
                 else:
-                    if (pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].active == False \
-                        and pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].complete == True) or\
-                        (pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].total_count == self.batchsize):
-                        print('build phases', 1)
-                        self.build_phases(1)
+                    pipelinestage_add.add_new_workitem(workitem, current_time, new_workitem_index - 1)
             else:
                 print ('add_workitem_queue', 'oops', pipelinestage_add.index)
-            pipelinestage_add.add_new_workitem (workitem, current_time)
 
-    def check_new_workitem_index (self, workitem):
-        pipelinestage_add = self.pipelinestages[int(workitem.version)]
 
-        if len(pipelinestage_add.phases) == 0:
-            index = 0
-        else:
-            if (pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].active == False \
-                and pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].complete == True) or \
-                    (pipelinestage_add.phases[-(self.no_of_prediction_phases + 1)].total_count == self.batchsize):
-                index = len (pipelinestage_add.phases) - self.no_of_prediction_phases
-            else:
-                index = len (pipelinestage_add.phases) - (self.no_of_prediction_phases + 1)
+    def check_new_workitem_index (self):
+        first_pipelinestage = self.pipelinestages[0]
 
-        return index
+        #print ('check_new_workitem_index ()', self.last_first_phase_closed_index, first_pipelinestage.phases[self.last_first_phase_closed_index + 1].total_count)
+        if first_pipelinestage.phases[self.last_first_phase_closed_index + 1].total_count == self.batchsize:
+            return self.last_first_phase_closed_index + 2
 
-    def build_phases (self, count):
-        for i in range(0, count):
+        return self.last_first_phase_closed_index + 1
+
+    def build_phases (self):
+        for i in range(0, self.no_of_columns):
             index = 0
             prev_resourcetype = None
             while True:
@@ -1383,7 +1376,7 @@ class PipelineManager:
                 index += 1
 
     def print_stage_queue_data (self):
-        for index in range (0, len(self.pipelinestages[0].phases) - 1):
+        for index in range (0, len(self.pipelinestages[0].phases)):
             for pipelinestage in self.pipelinestages:
                 pipelinestage.print_data (index)
             print ("####################")

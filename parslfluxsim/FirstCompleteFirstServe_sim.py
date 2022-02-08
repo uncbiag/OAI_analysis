@@ -38,7 +38,7 @@ class FirstCompleteFirstServe (Policy):
             new_workitem = self.get_new_workitem(resourcetype)
 
             if new_workitem != None:#make sure we process the stage 0's items first since they are not in the pending queue
-                index = pmanager.check_new_workitem_index (new_workitem)
+                index = pmanager.check_new_workitem_index ()
                 pending_workitems = self.get_pending_workitems (resourcetype)
                 if len (pending_workitems) > 0 and index <= pending_workitems[0].phase_index:
                     new_workitem.set_resource_id(resource_id)
@@ -46,6 +46,12 @@ class FirstCompleteFirstServe (Policy):
                     pmanager.add_workitem_queue(new_workitem, self.env.now)
                     pmanager.add_executor(new_workitem, resource, self.env.now)
                     # new_workitem.print_data ()
+                    item_added = True
+                elif len (pending_workitems) <= 0:
+                    new_workitem.set_resource_id(resource_id)
+                    resource.add_workitem(new_workitem, resourcetype)
+                    pmanager.add_workitem_queue(new_workitem, self.env.now, index)
+                    pmanager.add_executor(new_workitem, resource, self.env.now)
                     item_added = True
                 else:
                     self.add_back_new_workitem (new_workitem)
@@ -62,6 +68,7 @@ class FirstCompleteFirstServe (Policy):
                         # next_workitem.print_data()
                         item_added = True
 
+            '''
             if item_added == False:
                 #new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
                 new_workitem = self.get_new_workitem(resourcetype)
@@ -73,7 +80,7 @@ class FirstCompleteFirstServe (Policy):
                     pmanager.add_executor (new_workitem, resource, self.env.now)
                     #new_workitem.print_data ()
                     item_added = True
-
+            '''
             if item_added == False:
                 #print ('add_workitems ()', resource_id, 'workitems not available')
                 break

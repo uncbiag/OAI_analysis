@@ -184,7 +184,7 @@ class Simulation:
         self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
-              performancefile, max_images, output_file, batchsize, no_of_prediction_phases):
+              max_images, output_file, batchsize, no_of_prediction_phases):
 
         self.r = ResourceManager(resourcefile, availablefile)
 
@@ -200,9 +200,11 @@ class Simulation:
 
         self.i = InputManager2(configfile)
 
-        self.p = PipelineManager(pipelinefile, cost, batchsize, no_of_prediction_phases)
+        self.p = PipelineManager(pipelinefile, cost, batchsize, max_images)
 
         self.p.parse_pipelines()
+
+        self.p.build_phases()
 
         self.scheduler = OAI_Scheduler(self.env)
 
@@ -239,6 +241,7 @@ class Simulation:
         self.scheduler.worker_threads = self.worker_threads
         self.scheduler.outputfile = output_file
         self.scheduler.performancedata = self.performancedata
+        self.scheduler.no_of_prediction_phases = no_of_prediction_phases
         self.env.process(self.scheduler.run(self.r, self.i, self.p, batchsize))
 
         print ('done')
@@ -260,8 +263,6 @@ if __name__ == "__main__":
 
     availablefile = "parslflux/available.yml"
 
-    performancefile = "plots/run_55_250_44_77_93_98_99_First_0/complete.txt"
-
     batchsize = 20
 
     cost = 1000
@@ -277,6 +278,6 @@ if __name__ == "__main__":
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
         sim = Simulation ()
-        sim.setup(resourcefile, pipelinefile, configfile, availablefile, performancefile, max_images[i], output_file, batchsize, no_of_prediction_phases)
+        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
