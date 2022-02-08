@@ -24,6 +24,8 @@ class Phase:
         self.remove_timestamps = {}
         self.end_times_dict = {}
         self.current_executors = []
+        self.outputs = []
+        self.persistent_outputs = []
         self.workitems = []
         self.pstarttime = -1
         self.pendtime = -1
@@ -35,8 +37,8 @@ class Phase:
         self.pfirst_resource_release_time = -1
         self.pfirst_workitem_completion_time = -1
         self.predictions = []
-        self.outputs = []
         self.p_outputs = []
+        self.persistent_p_outputs = []
 
     def prediction_reset (self):
         #print ('prediction_reset ()', self.pipelinestage, self.index)
@@ -47,12 +49,10 @@ class Phase:
         self.ptotal_count = self.total_count
         self.pfirst_resource_release_time = self.first_resource_release_time
         self.pfirst_workitem_completion_time = self.first_workitem_completion_time
-        self.outputs = []
-        self.p_outputs = []
-        self.pcurrent_executors = []
+        self.p_outputs = self.outputs.copy()
+        self.persistent_p_outputs = self.persistent_outputs.copy()
+        self.pcurrent_executors = self.current_executors.copy()
         self.pqueued = {}
-        for current_executor in self.current_executors:
-            self.pcurrent_executors.append(current_executor)
 
     def get_completed_count (self):
         return self.total_count - self.current_count
@@ -209,16 +209,7 @@ class PipelineStage:
         return index
 
     def get_phase (self, workitem):
-        index = 0
-        for phase in self.phases:
-            #print (phase.workitems)
-            if phase.active == False:
-                index += 1
-                continue
-            if workitem.id in phase.workitems:
-                return phase, index
-            index += 1
-        return None, None
+        return self.phases[workitem.phase_index], workitem.phase_index
 
     def get_phase_index (self, index):
         #print('get_phase_index', len(self.phases), index)
@@ -257,6 +248,18 @@ class PipelineStage:
             return
         current_phase.remove_executor (resource, now)
         #print(self.name, 'remove executor', workitem.id, len(self.phases) - 1, index)
+
+    def add_output (self, workitem):
+        phase, index = self.get_phase(workitem)
+        phase.outputs.append(workitem.endtime)
+        phase.persistent_outputs.append (workitem.endtime)
+        phase.p_outputs.append(workitem.endtime)
+        phase.persistent_p_outputs.append(workitem.endtime)
+
+    def remove_output (self, workitem):
+        phase, index = self.get_phase(workitem)
+        phase.outputs.pop (0)
+        phase.p_outputs.pop (0)
 
     def get_resource_service_rate (self, rmanager):
         pipelinestage_resources = rmanager.get_resources_type(self.resourcetype)
@@ -309,14 +312,14 @@ class PipelineStage:
 
         total_queued_work = 0
 
-        #print ('get_time_required_2 ()', phase.pcurrent_executors)
-        #print ('get_time_required_2 ()', phase.pqueued)
+        print ('get_time_required_2 ()', phase.pcurrent_executors)
+        print ('get_time_required_2 ()', phase.pqueued)
 
         for resource_id in phase.pcurrent_executors:
             resource = rmanager.get_resource (resource_id)
             queued_work = resource.get_work_left(self.resourcetype, current_time)
-            #print (resource_id, queued_work)
-            if queued_work == 0 or queued_work == None:
+            print (resource_id, queued_work)
+            if (queued_work == None or queued_work == 0) and resource_id in phase.pqueued.keys ():
                 queued_work = 1 - phase.pqueued[resource_id][0]
 
             exectime = resource.get_exectime(self.name)
@@ -328,7 +331,7 @@ class PipelineStage:
         resource_index = 0
         while resource_index < len (pipelinestage_resources):
             resource = pipelinestage_resources[resource_index]
-            if resource.id in phase.pcurrent_executors:
+            if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
                 resource_index += 1
                 continue
 
@@ -345,8 +348,8 @@ class PipelineStage:
 
             resource_index += 1
 
-        #print ('get_time_required_2 ()', resource_data)
-        #print ('get_time_required_2 ()', times_taken)
+        print ('get_time_required_2 ()', resource_data)
+        print ('get_time_required_2 ()', times_taken)
 
         while True:
             sorted_resource_items = sorted(resource_data.items(), key=lambda kv: kv[1][1])
@@ -356,8 +359,8 @@ class PipelineStage:
                     break
             if time_taken <= 0.0:
                 break
-            #print (target, total_queued_work, time_taken, sorted_resource_items)
-            #print (times_taken)
+            print (target, total_queued_work, time_taken, sorted_resource_items)
+            print (times_taken)
 
             for resource_key in resource_data.keys ():
                 resource = resource_data[resource_key]
@@ -945,6 +948,8 @@ class PipelineManager:
             #new_cpu_idle_periods, new_gpu_idle_periods, early_outputs_dict, work_done_dict = \
             #    self.calculate_early_computation(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index, phase.pendtime)
 
+        self.prediction_reset(last_phase_index_closed + 1)
+
     def pre_compute_prediction (self, rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, phase_index):
 
         current_phase_index = phase_index
@@ -975,7 +980,7 @@ class PipelineManager:
                 pipelinestage_resources = rmanager.get_resources_type(current_pipelinestage.resourcetype)
 
                 print('pre_compute_prediction ()', pipelinestage_name, fractional_work_dict[pipelinestage_name])
-                print('pre_compute_prediction ()', pipelinestage_name, current_phase.p_outputs)
+                print('pre_compute_prediction ()', pipelinestage_name, current_phase.persistent_p_outputs)
 
                 next_phase = None
                 if pipelinestage_index < len (self.pipelinestages):
@@ -986,22 +991,16 @@ class PipelineManager:
 
                 if work_done_dict[pipelinestage_name] > 0.0:
                     if current_phase.pfirst_workitem_completion_time == -1:
-                        current_phase.pfirst_workitem_completion_time = current_phase.p_outputs[0][0]
+                        current_phase.pfirst_workitem_completion_time = current_phase.persistent_p_outputs[0]
 
                     current_phase.ptotal_complete += work_done_dict[pipelinestage_name]
 
                     if current_phase.ptotal_complete > (batchsize - len (pipelinestage_resources)):
                         if current_phase.pfirst_resource_release_time == -1:
-                            count = 0
-                            for output_list in current_phase.p_outputs:
-                                if count + len (output_list) > (batchsize - len (pipelinestage_resources)):
-                                    current_phase.pfirst_resource_release_time = output_list[(batchsize - len (pipelinestage_resources)) - count]
-                                    break
-
-                                count += len (output_list)
+                            current_phase.pfirst_resource_release_time = current_phase.persistent_p_outputs[batchsize - len (pipelinestage_resources)]
 
                     if current_phase.ptotal_complete == batchsize:
-                        current_phase.pendtime = current_phase.p_outputs[-1][-1]
+                        current_phase.pendtime = current_phase.persistent_p_outputs[-1]
 
                     if pipelinestage_index > 0:
                         current_phase.pcurrent_count -= work_done_dict[pipelinestage_name]
@@ -1067,7 +1066,7 @@ class PipelineManager:
             if previous_pipelinestage == None:
                 target = batchsize - (current_phase.ptotal_complete + len (current_phase.pcurrent_executors))
             else:
-                target = previous_phase.pcurrent_count + work_done_dict[previous_pipelinestage.name]
+                target = current_phase.pcurrent_count + work_done_dict[previous_pipelinestage.name]
 
             work_done_dict[pipelinestage.name] = 0
             fractional_work_dict[pipelinestage.name] = {}
@@ -1089,26 +1088,11 @@ class PipelineManager:
                     qualified = True
                 else:
                     #output_times = output_times_dict[previous_pipelinestage.name]
-                    output_times = previous_phase.outputs
-                    output_index = 0
-                    current_index = 0
-                    while current_index < len (output_times):
-                        previous_output_times = output_times[current_index]
-
-                        if len (previous_output_times) <= 0:
-                            current_index += 1
-                            continue
-
-                        if idle_period[1] <= previous_output_times[0]:
-                            #print('not qualified ()')
-                            qualified = False
-                            break
-                        else:
-                            #print('qualified ()')
-                            output_index = current_index
-                            qualified = True
-                            break
-                        current_index += 1
+                    output_times = previous_phase.p_outputs
+                    if len (output_times) <= 0 or idle_period[1] < output_times[0]:
+                        qualified = False
+                    else:
+                        qualified = True
 
                 if previous_pipelinestage != None and qualified == False:
                     idle_period_index += 1
@@ -1129,15 +1113,15 @@ class PipelineManager:
                     starttime, work_done, idle_times, new_output_times, old_output_times, fractional_work = \
                         pipelinestage.get_possible_work_done_2 (rmanager, idle_periods[idle_period_index],
                                                                 target - work_done_dict[pipelinestage.name],
-                                                                output_times[output_index],
+                                                                output_times,
                                                                 fractional_work_allowed)
-                    output_times[output_index] = old_output_times
+                    previous_phase.p_outputs = old_output_times
 
                 if work_done > 0:
                     #print('calculate_early_computation', pipelinestage.name, idle_period_index, work_done)
                     idle_periods[idle_period_index] = idle_times
-                    current_phase.outputs.append (new_output_times)
-                    current_phase.p_outputs.append (new_output_times.copy ())
+                    current_phase.p_outputs.extend (new_output_times)
+                    current_phase.persistent_p_outputs.extend (new_output_times.copy ())
                     work_done_dict[pipelinestage.name] += work_done
 
                 if starttime != None and starttimes_dict[pipelinestage.name] == -1:
@@ -1272,9 +1256,13 @@ class PipelineManager:
     def add_executor (self, workitem, resource, now):
         pipelinestage = self.pipelinestages[int (workitem.version)]
         pipelinestage.add_executor (workitem, resource, now)
+        if int (workitem.version) > 0:
+            prev_pipelinestage = self.pipelinestages[int (workitem.version) - 1]
+            prev_pipelinestage.remove_output (workitem)
 
     def remove_executor (self, workitem, resource, now):
         pipelinestage = self.pipelinestages[int (workitem.version)]
+        pipelinestage.add_output(workitem)
         pipelinestage.remove_executor (workitem, resource, now)
 
     def add_workitem_queue_old (self, workitem, current_time):
