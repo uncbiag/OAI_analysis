@@ -202,7 +202,7 @@ class Simulation:
 
         self.p = PipelineManager(pipelinefile, cost, batchsize, max_images)
 
-        self.p.parse_pipelines()
+        self.p.parse_pipelines(self.r)
 
         self.p.build_phases()
 
