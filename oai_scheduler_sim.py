@@ -362,6 +362,8 @@ class OAI_Scheduler:
 
         self.set_init_idle_start_times (rmanager, self.env.now)
 
+        no_of_phases_closed = 0
+
         try:
             while True:
                 for resource in resources:
@@ -429,7 +431,9 @@ class OAI_Scheduler:
                     self.set_idle_start_times (rmanager, self.env.now)
                     self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
                     last_phase_closed_time = self.env.now
-                    pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index, self.no_of_prediction_phases)
+                    no_of_phases_closed += 1
+                    if no_of_phases_closed >= 2:
+                        pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index, self.no_of_prediction_phases)
 
                 idle_cpus = []
                 idle_gpus = []
@@ -449,7 +453,7 @@ class OAI_Scheduler:
                     if self.env.now > last_phase_closed_time:
                         self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
                     print('all tasks complete')
-                    pmanager.print_stage_queue_data()
+                    pmanager.print_stage_queue_data_2()
                     break
 
                 yield self.env.timeout(5/3600)
