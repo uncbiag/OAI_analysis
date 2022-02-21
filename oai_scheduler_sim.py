@@ -9,6 +9,7 @@ import simpy
 class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
+        self.idle_periods = {}
 
     def add_worker (self, rmanager, resource, cpuok, gpuok, cputype, gputype):
         new_resource = rmanager.get_new_resource ()
@@ -68,13 +69,14 @@ class OAI_Scheduler:
 
         return count
 
-    def report_idle_periods (self, rmanager, since_time, current_time):
+    def report_idle_periods (self, rmanager, since_time, current_time, last_phase_closed_index):
         print ('report_idle_periods ()')
         resources = rmanager.get_resources ()
 
+        cpu = {}
+        gpu = {}
         for resource in resources:
             cpu_idle_periods, gpu_idle_periods = resource.report_idle_periods (since_time, current_time)
-
             '''
             if cpu_idle_periods != None:
                 print ('CPU', cpu_idle_periods)
@@ -84,15 +86,23 @@ class OAI_Scheduler:
 
             if cpu_idle_periods != None:
                 total_idle_period = 0
+                start = None
+                end = None
                 for period in cpu_idle_periods:
                     total_idle_period += period[1] - period[0]
                 print (resource.id, 'CPU', since_time, current_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
+                cpu[resource.id] = total_idle_period
 
             if gpu_idle_periods != None:
                 total_idle_period = 0
                 for period in gpu_idle_periods:
                     total_idle_period += period[1] - period[0]
                 print (resource.id, 'GPU', since_time, current_time, total_idle_period, (total_idle_period / (current_time - since_time) * 100))
+                gpu[resource.id] = total_idle_period
+
+        self.idle_periods [str (last_phase_closed_index)] = [cpu, gpu]
+
+
 
     def add_idle_periods (self, rmanager, now):
         resources = rmanager.get_resources ()
@@ -343,7 +353,7 @@ class OAI_Scheduler:
     def run (self, rmanager, imanager, pmanager, batchsize):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')
 
-        scheduling_policy = FirstCompleteFirstServe("FirstCompleteFirstServe", self.env)
+        scheduling_policy = FirstCompleteFirstServe("FirstCompleteFirstServe", self.env, pmanager)
 
         resources = rmanager.get_resources()
 
@@ -363,6 +373,7 @@ class OAI_Scheduler:
         self.set_init_idle_start_times (rmanager, self.env.now)
 
         no_of_phases_closed = 0
+        phase_tracker = -1
 
         try:
             while True:
@@ -389,13 +400,17 @@ class OAI_Scheduler:
                     if gpu_empty == True:
                         empty_gpus.append(resource)
 
+                if no_of_phases_closed >= 1:
+                    perform_idleness_check = True
+                else:
+                    perform_idleness_check = False
                 if len(empty_cpus) > 0:
                     # print ('****************************')
-                    scheduling_policy.add_new_workitems(rmanager, imanager, pmanager, empty_cpus, 'CPU')
+                    scheduling_policy.add_new_workitems(rmanager, pmanager, empty_cpus, 'CPU', phase_tracker, perform_idleness_check)
                     # print ('****************************')
                 if len(empty_gpus) > 0:
                     # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-                    scheduling_policy.add_new_workitems(rmanager, imanager, pmanager, empty_gpus, 'GPU')
+                    scheduling_policy.add_new_workitems(rmanager, pmanager, empty_gpus, 'GPU', phase_tracker, perform_idleness_check)
                    # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
 
                 # close the completed phases
@@ -429,10 +444,11 @@ class OAI_Scheduler:
                 #pmanager.predict_execution(rmanager, pmanager, self.env.now)
                 if last_phase_closed_index != None:
                     self.set_idle_start_times (rmanager, self.env.now)
-                    self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
+                    self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now, last_phase_closed_index)
                     last_phase_closed_time = self.env.now
                     no_of_phases_closed += 1
-                    if no_of_phases_closed >= 2:
+                    phase_tracker = last_phase_closed_index
+                    if no_of_phases_closed >= 1 and no_of_phases_closed < pmanager.no_of_columns:
                         pmanager.predict_execution_fixed (rmanager, self.env.now, batchsize, last_phase_closed_index, self.no_of_prediction_phases)
 
                 idle_cpus = []
@@ -447,13 +463,14 @@ class OAI_Scheduler:
 
                 #print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
                 if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
-                        idle_gpus) == rmanager.get_gpu_resources_count():
-                    last_phase_closed_index = pmanager.close_phases_fixed(rmanager, True)
+                        idle_gpus) == rmanager.get_gpu_resources_count() and last_phase_closed_index == pmanager.no_of_columns - 1:
+                    #last_phase_closed_index = pmanager.close_phases_fixed(rmanager, True)
                     self.set_idle_start_times(rmanager, self.env.now)
                     if self.env.now > last_phase_closed_time:
-                        self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now)
-                    print('all tasks complete')
+                        self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now, last_phase_closed_index)
+                    print('all tasks complete', self.env.now)
                     pmanager.print_stage_queue_data_2()
+                    #pmanager.print_stage_queue_data_3 (self.idle_periods)
                     break
 
                 yield self.env.timeout(5/3600)

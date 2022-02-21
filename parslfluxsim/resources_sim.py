@@ -556,6 +556,44 @@ class Resource:
 
         return None
 
+    def get_time_left (self, resourcetype, current_time):
+        if resourcetype == 'CPU' and self.cpu != None:
+            if self.cpu.workqueue.is_empty () == False:
+                workitem = self.cpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+
+                exectime = self.get_exectime (workitem_pipelinestages)
+
+                print('get_time_left cpu', exectime, current_time, workitem.scheduletime)
+
+                if exectime == 0:
+                    return None
+                else:
+                    work_remaining = (exectime - (current_time - workitem.scheduletime))
+                    if work_remaining < 0:
+                        work_remaining = 0
+                return work_remaining
+
+        if resourcetype == 'GPU' and self.gpu != None:
+            if self.gpu.workqueue.is_empty () == False:
+                workitem = self.gpu.workqueue.get_workitem ()
+                workitem_pipelinestages = workitem.get_pipelinestages ()
+
+                exectime = self.get_exectime (workitem_pipelinestages)
+
+                print('get_time_left gpu', exectime, current_time, workitem.scheduletime)
+
+                if exectime == 0:
+                    return None
+                else:
+                    work_remaining = (exectime - (current_time - workitem.scheduletime))
+                    if work_remaining < 0:
+                        work_remaining = 0
+
+                return work_remaining
+
+        return None
+
 class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
         self.resourcefile = resourcefile

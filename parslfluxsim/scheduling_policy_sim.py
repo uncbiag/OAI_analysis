@@ -1,13 +1,15 @@
 from parslfluxsim.workitem_sim import WorkItem
+import copy
 
 class Policy(object):
-    def __init__ (self, name):
+    def __init__ (self, name, pmanager):
         self.name = name
         self.newworkitemqueue = []
         self.cpuqueue = []
         self.gpuqueue = []
         self.resubmitcpuqueue = []
         self.resubmitgpuqueue = []
+        self.pmanager = pmanager
 
     def add_workitems (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         pass
@@ -58,13 +60,56 @@ class Policy(object):
                 #print ('None')
                 return None
 
+    def pop_pending_workitem_by_id (self, resourcetype, workitem_id):
+        #print ('pop_pending_workitem_by_id', workitem_id)
+        if resourcetype == 'CPU':
+            if len (self.gpuqueue) > 0:
+                #for workitem in self.gpuqueue:
+                #    print ('pop_pending_workitem_id before', 'GPU', workitem, workitem.id)
+                index = 0
+                for workitem in self.gpuqueue:
+                    if workitem.id == workitem_id:
+                        break
+                    index += 1
+                #print ('pop_pending_workitem_id', 'GPU', index, len(self.gpuqueue), self.gpuqueue[index])
+                if index < len (self.gpuqueue):
+                    item = self.gpuqueue.pop(index)
+                    #for workitem in self.gpuqueue:
+                    #    print('pop_pending_workitem_id after', 'GPU', workitem, workitem.id)
+                    return item
+                else:
+                    return None
+            else:
+                return None
+        else:
+            if len (self.cpuqueue) > 0:
+                #for workitem in self.cpuqueue:
+                #    print ('pop_pending_workitem_id before', 'CPU', workitem, workitem.id)
+                index = 0
+                for workitem in self.cpuqueue:
+                    if workitem.id == workitem_id:
+                        break
+                    index += 1
+                #print('pop_pending_workitem_id', 'CPU', index, len(self.cpuqueue), self.cpuqueue[index])
+                if index < len (self.cpuqueue):
+                    item = self.cpuqueue.pop(index)
+                    #for workitem in self.cpuqueue:
+                    #    print('pop_pending_workitem_id before', 'CPU', workitem, workitem.id)
+                    return item
+                else:
+                    return None
+            else:
+                return None
+
     def get_pending_workitems (self, resourcetype):
         #print ('get_pending_workitems ():', resourcetype)
 
         if resourcetype == 'CPU':
-            return self.gpuqueue.copy ()
+            newcopy = copy.deepcopy (self.gpuqueue)
+            return newcopy
         else:
-            return self.cpuqueue.copy ()
+            newcopy = copy.deepcopy (self.cpuqueue)
+            return newcopy
 
     def get_new_workitem(self, resourcetype):
         new_workitem = None
@@ -128,7 +173,7 @@ class Policy(object):
 
         return new_workitem
 
-    #*******#
+    #TODO: don't add to queue if it's the last pipelinestage
     def remove_complete_workitem (self, resource, pmanager, env):
         #print ('remove_complete_workitem ():', resource.id)
         cpu_workitem = resource.pop_if_complete ('CPU')
@@ -137,7 +182,8 @@ class Policy(object):
             #print (cpu_workitem.print_data ())
             if cpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to cpuqueue')
-                self.cpuqueue.append (cpu_workitem)
+                if int(cpu_workitem.version) < len (self.pmanager.pipelinestages) - 1:
+                    self.cpuqueue.append (cpu_workitem)
                 pmanager.remove_executor(cpu_workitem, resource, env.now)
                 pmanager.add_workitem_queue (cpu_workitem, env.now)
             else:
@@ -150,7 +196,8 @@ class Policy(object):
             #print (gpu_workitem.print_data ())
             if gpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to gpuqueue')
-                self.gpuqueue.append (gpu_workitem)
+                if int(gpu_workitem.version) < len(self.pmanager.pipelinestages) - 1:
+                    self.gpuqueue.append (gpu_workitem)
                 pmanager.remove_executor(gpu_workitem, resource, env.now)
                 pmanager.add_workitem_queue(gpu_workitem, env.now)
             else:

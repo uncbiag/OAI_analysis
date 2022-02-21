@@ -23,6 +23,8 @@ class WorkItem:
         self.iscomplete = False
         self.resourceid = resource_id
         self.resourcetype = resourcetype
+        self.starttime = -1
+        self.endtime = -1
 
     def get_id(self):
         return self.id
@@ -49,6 +51,10 @@ class WorkItem:
 
     def update_outputlocation(self, location):
         self.outputlocation = location
+
+    def get_next_pipelinestage (self, pmanager, resourcetype):
+        next_pipelinestage = pmanager.get_pipelinestage(self.pipelinestage, resourcetype)
+        return next_pipelinestage
 
     def compose_next_workitem(self, pmanager, resource_id, resourcetype):
 

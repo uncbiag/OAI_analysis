@@ -5,6 +5,8 @@ import statistics
 import copy
 import math
 from plots.plot_prediction_sim import plot_prediction_sim
+from plots.plot_prediction_sim import plot_prediction_sim_0
+from plots.plot_prediction_sim import plot_prediction_idle_periods
 
 class Phase:
     def __init__(self, pipelinestage, index, resourcetype, rmanager, target, pipelinestage_index):
@@ -45,6 +47,8 @@ class Phase:
         self.p_outputs = []
         self.persistent_p_outputs = []
         self.predictions = {}
+        self.pthrottle_idle_period = -1
+        self.pthrottle_idle_start_time = -1
 
     def prediction_reset (self):
         #print ('prediction_reset ()', self.pipelinestage, self.index)
@@ -83,7 +87,7 @@ class Phase:
     def add_workitem (self, workitem, currenttime):
         if self.active == False:
             self.active = True
-            #print(self.pipelinestage, 'activate phase')
+            print(self.pipelinestage, 'activate phase', self.index)
         self.current_count += 1
         self.pcurrent_count = self.current_count
         self.total_count += 1
@@ -133,8 +137,7 @@ class Phase:
         self.end_times = sorted(self.end_times_dict.items(), key=lambda kv: kv[1])
 
         print('phase closed', self.pipelinestage.split(':')[0], self.starttime, self.first_workitem_completion_time,
-              self.first_resource_release_time, self.endtime, self.total_count, float(self.endtime) - float(self.starttime),
-              float(self.endtime) - float(self.first_resource_release_time))
+              self.first_resource_release_time, self.endtime, self.total_count, self.index)
 
     def get_queued_work (self, rmanager, resourcetype, current_time):
         queued_work = 0
@@ -264,7 +267,7 @@ class PipelineStage:
             print ('add_executor', workitem.id, 'not found')
             return
         current_phase.add_executor (resource, now)
-        #print(self.name, 'add executor', now, workitem.id, len(self.phases) - 1, index, self.phases[index].total_complete)
+        #print(self.name, 'add executor', now, workitem.id, index, self.phases[index].total_complete)
 
     def remove_executor (self, workitem, resource, now):
         current_phase, index = self.get_phase(workitem)
@@ -272,7 +275,7 @@ class PipelineStage:
             print('remove_executor', workitem.id, self.name, 'not found')
             return
         current_phase.remove_executor (resource, now)
-        #print(self.name, 'remove executor', workitem.id, len(self.phases) - 1, index)
+        #print(self.name, 'remove executor', workitem.id, index)
 
     def add_output (self, workitem):
         phase, index = self.get_phase(workitem)
@@ -283,6 +286,8 @@ class PipelineStage:
 
     def remove_output (self, workitem):
         phase, index = self.get_phase(workitem)
+        #print (phase.pipelinestage, phase.index, phase.outputs)
+        #print (phase.pipelinestage, phase.index, phase.p_outputs)
         phase.outputs.pop (0)
         phase.p_outputs.pop (0)
 
@@ -347,7 +352,7 @@ class PipelineStage:
             exectime = resource.get_exectime(self.name)
             service_rate = 1 / exectime
             times_required = queued_work / service_rate
-            # queued_work, finish_time, service_rate, resource.id
+            #queued_work, finish_time, service_rate, resource.id
             resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
             total_queued_work += queued_work
 
@@ -451,6 +456,9 @@ class PipelineStage:
             if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
                 resource_index += 1
                 continue
+            elif resource.id in phase.pcurrent_executors:
+                phase.p_outputs.append(current_time)
+                phase.persistent_p_outputs.append(current_time)
 
             if total_queued_work + 1 > target:
                 resource_data[resource.id] = [0, -1, 0, resource.id]
@@ -527,7 +535,7 @@ class PipelineStage:
         for resource_id in phase.pcurrent_executors:
             resource = rmanager.get_resource (resource_id)
             queued_work = resource.get_work_left(self.resourcetype, current_time)
-            #print (resource_id, queued_work)
+            print (resource_id, queued_work)
             if (queued_work == None or queued_work == 0) and resource_id in phase.pqueued.keys ():
                 queued_work = 1 - phase.pqueued[resource_id][0]
 
@@ -543,6 +551,10 @@ class PipelineStage:
             if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
                 resource_index += 1
                 continue
+            elif resource.id in phase.pcurrent_executors:
+                phase.p_outputs.append(current_time)
+                phase.persistent_p_outputs.append(current_time)
+
             if len (previous_phase_outputs) <= 0:
                 resource_data[resource.id] = [0, -1, 0, resource.id]
                 if starttimes == None:
@@ -624,7 +636,7 @@ class PipelineStage:
         work_done = 0
         assigned_work = 0
 
-        #print ('get_possible_work_done () idle_times', idle_times[2].items ())
+        print ('get_possible_work_done () idle_times', idle_times[2].items ())
 
         sorted_idle_times = dict(sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
         starttime = None
@@ -708,8 +720,8 @@ class PipelineStage:
 
         starttime = None
 
-        #print ('get_possible_work_done_2 () idle_times', idle_times[2].items())
-        #print ('get_possible_work_done_2 () prev_output_times', prev_output_times)
+        print ('get_possible_work_done_2 () idle_times', idle_times[2].items())
+        print ('get_possible_work_done_2 () prev_output_times', prev_output_times)
 
         sorted_idle_times = dict (sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
 
@@ -819,6 +831,7 @@ class PipelineManager:
         self.last_first_phase_closed_index = -1
         self.no_of_columns = int(math.ceil(max_images / batchsize))
         self.prediction_times = []
+        self.prediction_idle_periods = {}
 
     def parse_pipelines (self, rmanager):
         pipelinedatafile = open (self.pipelinefile)
@@ -868,6 +881,65 @@ class PipelineManager:
         for pipelinestage in self.pipelinestages:
             for current_index in range(start_index, len (pipelinestage.phases)):
                 pipelinestage.phases[current_index].prediction_reset ()
+
+
+    def check_throttle_idleness(self, last_phase_closed_index, current_time, pending_workitem):
+        pipelinestage_index = int(pending_workitem.version) + 1
+        phase_index = pending_workitem.phase_index
+
+        pipelinestage = self.pipelinestages[pipelinestage_index]
+        phase = pipelinestage.phases[phase_index]
+
+        if phase.pthrottle_idle_period != -1:
+            if phase.pthrottle_idle_start_time == -1:
+                phase.pthrottle_idle_start_time = current_time
+
+            if phase.pthrottle_idle_start_time + phase.pthrottle_idle_period > current_time:
+                print ('check_throttle_idleness', pipelinestage.name, current_time, phase.pthrottle_idle_start_time, phase.pthrottle_idle_period)
+                return False, phase.pthrottle_idle_start_time + phase.pthrottle_idle_period
+            else:
+                return True, phase.pthrottle_idle_start_time + phase.pthrottle_idle_period
+
+        return True, -1
+
+    def check_workitem_waiting_idleness (self, rmanager, resource_id, resourcetype, last_phase_closed_index, target_pipelinestage, current_time):
+        current_phase_index = last_phase_closed_index + 1
+        print ('into check_workitem_waiting_idleness ()')
+        pipelinestage_index = 0
+        for pipelinestage in self.pipelinestages:
+            if pipelinestage.resourcetype == resourcetype:
+                if pipelinestage_index + 2 < len (self.pipelinestages):
+                    next_sametype_pipelinestage = self.pipelinestages[pipelinestage_index + 2]
+                    print('check_workitem_waiting_idleness ()', pipelinestage.name, current_phase_index, next_sametype_pipelinestage.phases[current_phase_index].total_count)
+                    if next_sametype_pipelinestage.phases[current_phase_index].total_count == 0:
+                        next_pipelinestage = self.pipelinestages[pipelinestage_index + 1]
+                        print('check_workitem_waiting_idleness ()', next_sametype_pipelinestage.name,
+                              current_phase_index)
+                        print ('check_workitem_waiting_idleness ()', next_pipelinestage.phases[current_phase_index].current_executors)
+                        min_time_left = -1
+                        for executor_id in next_pipelinestage.phases[current_phase_index].current_executors:
+                            executor = rmanager.get_resource (executor_id)
+                            time_left = executor.get_time_left (next_pipelinestage.resourcetype, current_time)
+                            if time_left == None:
+                                continue
+                            if min_time_left == -1:
+                                min_time_left = time_left
+                            elif min_time_left > time_left:
+                                min_time_left = time_left
+
+                        print('check_workitem_waiting_idleness ()',min_time_left)
+
+                        target_resource = rmanager.get_resource (resource_id)
+                        target_exectime = target_resource.get_exectime(target_pipelinestage)
+                        if min_time_left != -1 and target_exectime > min_time_left:
+                            print ('check_workitem_waiting_idleness ()', pipelinestage.name, current_phase_index, min_time_left, resource_id, target_exectime)
+                            return False
+                        break
+                    else:
+                        return False
+            pipelinestage_index += 1
+
+        return True
 
     def predict_execution_fixed (self, rmanager, current_time, batchsize, last_phase_index_closed, no_of_prediction_phases):
         index = last_phase_index_closed + 1
@@ -974,7 +1046,7 @@ class PipelineManager:
                             idle_periods = self.get_idle_periods(prev_sametype_phase.end_times, phase.pstarttime)
                             idle_period_start = list(idle_periods.values())[0][-1][0]
 
-                            print('idle period 1', phase.pipelinestage, [idle_period_start, phase.pstarttime],
+                            print('idle period 1', prev_sametype_phase.pipelinestage, [idle_period_start, phase.pstarttime],
                                   idle_periods)
 
                             if phase.resourcetype == 'CPU':
@@ -1046,6 +1118,7 @@ class PipelineManager:
                                 phase.pfirst_resource_release_time = first_resource_release_time
                         else:
                             estimated_finish_time = prev_pipelinestage_phase.pendtime + 1 / avg_resource_service_rate
+
                             idle_period = estimated_finish_time - fastest_finish_time
                             if phase.pstarttime < current_time:
                                 idle_period_start = current_time
@@ -1055,12 +1128,27 @@ class PipelineManager:
                             starttimes = {}
                             idle_periods = {}
                             for resource in pipelinestage_resources:
-                                starttimes[resource.id] = idle_period_start + idle_period
-                                idle_periods[resource.id] = [[idle_period_start, idle_period_start + idle_period, idle_period]]
+                                if resource.id in phase.pcurrent_executors:
+                                    starttimes[resource.id] = idle_period_start + idle_period #TODO: use a function get_queued_work_resource() that looks into either get_work_left or pqueued {}
+                                    if resource.id in phase.pqueued.keys ():
+                                        idle_periods[resource.id] = [[phase.pqueued[resource.id][1][2], idle_period_start + idle_period, idle_period_start + idle_period - phase.pqueued[resource.id][1][2]]]
+                                    else:
+                                        time_left = resource.get_time_left(phase.resourcetype, current_time)
+                                        idle_periods[resource.id] = [[current_time + time_left, idle_period_start + idle_period, idle_period_start + idle_period - (current_time + time_left)]]
+                                else:
+                                    starttimes[resource.id] = idle_period_start + idle_period
+                                    idle_periods[resource.id] = [[idle_period_start, idle_period_start + idle_period, idle_period]]
 
                             print('idle period 3', phase.pipelinestage, [idle_period_start,
                                                                          idle_period_start + idle_period],
                                                                          idle_periods)
+
+                            if phase.pstarttime >= current_time:
+                                phase.pstarttime = idle_period_start + idle_period
+                                phase.pfirst_workitem_completion_time = phase.pstarttime + (1/avg_resource_service_rate)
+
+                            if index == last_phase_index_closed + 1:
+                                phase.pthrottle_idle_period = idle_period
 
                             if phase.resourcetype == 'CPU':
                                 cpu_idle_periods.append(
@@ -1123,8 +1211,6 @@ class PipelineManager:
 
             current_time = phase.pendtime
 
-            #new_cpu_idle_periods, new_gpu_idle_periods, early_outputs_dict, work_done_dict = \
-            #    self.calculate_early_computation(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index, phase.pendtime)
 
         self.prediction_reset(last_phase_index_closed + 1)
 
@@ -1161,7 +1247,7 @@ class PipelineManager:
                 print('pre_compute_prediction ()', pipelinestage_name, current_phase.persistent_p_outputs)
 
                 next_phase = None
-                if pipelinestage_index < len (self.pipelinestages):
+                if pipelinestage_index < len (self.pipelinestages) - 1:
                     next_phase = self.pipelinestages[pipelinestage_index + 1].phases[current_phase_index]
 
                 if current_phase.pstarttime == -1:
@@ -1222,6 +1308,9 @@ class PipelineManager:
 
             current_phase_index += 1
 
+        if str (phase_index - 1) not in self.prediction_idle_periods.keys ():
+            self.prediction_idle_periods[str(phase_index - 1)] = []
+            self.prediction_idle_periods[str (phase_index - 1)].append ([cpu_idle_periods, gpu_idle_periods])
         print ('pre_compute_prediction cpu idle periods ()', phase_index, cpu_idle_periods)
         print ('pre_compute_prediction gpu idle periods ()', phase_index, gpu_idle_periods)
 
@@ -1261,7 +1350,7 @@ class PipelineManager:
 
             if target == 0:
                 previous_pipelinestage = pipelinestage
-                #print ('calculate_early_computation', 'target is zero')
+                print ('calculate_early_computation', 'target is zero')
                 continue
 
             idle_period_index = 0
@@ -1550,6 +1639,9 @@ class PipelineManager:
                     prev_resourcetype = current_stage.resourcetype
                 index += 1
 
+    def print_stage_queue_data_3 (self, actual_idle_periods):
+        plot_prediction_idle_periods (actual_idle_periods, self.prediction_idle_periods)
+
     def print_stage_queue_data_2 (self):
         plot_data = {}
         for pipelinestage in self.pipelinestages:
@@ -1557,7 +1649,7 @@ class PipelineManager:
             for phase in pipelinestage.phases:
                 plot_data[pipelinestage.name].append ([phase.queue_snapshots, phase.starttime, phase.endtime, phase.predictions])
 
-        plot_prediction_sim (plot_data, self.prediction_times,self.batchsize)
+        plot_prediction_sim_0 (plot_data, self.prediction_times,self.batchsize)
 
 
     def print_stage_queue_data (self):

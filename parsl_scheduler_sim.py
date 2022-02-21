@@ -6,6 +6,7 @@ from oai_scheduler_sim import OAI_Scheduler
 from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
 from parslfluxsim.performance_sim import read_performance_data
+from plots.plot_prediction_sim import plot_prediction
 
 import csv
 from itertools import zip_longest
@@ -269,7 +270,7 @@ if __name__ == "__main__":
 
     output_directory = "plots/DFS_staging"
 
-    no_of_prediction_phases = 3
+    no_of_prediction_phases = 2
 
     os.makedirs(output_directory, exist_ok=True)
 
@@ -281,3 +282,5 @@ if __name__ == "__main__":
         sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
+
+    #plot_prediction()
