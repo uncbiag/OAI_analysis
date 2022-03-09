@@ -30,7 +30,7 @@ class FirstCompleteFirstServe (Policy):
         sorted_completion_times = dict(sorted(completion_times.items(), key=lambda item: item[1]))
 
         for resource_id in sorted_completion_times.keys():
-            self.sort_complete_workitems_by_stage_id(resourcetype)
+            self.sort_complete_workitems_by_phase_and_stage(resourcetype)
             item_added = False
             resource = rmanager.get_resource(resource_id)
 
@@ -199,7 +199,7 @@ class FirstCompleteFirstServe (Policy):
 
         sorted_completion_times = dict(sorted(completion_times.items(), key=lambda item: item[1]))
 
-        self.sort_complete_workitems_by_stage_id(resourcetype)
+        self.sort_complete_workitems_by_phase_and_stage(resourcetype)
 
         for resource_id in sorted_completion_times.keys():
             item_added = False
@@ -256,7 +256,7 @@ class FirstCompleteFirstServe (Policy):
                 break
 
 
-    def add_new_workitems_old (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
+    def add_new_workitems_DFS (self, rmanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')
         completion_times = {}
 
@@ -274,7 +274,7 @@ class FirstCompleteFirstServe (Policy):
 
         #print (sorted_completion_times)
 
-        self.sort_complete_workitems_by_stage_id (resourcetype)
+        self.sort_complete_workitems_by_stage (resourcetype)
         #self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
         #self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
         #self.sort_complete_workitems_by_latest_finish_time (resourcetype)

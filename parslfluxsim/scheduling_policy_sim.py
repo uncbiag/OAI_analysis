@@ -111,6 +111,12 @@ class Policy(object):
             newcopy = copy.deepcopy (self.cpuqueue)
             return newcopy
 
+    def get_pending_workitems_no_copy (self, resourcetype):
+        if resourcetype == 'CPU':
+            return self.gpuqueue
+        else:
+            return self.cpuqueue
+
     def get_new_workitem(self, resourcetype):
         new_workitem = None
         if len (self.newworkitemqueue) > 0:
@@ -173,7 +179,7 @@ class Policy(object):
 
         return new_workitem
 
-    #TODO: don't add to queue if it's the last pipelinestage
+
     def remove_complete_workitem (self, resource, pmanager, env):
         #print ('remove_complete_workitem ():', resource.id)
         cpu_workitem = resource.pop_if_complete ('CPU')
@@ -217,7 +223,7 @@ class Policy(object):
             #print (self.resubmitgpuqueue)
            # print (self.cpuqueue)
 
-    def sort_complete_workitems_by_stage_id (self, resourcetype):
+    def sort_complete_workitems_by_phase_and_stage (self, resourcetype):
         #print ('sort_complete_workitems_by_stage_id ()')
         if resourcetype == 'CPU':
             #print('CPU')
@@ -243,6 +249,33 @@ class Policy(object):
                 for item in self.cpuqueue:
                     item.print_data()
             #print('##############')
+
+    def sort_complete_workitems_by_stage (self, resourcetype):
+        # print ('sort_complete_workitems_by_stage_id ()')
+        if resourcetype == 'CPU':
+            # print('CPU')
+            self.resubmitcpuqueue = sorted(self.resubmitcpuqueue, key=lambda x: (x.version))
+            if len(self.gpuqueue) >= 2:
+                for item in self.gpuqueue:
+                    item.print_data()
+            # print ('$$$$$$$$$$$$$$')
+            self.gpuqueue = sorted(self.gpuqueue, key=lambda x: (x.version))
+            if len(self.gpuqueue) >= 2:
+                for item in self.gpuqueue:
+                    item.print_data()
+            # print ('##############')
+        else:
+            # print('GPU')
+            self.resubmitgpuqueue = sorted(self.resubmitgpuqueue, key=lambda x: (x.version))
+            if len(self.cpuqueue) >= 2:
+                for item in self.cpuqueue:
+                    item.print_data()
+            # print('$$$$$$$$$$$$$$$')
+            self.cpuqueue = sorted(self.cpuqueue, key=lambda x: (x.version))
+            if len(self.cpuqueue) >= 2:
+                for item in self.cpuqueue:
+                    item.print_data()
+            # print('##############')
 
     def sort_complete_workitems_by_earliest_finish_time (self, resourcetype):
         if resourcetype == 'CPU':

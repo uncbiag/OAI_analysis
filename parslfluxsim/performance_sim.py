@@ -10,6 +10,7 @@ import pandas as pd
 import seaborn as sns
 from fitter import Fitter, get_common_distributions, get_distributions
 from scipy.stats import *
+import pickle
 
 cpu_completion_files = [
     'plots/run_64_100_77_98_First_0/complete.txt',
@@ -188,5 +189,5 @@ def read_performance_data ():
             results[resourceid][version] = [dist, shape, location, scale]
 
 
-    #print (results)
+    print (results)
     return results

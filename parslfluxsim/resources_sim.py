@@ -5,8 +5,9 @@ import datetime
 from parslflux.workqueue import WorkItemQueue
 
 class CPU:
-    def __init__ (self, name):
+    def __init__ (self, name, cost):
         self.name = name
+        self.cost = cost
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
@@ -16,6 +17,10 @@ class CPU:
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
+        self.idle_periods = []
+
+    def get_cost (self):
+        return self.cost
 
     def get_name (self):
         return self.name
@@ -53,8 +58,9 @@ class CPU:
         return ret
 
 class GPU:
-    def __init__ (self, name):
+    def __init__ (self, name, cost):
         self.name = name
+        self.cost = cost
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
@@ -64,6 +70,9 @@ class GPU:
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
+
+    def get_cost (self):
+        return self.cost
 
     def get_name (self):
         return self.name
@@ -598,52 +607,102 @@ class ResourceManager:
     def __init__ (self, resourcefile, availablefile):
         self.resourcefile = resourcefile
         self.availablefile = availablefile
+        self.resourcetypeinfo = {}
         self.nodes = []
         self.reservednodes = []
         self.nodesdict = {}
         self.reservednodesdict = {}
         self.exectimes = {}
         self.max_exectimes = {}
-        self.new_resource_id = 150
         self.cpunodes = []
         self.gpunodes = []
         self.cpuid_counter = 0
         self.gpuid_counter = 0
 
-    def get_new_resource (self):
-        resource = Resource (self.new_resource_id_start)
-        self.new_resource_id += 1
-        return resource
+    def get_startup_time (self, resourcetype):
+        if resourcetype in self.resourcetypeinfo.keys ():
+            return self.resourcetypeinfo[resourcetype]['startuptime'] / 3600
+        return float (60/3600)
 
-    def add_resource (self, new_resource):
-        self.nodes.append (new_resource)
+    def add_resource (self, cpuok, gpuok, cputype, gputype):
+        print('add resource ()', cpuok, gpuok, cputype, gputype)
+        if cpuok == True:
+            resource = Resource ('c' + str(self.cpuid_counter))
+            resource.add_cpu(cputype)
+            self.nodesdict[resource.id] = resource
+            self.cpunodes.append(copy.deepcopy(resource))
+            self.nodes.append(copy.deepcopy(resource))
+            self.cpuid_counter += 1
+            return resource
+        elif gpuok == True:
+            resource = Resource('g' + str(self.gpuid_counter))
+            resource.add_gpu(gputype)
+            self.nodesdict[resource.id] = resource
+            self.gpunodes.append(copy.deepcopy(resource))
+            self.nodes.append(copy.deepcopy(resource))
+            self.gpuid_counter += 1
+            return resource
+
+    def delete_resource (self, resourcetype, resource_id):
+        print ('delete resource ()', resource_id, resourcetype)
+        del self.nodesdict[resource_id]
+        node_index = 0
+        for node in self.nodes:
+            if node.id == resource_id:
+                break
+            node_index += 1
+        if node_index < len (self.nodes):
+            self.nodes.pop (node_index)
+
+        if resourcetype == 'CPU':
+            node_index = 0
+            for node in self.cpunodes:
+                if node.id == resource_id:
+                    break
+                node_index += 1
+            if node_index < len(self.cpunodes):
+                self.cpunodes.pop(node_index)
+        elif resourcetype == 'GPU':
+            node_index = 0
+            for node in self.gpunodes:
+                if node.id == resource_id:
+                    break
+                node_index += 1
+            if node_index < len(self.gpunodes):
+                self.gpunodes.pop(node_index)
+
+    def get_resourcetype_info (self, resourcetype, infotype):
+        return self.resourcetypeinfo[resourcetype][infotype]
 
     def parse_resources (self):
         yaml_resourcefile = open (self.resourcefile)
         resources = yaml.load (yaml_resourcefile, Loader=yaml.FullLoader)
 
         for cputype in resources['available']['CPU']:
-            print (cputype)
+            self.resourcetypeinfo[cputype['id']] = {}
+            self.resourcetypeinfo[cputype['id']]['startuptime'] = cputype['startuptime']
             count = cputype['count']
             for i in range (0, count):
                 new_resource = Resource ('c' + str(self.cpuid_counter))
-                new_resource.add_cpu(cputype['id'])
+                new_resource.add_cpu(cputype['id'], cputype['cost'])
                 self.nodesdict[new_resource.id] = new_resource
                 self.cpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
                 self.cpuid_counter += 1
 
         for gputype in resources['available']['GPU']:
+            self.resourcetypeinfo[gputype['id']] = {}
+            self.resourcetypeinfo[gputype['id']]['startuptime'] = gputype['startuptime']
             count = gputype['count']
             for i in range (0, count):
                 new_resource = Resource ('g' + str(self.gpuid_counter))
-                new_resource.add_gpu(gputype['id'])
+                new_resource.add_gpu(gputype['id'], gputype['cost'])
                 self.nodesdict[new_resource.id] = new_resource
                 self.gpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
                 self.gpuid_counter += 1
 
-        self.availablenodesdict = self.nodesdict
+        #self.availablenodesdict = self.nodesdict
 
-        self.nodes = copy.deepcopy(list(self.availablenodesdict.values()))
+        self.nodes = copy.deepcopy(list(self.nodesdict.values()))
 
         print (self.nodes)
 

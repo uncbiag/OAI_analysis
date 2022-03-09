@@ -185,7 +185,7 @@ class Simulation:
         self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
-              max_images, output_file, batchsize, no_of_prediction_phases):
+              max_images, output_file, prediction, batchsize, no_of_prediction_phases):
 
         self.r = ResourceManager(resourcefile, availablefile)
 
@@ -243,7 +243,11 @@ class Simulation:
         self.scheduler.outputfile = output_file
         self.scheduler.performancedata = self.performancedata
         self.scheduler.no_of_prediction_phases = no_of_prediction_phases
-        self.env.process(self.scheduler.run(self.r, self.i, self.p, batchsize))
+        self.scheduler.batchsize = batchsize
+        if prediction == True:
+            self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
+        else:
+            self.env.process(self.scheduler.run_no_prediction(self.r, self.i, self.p))
 
         print ('done')
 
@@ -264,22 +268,30 @@ if __name__ == "__main__":
 
     availablefile = "parslflux/available.yml"
 
-    batchsize = 20
-
     cost = 1000
 
     output_directory = "plots/DFS_staging"
 
-    no_of_prediction_phases = 2
+    no_of_prediction_phases = 1
 
     os.makedirs(output_directory, exist_ok=True)
 
+    #max_images = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
     max_images = [100]
+
+    batchsize = max_images[0]
+
+    prediction = False
+
+    if prediction == True:
+        batchsize = 20
+    else:
+        batchsize = max_images[0]
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
         sim = Simulation ()
-        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, batchsize, no_of_prediction_phases)
+        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
 

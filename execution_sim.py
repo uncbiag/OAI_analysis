@@ -63,24 +63,28 @@ class ExecutionSimThread:
                 yield self.env.timeout (0.25)
                 continue
             except simpy.Interrupt as interrupt:
-                self.interrupts += 1
-                version = interrupt.cause
-                #print (self.resourceid, self.resourcetype, version, self.interrupts)
-                startime = self.env.now
-                timeout = self.get_timeout(version)
-                #timeout = self.distributions[version][random.randrange(len(self.distributions))]
-                #timeouts = self.performancedata[self.resourcename][version]
-                #timeout_max = max(timeouts)
-                #timeout_min = min(timeouts)
-                #timeout = random.randrange(timeout_min, timeout_max, 1)
-                #timeout = sum(timeouts)/len(timeouts)
-                #print(self.resourceid, version, timeout_min, timeout_max, timeout/3600, self.interrupts)
-                yield self.env.timeout (timeout/3600)
-                endtime = self.env.now
-                #print (resource_id, version, startime, endtime, 'complete', self.interrupts)
-                self.iscomplete = True
-                self.timeout = timeout
-                self.starttime = startime
-                self.endtime = endtime
+                if interrupt.cause == 'cancel':
+                    print (self.resource.id, self.resourcetype, 'exiting...')
+                    break
+                else:
+                    self.interrupts += 1
+                    version = interrupt.cause
+                    #print (self.resourceid, self.resourcetype, version, self.interrupts)
+                    startime = self.env.now
+                    timeout = self.get_timeout(version)
+                    #timeout = self.distributions[version][random.randrange(len(self.distributions))]
+                    #timeouts = self.performancedata[self.resourcename][version]
+                    #timeout_max = max(timeouts)
+                    #timeout_min = min(timeouts)
+                    #timeout = random.randrange(timeout_min, timeout_max, 1)
+                    #timeout = sum(timeouts)/len(timeouts)
+                    #print(self.resourceid, version, timeout_min, timeout_max, timeout/3600, self.interrupts)
+                    yield self.env.timeout (timeout/3600)
+                    endtime = self.env.now
+                    #print (resource_id, version, startime, endtime, 'complete', self.interrupts)
+                    self.iscomplete = True
+                    self.timeout = timeout
+                    self.starttime = startime
+                    self.endtime = endtime
 
 
