@@ -216,8 +216,8 @@ class OAI_Scheduler:
 
         pmanager.prediction_idle_periods[str (phase_tracker + 1)] = [new_cpu_idle_periods, new_gpu_idle_periods]
 
-    def scale_up_algo_no_prediction (self, rmanager, pmanager):
-        pmanager.get_pending_workloads (rmanager, self.env.now)
+    def scale_up_algo_no_prediction (self, rmanager, pmanager, idle_cpus, idle_gpus):
+        pmanager.get_pending_workloads (rmanager, self.env.now, idle_cpus, idle_gpus)
 
 
     def replenish_workitems (self, imanager, pmanager, scheduling_policy, batchsize):
@@ -387,9 +387,17 @@ class OAI_Scheduler:
                     idle_gpu.schedule(rmanager, pmanager, 'GPU', self.workers[idle_gpu.id][1].get_exec(), self.env)
 
                 # scaling code goes here
+                idle_cpus = []
+                idle_gpus = []
+                for resource in resources:
+                    cpu_idle, gpu_idle = resource.is_idle()
 
+                    if cpu_idle == True:
+                        idle_cpus.append(resource)
+                    if gpu_idle == True:
+                        idle_gpus.append(resource)
                 if pmanager.get_pct_complete_no_prediction() >= 10:
-                    self.scale_up_algo_no_prediction(rmanager, pmanager)
+                    self.scale_up_algo_no_prediction(rmanager, pmanager, idle_cpus, idle_gpus)
 
                 # predict the execution pattern
                 if last_phase_closed_index != None:

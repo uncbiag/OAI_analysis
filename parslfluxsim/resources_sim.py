@@ -124,11 +124,19 @@ class Resource:
         self.counts = {}
         self.executionqueues = [-1, -1]
 
-    def add_cpu (self, cpu):
-        self.cpu = CPU (cpu)
+    def add_cpu (self, cpu, cost):
+        self.cpu = CPU (cpu, cost)
 
-    def add_gpu (self, gpu):
-        self.gpu = GPU (gpu)
+    def add_gpu (self, gpu, cost):
+        self.gpu = GPU (gpu, cost)
+
+    def get_cost (self, resourcetype):
+        if resourcetype == 'CPU' and self.cpu != None:
+            return self.cpu.get_cost ()
+        elif resourcetype == 'GPU' and self.gpu != None:
+            return self.gpu.get_cost ()
+        else:
+            return None
 
     def remove_cpu (self):
         self.cpu = None
@@ -624,6 +632,11 @@ class ResourceManager:
             return self.resourcetypeinfo[resourcetype]['startuptime'] / 3600
         return float (60/3600)
 
+    def get_availability (self, resourcetype):
+        if resourcetype in self.resourcetypeinfo.keys ():
+            return self.resourcetypeinfo[resourcetype]['availability']
+        return 1.0
+
     def add_resource (self, cpuok, gpuok, cputype, gputype):
         print('add resource ()', cpuok, gpuok, cputype, gputype)
         if cpuok == True:
@@ -681,6 +694,8 @@ class ResourceManager:
         for cputype in resources['available']['CPU']:
             self.resourcetypeinfo[cputype['id']] = {}
             self.resourcetypeinfo[cputype['id']]['startuptime'] = cputype['startuptime']
+            self.resourcetypeinfo[cputype['id']]['resourcetype'] = 'CPU'
+            self.resourcetypeinfo[cputype['id']]['availability'] = 1.0
             count = cputype['count']
             for i in range (0, count):
                 new_resource = Resource ('c' + str(self.cpuid_counter))
@@ -692,6 +707,8 @@ class ResourceManager:
         for gputype in resources['available']['GPU']:
             self.resourcetypeinfo[gputype['id']] = {}
             self.resourcetypeinfo[gputype['id']]['startuptime'] = gputype['startuptime']
+            self.resourcetypeinfo[gputype['id']]['resourcetype'] = 'GPU'
+            self.resourcetypeinfo[gputype['id']]['availability'] = 1.0
             count = gputype['count']
             for i in range (0, count):
                 new_resource = Resource ('g' + str(self.gpuid_counter))
@@ -802,6 +819,39 @@ class ResourceManager:
                 self.exectimes[resourcename][pipelinestages] = [new_avg_time, count + 1]
 
         #print (self, self.exectimes)
+
+    def get_pipelinestage_weights (self, resourcetype, no_of_pipelinestages):
+        total_execution_times = {}
+        count = 0
+        for resource_name in self.exectimes.keys ():
+            resourcetype_execution_times = []
+            if self.get_resourcetype_info(resource_name, 'resourcetype') == resourcetype:
+                if len (list (self.exectimes[resource_name].keys ())) < no_of_pipelinestages:
+                    continue
+                for pipelinestage in self.exectimes[resource_name].keys ():
+                    resourcetype_execution_times.append(self.exectimes[resource_name][pipelinestage][0] * self.exectimes[resource_name][pipelinestage][1])
+
+                total_execution_times[resource_name] = resourcetype_execution_times
+
+        weights = [0 for i in range (0, no_of_pipelinestages)]
+
+        for key in total_execution_times.keys():
+            index = 0
+            for exectimes in total_execution_times[key]:
+                weights[index] += exectimes
+                index +=1
+
+        total_no_of_resource_types = len(list(total_execution_times.keys()))
+
+        weights = [weight/total_no_of_resource_types for weight in weights]
+
+        total_weights = sum(weights)
+
+        weights = [weight/total_weights for weight in weights]
+
+        print (resourcetype, weights)
+
+        return weights
 
     def get_resource (self, resource_id):
         for node in self.nodes:

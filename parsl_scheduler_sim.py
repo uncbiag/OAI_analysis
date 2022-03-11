@@ -1,5 +1,5 @@
 import datetime
-import time, os
+import time, os, sys
 
 from parslfluxsim.resources_sim import ResourceManager
 from oai_scheduler_sim import OAI_Scheduler
@@ -288,11 +288,13 @@ if __name__ == "__main__":
     else:
         batchsize = max_images[0]
 
+    sys.stdout = open('output.txt', 'w')
+
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
         sim = Simulation ()
         sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
-
+    sys.stdout.close()
     #plot_prediction()
