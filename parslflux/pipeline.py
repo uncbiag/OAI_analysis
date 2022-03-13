@@ -305,7 +305,8 @@ class PipelineStage:
 
     def get_free_resource_throughput(self, rmanager, free_resources):
         thoughput_list = []
-        for resource in free_resources:
+        for resource_id in free_resources:
+            resource = rmanager.get_resource (resource_id)
             exectime = resource.get_exectime(self.name)  # TODO: get latest info, not long executimes history
             if exectime == 0:
                 print('get_current_throughput ()', 'exectime does not exist')
@@ -860,8 +861,7 @@ class PipelineManager:
     def get_pct_complete_no_prediction (self):
         return self.pipelinestages[-1].phases[0].total_complete / self.max_images * 100
 
-    def get_weighted_performance_to_cost_ratio_ranking (self, rmanager, resourcetype):
-        resources = rmanager.get_resources_type(resourcetype)
+    def get_weighted_performance_to_cost_ratio_ranking (self, rmanager, resourcetype, resource_ids):
 
         no_of_pipelinestages = 0
         for pipelinestage in self.pipelinestages:
@@ -870,13 +870,15 @@ class PipelineManager:
 
         weighted_performance_to_cost_ratio = {}
         weights = rmanager.get_pipelinestage_weights(resourcetype, no_of_pipelinestages)
-
         pipelinestage_weights = {}
         pipelinestageindex = 0
         for pipelinestage in self.pipelinestages:
             pipelinestage_weights[pipelinestage.name] = weights[pipelinestageindex]
 
-        for resource in resources:
+        print (resource_ids)
+
+        for resource_id in resource_ids:
+            resource = rmanager.get_resource (resource_id)
             performance_to_cost_ratio = 0
             for pipelinestage in self.pipelinestages:
                 if pipelinestage.resourcetype == resourcetype:
@@ -896,32 +898,49 @@ class PipelineManager:
 
         return weighted_performance_to_cost_ratio_ranking
 
+    def scale_down_configuration (self, rmanager, pipelinestageindex, underutilization, throughput, available_resources):
+        to_be_deleted = []
+        target_throughput = (1 - underutilization) * throughput
+        pipelinestage = self.pipelinestages[pipelinestageindex]
+
+        while True:
+            weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking (rmanager, pipelinestage.resourcetype, available_resources)
+
+            print (weighted_pcr_ranking)
+
+            removed_at_least_one = False
+            for resource_id in weighted_pcr_ranking.keys ():
+                resource = rmanager.get_resource (resource_id)
+                exectime = resource.get_exectime(pipelinestage.name)
+                if exectime == 0:
+                    resource_throughput = 0
+                else:
+                    resource_throughput = 1 / exectime
+
+                throughput = throughput - resource_throughput
+
+                if throughput - target_throughput >= 0:
+                    to_be_deleted.append(resource_id)
+                    available_resources.remove (resource_id)
+                    removed_at_least_one = True
+                    break
+
+            if removed_at_least_one == False:
+                break
+        return to_be_deleted
+
+
     def get_pending_workloads (self, rmanager, current_time, free_cpus, free_gpus):
         print ('empty cpus', len(free_cpus))
         print ('empty gpus', len(free_gpus))
 
-        pending_cpuworkloads = {}
-        pending_gpuworkloads = {}
+        pending_workloads = {}
+        throughputs = {}
+        computation_pressures = {}
+        time_to_finish = {}
 
-        pipelinestageindex = 1
-        while pipelinestageindex < len (self.pipelinestages):
-            pipelinestage = self.pipelinestages[pipelinestageindex]
-
-            if pipelinestage.resourcetype == 'CPU':
-                pending_cpuworkloads[str (pipelinestageindex)] = pipelinestage.phases[0].current_count - len (pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager, 'CPU', current_time)
-            else:
-                pending_gpuworkloads[str(pipelinestageindex)] = pipelinestage.phases[0].current_count - len (pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager, 'GPU', current_time)
-            pipelinestageindex += 1
-
-        cpu_throughputs = {}
-        gpu_throughputs = {}
-        gpu_computation_pressure = {}
-        cpu_computation_pressure = {}
-        cpu_max_throughputs = {}
-        gpu_max_throughputs = {}
-
-        cpu_incoming_traffic = 0
-        gpu_incoming_traffic = 0
+        total_cpu_input_pressure = 0
+        total_gpu_input_pressure = 0
         total_cpu_throughput = 0
         total_gpu_throughput = 0
 
@@ -929,78 +948,166 @@ class PipelineManager:
         while pipelinestageindex < len (self.pipelinestages):
             pipelinestage = self.pipelinestages[pipelinestageindex]
 
+            if pipelinestageindex != 0:
+                if pipelinestage.resourcetype == 'CPU':
+                    pending_workloads[str(pipelinestageindex)] = pipelinestage.phases[0].current_count - len(
+                        pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager,
+                                                                                                             'CPU',
+                                                                                                             current_time)
+                else:
+                    pending_workloads[str(pipelinestageindex)] = pipelinestage.phases[0].current_count - len(
+                        pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager,
+                                                                                                             'GPU',
+                                                                                                             current_time)
+
+            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(rmanager, 0)
             if pipelinestage.resourcetype == 'CPU':
-                cpu_throughputs[str (pipelinestageindex)] = pipelinestage.get_current_throughput (rmanager, 0)
-                cpu_max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, free_cpus) + pipelinestage.get_current_throughput (rmanager, 0)
-                total_cpu_throughput += cpu_throughputs[str (pipelinestageindex)]
-                if pipelinestageindex == 0:
-                    cpu_computation_pressure[str(pipelinestageindex)] = [0, cpu_throughputs[str(pipelinestageindex)]]
-                elif pipelinestageindex == len (self.pipelinestages) - 1:
-                    cpu_computation_pressure[str(pipelinestageindex)] = [gpu_throughputs[str(pipelinestageindex - 1)], cpu_throughputs[str(pipelinestageindex)]]
-                    cpu_incoming_traffic += gpu_throughputs[str(pipelinestageindex - 1)]
-                else:
-                    cpu_computation_pressure[str (pipelinestageindex)] = [gpu_throughputs[str(pipelinestageindex - 1)], cpu_throughputs[str(pipelinestageindex)]]
-                    cpu_incoming_traffic += gpu_throughputs[str(pipelinestageindex - 1)]
+                if pipelinestageindex > 0:
+                    total_cpu_input_pressure += throughputs[str(pipelinestageindex - 1)]
             else:
-                gpu_throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(rmanager, 0)
-                gpu_max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, free_gpus) + pipelinestage.get_current_throughput(rmanager, 0)
-                total_gpu_throughput += gpu_throughputs[str(pipelinestageindex)]
-                if pipelinestageindex == 0:
-                    gpu_computation_pressure[str(pipelinestageindex)] = [0, gpu_throughputs[str(pipelinestageindex)]]
-                elif pipelinestageindex == len(self.pipelinestages) - 1:
-                    gpu_computation_pressure[str(pipelinestageindex)] = [cpu_throughputs[str(pipelinestageindex - 1)],
-                                                                         gpu_throughputs[str(pipelinestageindex)]]
-                    gpu_incoming_traffic += cpu_throughputs[str(pipelinestageindex - 1)]
+                if pipelinestageindex > 0:
+                    total_gpu_input_pressure += throughputs[str(pipelinestageindex - 1)]
+
+            if throughputs[str(pipelinestageindex)] > 0:
+                if pipelinestage.resourcetype == 'CPU':
+                    total_cpu_throughput += throughputs[str(pipelinestageindex)]
                 else:
-                    gpu_computation_pressure[str(pipelinestageindex)] = [cpu_throughputs[str(pipelinestageindex - 1)],
-                                                                         gpu_throughputs[str(pipelinestageindex)]]
-                    gpu_incoming_traffic += cpu_throughputs[str(pipelinestageindex - 1)]
+                    total_gpu_throughput += throughputs[str(pipelinestageindex)]
+                if pipelinestageindex != 0:
+                    time_to_finish[str(pipelinestageindex)] = pending_workloads[str(pipelinestageindex)] / throughputs[str(pipelinestageindex)]
+
+            if pipelinestageindex == 0:
+                computation_pressures[str(pipelinestageindex)] = [0, throughputs[str(pipelinestageindex)]]
+            elif pipelinestageindex == len(self.pipelinestages) - 1:
+                computation_pressures[str(pipelinestageindex)] = [throughputs[str(pipelinestageindex - 1)],
+                                                                  throughputs[str(pipelinestageindex)]]
+            else:
+                computation_pressures[str(pipelinestageindex)] = [throughputs[str(pipelinestageindex - 1)],
+                                                                  throughputs[str(pipelinestageindex)]]
 
             pipelinestageindex += 1
 
-        print ('throughput', total_cpu_throughput, total_gpu_throughput)
-        print ('incoming traffic', cpu_incoming_traffic, gpu_incoming_traffic)
-        print ('computation pressure', cpu_computation_pressure, gpu_computation_pressure)
-        print ('throughputs', cpu_throughputs, gpu_throughputs)
-        print ('----------------------------------------------------------')
+        available_resources = {}
+        underutilizations = {}
+        max_throughputs = {}
+        total_max_cpu_throughput = 0
+        total_max_gpu_throughput = 0
 
+        current_free_cpus = copy.deepcopy(free_cpus)
+        current_free_gpus = copy.deepcopy(free_gpus)
 
-        gpus_droplist = []
-        cpus_droplist = []
-        gpus_addlist = []
-        cpus_addlist = []
         pipelinestageindex = len (self.pipelinestages) - 1
+
+        gpus_to_be_dropped = []
+        cpus_to_be_dropped = []
 
         while pipelinestageindex >= 0:
             pipelinestage = self.pipelinestages[pipelinestageindex]
             if pipelinestage.resourcetype == 'CPU':
-                if cpu_max_throughputs[str(pipelinestageindex)] == 0:
-                    underutilization = 0
-                else:
-                    underutilization = (cpu_max_throughputs[str (pipelinestageindex)] - cpu_throughputs[str (pipelinestageindex)]) / cpu_max_throughputs[str (pipelinestageindex)]
-                input_pressure = cpu_computation_pressure[str(pipelinestageindex)][0]
-                pressure_difference = cpu_max_throughputs[str (pipelinestageindex)] - input_pressure
-                throughput = cpu_throughputs[str(pipelinestageindex)]
-                max_throughput = cpu_max_throughputs[str (pipelinestageindex)]
+                free_resources = current_free_cpus
             else:
-                if gpu_max_throughputs[str(pipelinestageindex)] == 0:
-                    underutilization = 0
+                free_resources = current_free_gpus
+            if throughputs[str(pipelinestageindex)] <= 0:
+                if computation_pressures[str(pipelinestageindex)][0] <= 0:
+                    available_resources[str(pipelinestageindex)] = []
+                    max_throughputs[str(pipelinestageindex)] = 0
                 else:
-                    underutilization = (gpu_max_throughputs[str (pipelinestageindex)] - gpu_throughputs[str (pipelinestageindex)]) / gpu_max_throughputs[str (pipelinestageindex)]
-                input_pressure = gpu_computation_pressure[str(pipelinestageindex)][0]
-                pressure_difference = gpu_max_throughputs[str (pipelinestageindex)] - input_pressure
-                throughput = gpu_throughputs[str(pipelinestageindex)]
-                max_throughput = gpu_max_throughputs[str (pipelinestageindex)]
+                    available_resources[str(pipelinestageindex)] = copy.deepcopy(free_resources)
+                    max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, free_resources)
+                    free_resources.clear ()
+            else:
+                available_resources[str(pipelinestageindex)] = copy.deepcopy(pipelinestage.phases[0].current_executors) + copy.deepcopy(free_resources)
+                max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, free_resources) + pipelinestage.get_current_throughput(rmanager, 0)
+                free_resources.clear ()
+
+            if pipelinestage.resourcetype == 'CPU':
+                total_max_cpu_throughput += max_throughputs[str(pipelinestageindex)]
+            else:
+                total_max_gpu_throughput += max_throughputs[str(pipelinestageindex)]
+
+            if pipelinestageindex > 0:
+                if max_throughputs[str(pipelinestageindex)] == 0:
+                    underutilizations[str(pipelinestageindex)] = 0
+                elif throughputs[str(str(pipelinestageindex))] < max_throughputs[str(pipelinestageindex)]:
+                    if computation_pressures[str(pipelinestageindex)][0] > 0:
+                        underutilizations[str(pipelinestageindex)] = (max_throughputs[str(pipelinestageindex)] - computation_pressures[str(pipelinestageindex)][0]) / max_throughputs[str(pipelinestageindex)]
+                    else:
+                        underutilizations[str(pipelinestageindex)] = (max_throughputs[str(pipelinestageindex)] - throughputs[str(pipelinestageindex)]) / max_throughputs[str(pipelinestageindex)]
+                else:
+                    underutilizations[str(pipelinestageindex)] = 0
+            else:
+                underutilizations[str(pipelinestageindex)] = 0
+
+            if str(pipelinestageindex) in underutilizations.keys () and underutilizations[str(pipelinestageindex)] > 0:
+                print ('reconfiguration ()', pipelinestage.name, underutilizations[str(pipelinestageindex)], computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)], available_resources)
+                to_be_dropped = self.scale_down_configuration (rmanager, pipelinestageindex, underutilizations[str(pipelinestageindex)], throughputs[str(pipelinestageindex)], available_resources[str(pipelinestageindex)])
+                if pipelinestage.resourcetype == 'CPU':
+                    print('CPUs to be dropped', to_be_dropped)
+                    cpus_to_be_dropped.extend (to_be_dropped)
+                else:
+                    print('GPUs to be dropped', to_be_dropped)
+                    gpus_to_be_dropped.extend (to_be_dropped)
+
+            pipelinestageindex -= 1
+
+        if total_gpu_throughput <= 0 and total_gpu_input_pressure <= 0:
+            gpu_weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking(rmanager, 'GPU', free_gpus)
+
+            to_be_dropped = []
+
+            for gpu_id in gpu_weighted_pcr_ranking.keys():
+                gpu = rmanager.get_resource(gpu_id)
+                if rmanager.get_availability(gpu.gpu.name) > 0.8:
+                    to_be_dropped.append(gpu.id)
+            print('GPUs to be dropped', to_be_dropped)
+            gpus_to_be_dropped = to_be_dropped
+
+        if total_cpu_throughput <= 0 and total_cpu_input_pressure <= 0:
+            cpu_weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking(rmanager, 'CPU', free_cpus)
+
+            to_be_dropped = []
+
+            for cpu_id in cpu_weighted_pcr_ranking.keys():
+                cpu = rmanager.get_resource(cpu_id)
+                if rmanager.get_availability(cpu.cpu.name) > 0.8:
+                    to_be_dropped.append(cpu.id)
+            print('CPUs to be dropped', to_be_dropped)
+            cpus_to_be_dropped = to_be_dropped
+
+        print('total throughput', total_cpu_throughput, total_gpu_throughput)
+        print('total input pressure', total_cpu_input_pressure, total_gpu_input_pressure)
+        print('total max throughput', total_max_cpu_throughput, total_max_gpu_throughput)
+        print('computation pressures', computation_pressures)
+        print('throughputs', throughputs)
+        print('max throughputs', max_throughputs)
+        print('----------------------------------------------------------')
+
+        return cpus_to_be_dropped, gpus_to_be_dropped
+
+        '''
+        gpus_droplist = []
+        cpus_droplist = []
+        gpus_addlist = []
+        cpus_addlist = []
+
+        pipelinestageindex = len (self.pipelinestages) - 1
+
+        while pipelinestageindex >= 0:
+            pipelinestage = self.pipelinestages[pipelinestageindex]
+            input_pressure = computation_pressures[str(pipelinestageindex)][0]
+            pressure_difference = max_throughputs[str(pipelinestageindex)] - input_pressure
+            throughput = throughputs[str(pipelinestageindex)]
+            max_throughput = max_throughputs[str(pipelinestageindex)]
+            underutilization = underutilizations[str(pipelinestageindex)]
 
             if underutilization > 0:
                 if input_pressure > 0:
                     if throughput <= 0:
                         print('reconfiguration 0()', 'startup delay', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
+                    if pressure_difference > 0:
+                        print('reconfiguration 1()', 'faster pipelinestage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
                     else:
-                        if pressure_difference > 0:
-                            print('reconfiguration 1()', 'faster pipelinestage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
-                        else:
-                            print('reconfiguration 2()', 'slower pipelinestage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
+                        print('reconfiguration 2()', 'slower pipelinestage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
                 else:
                     if throughput <= 0:
                         print('reconfiguration 3()', 'empty stage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
@@ -1009,7 +1116,7 @@ class PipelineManager:
             else:
                 if input_pressure > 0:
                     if throughput <= 0:
-                        print('reconfiguration 5()', 'startup delay', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
+                        print('reconfiguration 5()', 'empty stage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
                     else:
                         if pressure_difference > 0:
                             print('reconfiguration 6()', 'faster pipelinestage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
@@ -1021,9 +1128,9 @@ class PipelineManager:
                     else:
                         print('reconfiguration 9()', 'tail stage', pipelinestage.name, underutilization, input_pressure, pressure_difference, throughput, max_throughput, pipelinestage.phases[0].current_count)
 
+
             pipelinestageindex -= 1
 
-        '''
         if gpu_incoming_traffic <= 0 and total_gpu_throughput == 0:
             #calculate how long will this last ?
             time_to_last = 0
