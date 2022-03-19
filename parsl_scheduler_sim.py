@@ -288,7 +288,7 @@ if __name__ == "__main__":
     else:
         batchsize = max_images[0]
 
-    sys.stdout = open('output.txt', 'w')
+    #sys.stdout = open('output.txt', 'w')
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
@@ -296,5 +296,5 @@ if __name__ == "__main__":
         sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
-    sys.stdout.close()
+    #sys.stdout.close()
     #plot_prediction()

@@ -98,7 +98,7 @@ class FirstCompleteFirstServe (Policy):
 
                     new_workitem = self.get_new_workitem(resourcetype)
                     if new_workitem != None:
-                        new_workitem_exectime = resource.get_exectime(new_workitem.pipelinestage.name)
+                        new_workitem_exectime = resource.get_exectime(new_workitem.pipelinestage.name, new_workitem.pipelinestage.resourcetype)
                         if new_workitem_exectime > time_left and idle_period_end != -1:
                             self.add_back_new_workitem(new_workitem)
                             new_workitem = None
@@ -109,7 +109,7 @@ class FirstCompleteFirstServe (Policy):
                     candidate_index = 0
                     for candidate in sorted_candidates:
                         next_pipelinestage = candidate.get_next_pipelinestage(pmanager, resourcetype)
-                        exectime = resource.get_exectime(next_pipelinestage.name)
+                        exectime = resource.get_exectime(next_pipelinestage.name, new_workitem.pipelinestage.resourcetype)
 
                         if exectime < time_left or idle_period_end == -1:
                             break

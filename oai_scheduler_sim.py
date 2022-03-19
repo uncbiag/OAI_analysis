@@ -217,7 +217,53 @@ class OAI_Scheduler:
         pmanager.prediction_idle_periods[str (phase_tracker + 1)] = [new_cpu_idle_periods, new_gpu_idle_periods]
 
     def reconfiguration_no_prediction (self, rmanager, pmanager, idle_cpus, idle_gpus):
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.get_pending_workloads (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_dropped, gpus_to_be_dropped, cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_down (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        new_cpus_to_be_dropped = []
+        new_gpus_to_be_dropped = []
+
+        for cpu_id in cpus_to_be_dropped:
+            resource = rmanager.get_resource (cpu_id)
+            if resource.cpu.name in cpus_to_be_added:
+                cpus_to_be_added[resource.cpu.name] -= 1
+                if cpus_to_be_added[resource.cpu.name] <= 0:
+                    cpus_to_be_added.pop (resource.cpu.name, None)
+            else:
+                new_cpus_to_be_dropped.append (resource.id)
+
+        for gpu_id in gpus_to_be_dropped:
+            resource = rmanager.get_resource (gpu_id)
+            if resource.gpu.name in gpus_to_be_added:
+                gpus_to_be_added[resource.gpu.name] -= 1
+                if gpus_to_be_added[resource.gpu.name] <= 0:
+                    gpus_to_be_added.pop (resource.gpu.name, None)
+            else:
+                new_gpus_to_be_dropped.append (resource.id)
+
+
+        for cpu_id in new_cpus_to_be_dropped:
+            if cpu_id not in idle_cpus:
+                print ('CPU', cpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'CPU', cpu_id)
+        for gpu_id in new_gpus_to_be_dropped:
+            if gpu_id not in idle_gpus:
+                print('GPU', gpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'GPU', gpu_id)
+
+        for pipelinestageindex in cpus_to_be_added:
+            for cpu_type in cpus_to_be_added[pipelinestageindex]:
+                count = cpus_to_be_added[pipelinestageindex][cpu_type]
+                for i in range (0, count):
+                    self.add_worker(rmanager, True, False, cpu_type, None)
+
+        for pipelinestageindex in gpus_to_be_added:
+            for gpu_type in gpus_to_be_added[pipelinestageindex]:
+                count = gpus_to_be_added[pipelinestageindex][gpu_type]
+                for i in range (0, count):
+                    self.add_worker(rmanager, False, True, None, gpu_type)
+
         return
 
     def replenish_workitems (self, imanager, pmanager, scheduling_policy, batchsize):
@@ -417,6 +463,7 @@ class OAI_Scheduler:
                     if gpu_idle == True:
                         idle_gpus.append(resource)
 
+                print ('run', rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count ())
                 # print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
                 if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
                         idle_gpus) == rmanager.get_gpu_resources_count() and last_phase_closed_index == pmanager.no_of_columns - 1:

@@ -1,6 +1,7 @@
 import yaml
 import copy
 import datetime
+import random as rand
 
 from parslflux.workqueue import WorkItemQueue
 
@@ -111,7 +112,7 @@ class GPU:
 
 class Resource:
 
-    def __init__ (self, i):
+    def __init__ (self, i, rmanager):
         self.id = "c" + str(i)
         self.hostname = "c" + str (i)
         self.cpu = None
@@ -123,6 +124,7 @@ class Resource:
         self.transfertimes = {}
         self.counts = {}
         self.executionqueues = [-1, -1]
+        self.rmanager = rmanager
 
     def add_cpu (self, cpu, cost):
         self.cpu = CPU (cpu, cost)
@@ -478,18 +480,25 @@ class Resource:
         else:
             return self.max_exectimes[pipelinestages]
 
-    def get_exectime (self, pipelinestages):
+    def get_exectime (self, pipelinestages, resourcetype):
         if pipelinestages not in self.exectimes:
-            return 0
+            if resourcetype == 'CPU':
+                resource_name = self.cpu.name
+            else:
+                resource_name = self.gpu.name
+            exectime = self.rmanager.get_exectime (resource_name, pipelinestages)
+            return exectime
         else:
             return self.exectimes[pipelinestages][0]
 
     def get_exectime_pipelinestages (self, pmanager, pipelinestages, resourcetype):
         if resourcetype == 'CPU' and self.cpu != None:
             encoded_pipelinestages = pmanager.encode_pipeline_stages (pipelinestages)
-            exectime = self.get_exectime(encoded_pipelinestages)
+            exectime = self.get_exectime(encoded_pipelinestages, resourcetype)
             if exectime == 0:
-                return None
+                exectime = self.rmanager.get_exectime(self.cpu.name, pipelinestages)
+                if exectime == 0:
+                    return None
             else:
                 return exectime
         else:
@@ -497,9 +506,11 @@ class Resource:
 
         if resourcetype == 'GPU' and self.gpu != None:
             encoded_pipelinestages = pmanager.encode_pipeline_stages (pipelinestages)
-            exectime = self.get_exectime(encoded_pipelinestages)
+            exectime = self.get_exectime(encoded_pipelinestages, resourcetype)
             if exectime == 0:
-                return None
+                exectime = self.rmanager.get_exectime (self.gpu.name, pipelinestages)
+                if exectime == 0:
+                    return None
             else:
                 return exectime
         else:
@@ -512,9 +523,11 @@ class Resource:
                 workitem = self.cpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
                 encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
-                exectime = self.get_exectime(encoded_workitem_pipelinestages)
+                exectime = self.get_exectime(encoded_workitem_pipelinestages, resourcetype)
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.cpu.name, encoded_workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     return exectime
             else:
@@ -525,9 +538,11 @@ class Resource:
                 workitem = self.gpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
                 encoded_workitem_pipelinestages = pmanager.encode_pipeline_stages (workitem_pipelinestages)
-                exectime = self.get_exectime(encoded_workitem_pipelinestages)
+                exectime = self.get_exectime(encoded_workitem_pipelinestages, resourcetype)
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.gpu.name, encoded_workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     return exectime
             else:
@@ -545,10 +560,12 @@ class Resource:
                 workitem = self.cpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
 
-                exectime = self.get_exectime (workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.cpu.name, workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     work_remaining = (exectime - (current_time - workitem.scheduletime))/exectime
                     if work_remaining < 0:
@@ -560,10 +577,12 @@ class Resource:
                 workitem = self.gpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
 
-                exectime = self.get_exectime (workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.gpu.name, workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     work_remaining = (exectime - (current_time - workitem.scheduletime))/exectime
                     if work_remaining < 0:
@@ -579,12 +598,14 @@ class Resource:
                 workitem = self.cpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
 
-                exectime = self.get_exectime (workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 
                 print('get_time_left cpu', exectime, current_time, workitem.scheduletime)
 
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.cpu.name, workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     work_remaining = (exectime - (current_time - workitem.scheduletime))
                     if work_remaining < 0:
@@ -596,12 +617,14 @@ class Resource:
                 workitem = self.gpu.workqueue.get_workitem ()
                 workitem_pipelinestages = workitem.get_pipelinestages ()
 
-                exectime = self.get_exectime (workitem_pipelinestages)
+                exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 
                 print('get_time_left gpu', exectime, current_time, workitem.scheduletime)
 
                 if exectime == 0:
-                    return None
+                    exectime = self.rmanager.get_exectime(self.gpu.name, workitem_pipelinestages)
+                    if exectime == 0:
+                        return None
                 else:
                     work_remaining = (exectime - (current_time - workitem.scheduletime))
                     if work_remaining < 0:
@@ -617,13 +640,10 @@ class ResourceManager:
         self.availablefile = availablefile
         self.resourcetypeinfo = {}
         self.nodes = []
-        self.reservednodes = []
-        self.nodesdict = {}
-        self.reservednodesdict = {}
         self.exectimes = {}
         self.max_exectimes = {}
-        self.cpunodes = []
-        self.gpunodes = []
+        self.cpunodes_count = 0
+        self.gpunodes_count = 0
         self.cpuid_counter = 0
         self.gpuid_counter = 0
 
@@ -637,52 +657,44 @@ class ResourceManager:
             return self.resourcetypeinfo[resourcetype]['availability']
         return 1.0
 
+    def request_resource (self, resourcename):
+        if rand.random() > 0.5:
+            return True
+        return False
+
     def add_resource (self, cpuok, gpuok, cputype, gputype):
         print('add resource ()', cpuok, gpuok, cputype, gputype)
         if cpuok == True:
-            resource = Resource ('c' + str(self.cpuid_counter))
-            resource.add_cpu(cputype)
-            self.nodesdict[resource.id] = resource
-            self.cpunodes.append(copy.deepcopy(resource))
-            self.nodes.append(copy.deepcopy(resource))
+            resource = Resource ('c' + str(self.cpuid_counter), self)
+            resource.add_cpu(cputype, self.resourcetypeinfo[cputype]['cost'])
+            self.nodes.append(resource)
             self.cpuid_counter += 1
+            self.cpunodes_count += 1
+
             return resource
         elif gpuok == True:
-            resource = Resource('g' + str(self.gpuid_counter))
-            resource.add_gpu(gputype)
-            self.nodesdict[resource.id] = resource
-            self.gpunodes.append(copy.deepcopy(resource))
-            self.nodes.append(copy.deepcopy(resource))
+            resource = Resource('g' + str(self.gpuid_counter), self)
+            resource.add_gpu(gputype, self.resourcetypeinfo[gputype]['cost'])
+            self.nodes.append(resource)
             self.gpuid_counter += 1
+            self.gpunodes_count += 1
+
             return resource
 
     def delete_resource (self, resourcetype, resource_id):
         print ('delete resource ()', resource_id, resourcetype)
-        del self.nodesdict[resource_id]
         node_index = 0
         for node in self.nodes:
             if node.id == resource_id:
                 break
             node_index += 1
+
         if node_index < len (self.nodes):
             self.nodes.pop (node_index)
-
-        if resourcetype == 'CPU':
-            node_index = 0
-            for node in self.cpunodes:
-                if node.id == resource_id:
-                    break
-                node_index += 1
-            if node_index < len(self.cpunodes):
-                self.cpunodes.pop(node_index)
-        elif resourcetype == 'GPU':
-            node_index = 0
-            for node in self.gpunodes:
-                if node.id == resource_id:
-                    break
-                node_index += 1
-            if node_index < len(self.gpunodes):
-                self.gpunodes.pop(node_index)
+            if resourcetype == 'CPU':
+                self.cpunodes_count -= 1
+            else:
+                self.gpunodes_count -= 1
 
     def get_resourcetype_info (self, resourcetype, infotype):
         return self.resourcetypeinfo[resourcetype][infotype]
@@ -696,87 +708,32 @@ class ResourceManager:
             self.resourcetypeinfo[cputype['id']]['startuptime'] = cputype['startuptime']
             self.resourcetypeinfo[cputype['id']]['resourcetype'] = 'CPU'
             self.resourcetypeinfo[cputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[cputype['id']]['cost'] = cputype['cost']
             count = cputype['count']
             for i in range (0, count):
-                new_resource = Resource ('c' + str(self.cpuid_counter))
+                new_resource = Resource ('c' + str(self.cpuid_counter), self)
                 new_resource.add_cpu(cputype['id'], cputype['cost'])
-                self.nodesdict[new_resource.id] = new_resource
-                self.cpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
+                self.nodes.append(new_resource)
                 self.cpuid_counter += 1
+                self.cpunodes_count += 1
 
         for gputype in resources['available']['GPU']:
             self.resourcetypeinfo[gputype['id']] = {}
             self.resourcetypeinfo[gputype['id']]['startuptime'] = gputype['startuptime']
             self.resourcetypeinfo[gputype['id']]['resourcetype'] = 'GPU'
             self.resourcetypeinfo[gputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[gputype['id']]['cost'] = gputype['cost']
             count = gputype['count']
             for i in range (0, count):
-                new_resource = Resource ('g' + str(self.gpuid_counter))
+                new_resource = Resource ('g' + str(self.gpuid_counter), self)
                 new_resource.add_gpu(gputype['id'], gputype['cost'])
-                self.nodesdict[new_resource.id] = new_resource
-                self.gpunodes.append(copy.deepcopy(self.nodesdict[new_resource.id]))
+                self.nodes.append(new_resource)
                 self.gpuid_counter += 1
+                self.gpunodes_count += 1
 
         #self.availablenodesdict = self.nodesdict
 
-        self.nodes = copy.deepcopy(list(self.nodesdict.values()))
-
         print (self.nodes)
-
-    def parse_resources_old (self):
-        yaml_resourcefile = open (self.resourcefile)
-        resources = yaml.load (yaml_resourcefile, Loader = yaml.FullLoader)
-
-        arc_resources = resources['arc']
-        self.start = arc_resources['range'][0]
-        self.end = arc_resources['range'][1]
-
-        #parse nodes
-        for node in arc_resources['nodes']:
-            for noderange in node['range']:
-                for i in range (noderange[0], noderange[1] + 1):
-                    new_resource = Resource (i)
-                    new_resource.add_cpu (node['name'])
-                    self.nodesdict[str(i)] = new_resource
-
-        #parse gpus
-        for gpu in arc_resources['gpus']:
-            for gpurange in gpu['range']:
-                for i in range (gpurange[0], gpurange[1] + 1):
-                    self.nodesdict[str(i)].add_gpu (gpu['name'])
-
-    def purge_resources (self):
-        available_resourcefile = open (self.availablefile)
-        availableresources = yaml.load (available_resourcefile, Loader = yaml.FullLoader)
-        resources = {}
-        reservedresources = {}
-
-        if len (availableresources['available']) > 0:
-            for node in availableresources['available']:
-                nodeid = node['id']
-                resources[str(nodeid)] = copy.deepcopy (self.nodesdict[str(nodeid)])
-                resources[str(nodeid)].output_location = node['output_location']
-
-                if node['cpu'] == 0:
-                    resources[str(nodeid)].remove_cpu ()
-                else:
-                    self.cpunodes.append (copy.deepcopy (resources[str(nodeid)]))
-                if node['gpu'] == 0:
-                    resources[str(nodeid)].remove_gpu ()
-                else:
-                    self.gpunodes.append (copy.deepcopy (resources[str(nodeid)]))
-
-        if len (availableresources['reserved']) > 0:
-            for i in availableresources['reserved']:
-                reservedresources[str(i)] = copy.deepcopy (self.nodesdict[str(i)])
-
-        self.availablenodesdict = resources
-        self.reservednodesdict = reservedresources
-
-        self.nodes = copy.deepcopy (list (self.availablenodesdict.values ()))
-        self.reservednodes = copy.deepcopy (list (self.reservednodesdict.values ()))
-
-        print ('nodes:', len(self.nodes), 'reserved nodes:', len (self.reservednodes))
 
     def get_max_exectime (self, pipelinestages, resource_id):
         resources = self.get_resources ()
@@ -792,10 +749,10 @@ class ResourceManager:
         return max_exectime
 
     def get_cpu_resources_count (self):
-        return len (self.cpunodes)
+        return self.cpunodes_count
 
     def get_gpu_resources_count (self):
-        return len (self.gpunodes)
+        return self.gpunodes_count
 
     def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
         seconds = endtime - starttime
@@ -820,18 +777,26 @@ class ResourceManager:
 
         #print (self, self.exectimes)
 
+    def get_exectime (self, resourcename, pipelinestages):
+        if resourcename not in self.exectimes:
+            return 0
+        if pipelinestages not in self.exectimes[resourcename]:
+            return 0
+
+        return self.exectimes[resourcename][pipelinestages][0]
+
     def get_pipelinestage_weights (self, resourcetype, no_of_pipelinestages):
         total_execution_times = {}
         count = 0
         for resource_name in self.exectimes.keys ():
-            resourcetype_execution_times = []
+            resourcename_execution_times = []
             if self.get_resourcetype_info(resource_name, 'resourcetype') == resourcetype:
                 if len (list (self.exectimes[resource_name].keys ())) < no_of_pipelinestages:
                     continue
                 for pipelinestage in self.exectimes[resource_name].keys ():
-                    resourcetype_execution_times.append(self.exectimes[resource_name][pipelinestage][0] * self.exectimes[resource_name][pipelinestage][1])
+                    resourcename_execution_times.append(self.exectimes[resource_name][pipelinestage][0] * self.exectimes[resource_name][pipelinestage][1])
 
-                total_execution_times[resource_name] = resourcetype_execution_times
+                total_execution_times[resource_name] = resourcename_execution_times
 
         weights = [0 for i in range (0, no_of_pipelinestages)]
 
@@ -859,13 +824,6 @@ class ResourceManager:
                 return node
         return None
 
-    def get_resource_exist (self, resource_id):
-        resource_id = resource_id[1:]
-        if resource_id in self.nodesdict.keys():
-            return self.nodesdict[resource_id]
-
-        return None
-
     def get_resources (self):
         return self.nodes
 
@@ -878,12 +836,9 @@ class ResourceManager:
                 resources.append(resource)
         return resources
 
-    def request_reserved_resource (self):
-        if len (self.reservednodesdict.keys()) > 0:
-            new_key = self.reservednodesdict.keys()[0]
-            new_resource = self.reservednodesdict.pop (new_key)
-            self.nodesdict[new_key] = new_resource
-            self.nodes.append (new_resource)
-            return new_resource
-
-        return None
+    def get_resource_names (self, resourcetype):
+        resource_names = []
+        for resource_name in self.resourcetypeinfo.keys ():
+            if self.resourcetypeinfo[resource_name]['resourcetype'] == resourcetype:
+                resource_names.append(resource_name)
+        return resource_names
