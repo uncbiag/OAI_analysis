@@ -6,13 +6,14 @@ import random as rand
 from parslflux.workqueue import WorkItemQueue
 
 class CPU:
-    def __init__ (self, name, cost):
+    def __init__ (self, name, cost, now):
         self.name = name
         self.cost = cost
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
         self.idle_periods = []
+        self.acquisition_time = now
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -59,13 +60,14 @@ class CPU:
         return ret
 
 class GPU:
-    def __init__ (self, name, cost):
+    def __init__ (self, name, cost, now):
         self.name = name
         self.cost = cost
         self.workqueue = WorkItemQueue ()
         self.busy = False
         self.last_completion_time = None
         self.idle_periods = []
+        self.acquisition_time = now
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -126,11 +128,11 @@ class Resource:
         self.executionqueues = [-1, -1]
         self.rmanager = rmanager
 
-    def add_cpu (self, cpu, cost):
-        self.cpu = CPU (cpu, cost)
+    def add_cpu (self, cpu, cost, now):
+        self.cpu = CPU (cpu, cost, now)
 
-    def add_gpu (self, gpu, cost):
-        self.gpu = GPU (gpu, cost)
+    def add_gpu (self, gpu, cost, now):
+        self.gpu = GPU (gpu, cost, now)
 
     def get_cost (self, resourcetype):
         if resourcetype == 'CPU' and self.cpu != None:
@@ -635,7 +637,7 @@ class Resource:
         return None
 
 class ResourceManager:
-    def __init__ (self, resourcefile, availablefile):
+    def __init__ (self, resourcefile, availablefile, env):
         self.resourcefile = resourcefile
         self.availablefile = availablefile
         self.resourcetypeinfo = {}
@@ -646,6 +648,9 @@ class ResourceManager:
         self.gpunodes_count = 0
         self.cpuid_counter = 0
         self.gpuid_counter = 0
+        self.env = env
+        self.total_cpu_cost = 0
+        self.total_gpu_cost = 0
 
     def get_startup_time (self, resourcetype):
         if resourcetype in self.resourcetypeinfo.keys ():
@@ -666,18 +671,22 @@ class ResourceManager:
         print('add resource ()', cpuok, gpuok, cputype, gputype)
         if cpuok == True:
             resource = Resource ('c' + str(self.cpuid_counter), self)
-            resource.add_cpu(cputype, self.resourcetypeinfo[cputype]['cost'])
+            resource.add_cpu(cputype, self.resourcetypeinfo[cputype]['cost'], self.env.now)
             self.nodes.append(resource)
             self.cpuid_counter += 1
             self.cpunodes_count += 1
+            self.resourcetypeinfo[cputype]['count']['time'].append(self.env.now)
+            self.resourcetypeinfo[cputype]['count']['count'].append(self.resourcetypeinfo[cputype]['count']['count'][-1] + 1)
 
             return resource
         elif gpuok == True:
             resource = Resource('g' + str(self.gpuid_counter), self)
-            resource.add_gpu(gputype, self.resourcetypeinfo[gputype]['cost'])
+            resource.add_gpu(gputype, self.resourcetypeinfo[gputype]['cost'], self.env.now)
             self.nodes.append(resource)
             self.gpuid_counter += 1
             self.gpunodes_count += 1
+            self.resourcetypeinfo[gputype]['count']['time'].append(self.env.now)
+            self.resourcetypeinfo[gputype]['count']['count'].append(self.resourcetypeinfo[gputype]['count']['count'][-1] + 1)
 
             return resource
 
@@ -686,6 +695,14 @@ class ResourceManager:
         node_index = 0
         for node in self.nodes:
             if node.id == resource_id:
+                if resourcetype == 'CPU':
+                    self.resourcetypeinfo[node.cpu.name]['count']['time'].append(self.env.now)
+                    self.resourcetypeinfo[node.cpu.name]['count']['count'].append (self.resourcetypeinfo[node.cpu.name]['count']['count'][-1] - 1)
+                    self.total_cpu_cost += (self.env.now - node.cpu.acquisition_time) * node.cpu.cost
+                else:
+                    self.resourcetypeinfo[node.gpu.name]['count']['time'].append (self.env.now)
+                    self.resourcetypeinfo[node.gpu.name]['count']['count'].append (self.resourcetypeinfo[node.gpu.name]['count']['count'][-1] - 1)
+                    self.total_gpu_cost += (self.env.now - node.gpu.acquisition_time) * node.gpu.cost
                 break
             node_index += 1
 
@@ -695,6 +712,12 @@ class ResourceManager:
                 self.cpunodes_count -= 1
             else:
                 self.gpunodes_count -= 1
+
+    def get_total_cost (self):
+        return self.total_cpu_cost, self.total_gpu_cost
+
+    def get_resourcetype_info_all (self):
+        return self.resourcetypeinfo
 
     def get_resourcetype_info (self, resourcetype, infotype):
         return self.resourcetypeinfo[resourcetype][infotype]
@@ -709,10 +732,13 @@ class ResourceManager:
             self.resourcetypeinfo[cputype['id']]['resourcetype'] = 'CPU'
             self.resourcetypeinfo[cputype['id']]['availability'] = 1.0
             self.resourcetypeinfo[cputype['id']]['cost'] = cputype['cost']
+            self.resourcetypeinfo[cputype['id']]['count'] = {}
+            self.resourcetypeinfo[cputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[cputype['id']]['count']['count'] = [cputype['count']]
             count = cputype['count']
             for i in range (0, count):
                 new_resource = Resource ('c' + str(self.cpuid_counter), self)
-                new_resource.add_cpu(cputype['id'], cputype['cost'])
+                new_resource.add_cpu(cputype['id'], cputype['cost'], self.env.now)
                 self.nodes.append(new_resource)
                 self.cpuid_counter += 1
                 self.cpunodes_count += 1
@@ -723,10 +749,13 @@ class ResourceManager:
             self.resourcetypeinfo[gputype['id']]['resourcetype'] = 'GPU'
             self.resourcetypeinfo[gputype['id']]['availability'] = 1.0
             self.resourcetypeinfo[gputype['id']]['cost'] = gputype['cost']
+            self.resourcetypeinfo[gputype['id']]['count'] = {}
+            self.resourcetypeinfo[gputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[gputype['id']]['count']['count'] = [gputype['count']]
             count = gputype['count']
             for i in range (0, count):
                 new_resource = Resource ('g' + str(self.gpuid_counter), self)
-                new_resource.add_gpu(gputype['id'], gputype['cost'])
+                new_resource.add_gpu(gputype['id'], gputype['cost'], self.env.now)
                 self.nodes.append(new_resource)
                 self.gpuid_counter += 1
                 self.gpunodes_count += 1

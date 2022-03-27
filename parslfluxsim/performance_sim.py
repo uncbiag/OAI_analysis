@@ -27,7 +27,7 @@ gpu_completion_files = [
 ]
 
 cpu_resource_types = {
-    'c77': 'Epyc Rome',
+    'c77': 'Epyc Rome', #C5a
     'c99': 'Intel Ivy Bridge',
     'c44': 'AMD Opteron',
     'c93': 'Intel Broadwell',

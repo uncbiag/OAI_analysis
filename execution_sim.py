@@ -32,14 +32,16 @@ class ExecutionSimThread:
                     dist, shape, location, scale = performancedata[resourcename][version][0], performancedata[resourcename][version][1], \
                         performancedata[resourcename][version][2], performancedata[resourcename][version][3]
                     self.distributions[version] = {}
+                    '''
                     if dist == 'lognorm':
                         self.distributions[version]['0'] = lognorm.rvs (shape, location, scale, 10000)
                     elif dist == 'gamma':
                         self.distributions[version]['0'] = gamma.rvs (shape, location, scale, 10000)
                     elif dist == 'gennorm':
                         self.distributions[version]['0'] = gennorm.rvs (shape, location, scale, 10000)
+                    '''
                     self.distributions[version]['1'] = [dist, shape, location, scale]
-                    print(self.resourcename, version, min(self.distributions[version]['0']), max(self.distributions[version]['0']), statistics.mean(self.distributions[version]['0']), np.median(self.distributions[version]['0']), mode(self.distributions[version]['0']))
+                    #print(self.resourcename, version, min(self.distributions[version]['0']), max(self.distributions[version]['0']), statistics.mean(self.distributions[version]['0']), np.median(self.distributions[version]['0']), mode(self.distributions[version]['0']))
 
 
     def get_timeout (self, version):

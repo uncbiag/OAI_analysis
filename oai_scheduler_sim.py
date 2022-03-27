@@ -433,6 +433,7 @@ class OAI_Scheduler:
                     idle_gpu.schedule(rmanager, pmanager, 'GPU', self.workers[idle_gpu.id][1].get_exec(), self.env)
 
                 # scaling code goes here
+
                 idle_cpus = []
                 idle_gpus = []
                 for resource in resources:
@@ -463,7 +464,6 @@ class OAI_Scheduler:
                     if gpu_idle == True:
                         idle_gpus.append(resource)
 
-                print ('run', rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count ())
                 # print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
                 if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
                         idle_gpus) == rmanager.get_gpu_resources_count() and last_phase_closed_index == pmanager.no_of_columns - 1:
@@ -473,13 +473,21 @@ class OAI_Scheduler:
                                                  last_phase_closed_index)
                     print('all tasks complete', self.env.now)
                     # pmanager.print_stage_queue_data_1()
-                    pmanager.print_stage_queue_data_2()
+                    pmanager.print_stage_queue_data_2(rmanager)
                     # pmanager.print_stage_queue_data_3 (self.idle_periods)
+                    for idle_cpu in idle_cpus:
+                        self.delete_worker(rmanager, 'CPU', idle_cpu.id)
+                    for idle_gpu in idle_gpus:
+                        self.delete_worker(rmanager, 'GPU', idle_gpu.id)
+                    cpu_cost, gpu_cost = rmanager.get_total_cost()
+                    print('total cost', cpu_cost, gpu_cost, self.env.now)
                     break
 
                 yield self.env.timeout(5 / 3600)
         except simpy.Interrupt as i:
             print('WOW!')
+
+
 
     def run_prediction (self, rmanager, imanager, pmanager):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')

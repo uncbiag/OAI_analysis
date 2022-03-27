@@ -187,7 +187,7 @@ class Simulation:
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
               max_images, output_file, prediction, batchsize, no_of_prediction_phases):
 
-        self.r = ResourceManager(resourcefile, availablefile)
+        self.r = ResourceManager(resourcefile, availablefile, self.env)
 
         print (self.r)
 
@@ -277,7 +277,7 @@ if __name__ == "__main__":
     os.makedirs(output_directory, exist_ok=True)
 
     #max_images = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
-    max_images = [100]
+    max_images = [200]
 
     batchsize = max_images[0]
 
@@ -288,7 +288,7 @@ if __name__ == "__main__":
     else:
         batchsize = max_images[0]
 
-    #sys.stdout = open('output.txt', 'w')
+    sys.stdout = open('output.txt', 'w')
 
     for i in range (len (max_images)):
         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
@@ -296,5 +296,5 @@ if __name__ == "__main__":
         sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases)
         sim.run ()
         print ('simulation ', i, 'complete')
-    #sys.stdout.close()
+    sys.stdout.close()
     #plot_prediction()

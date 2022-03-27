@@ -2189,14 +2189,14 @@ class PipelineManager:
     def print_stage_queue_data_3 (self, actual_idle_periods):
         plot_prediction_idle_periods (actual_idle_periods, self.prediction_idle_periods)
 
-    def print_stage_queue_data_2 (self):
+    def print_stage_queue_data_2 (self, rmanager):
         plot_data = {}
         for pipelinestage in self.pipelinestages:
             plot_data[pipelinestage.name] = []
             for phase in pipelinestage.phases:
                 plot_data[pipelinestage.name].append ([phase.queue_snapshots, phase.starttime, phase.endtime, phase.predictions])
 
-        plot_prediction_sim_0 (plot_data, self.prediction_times,self.batchsize)
+        plot_prediction_sim_0 (rmanager, plot_data, self.prediction_times, self.batchsize)
 
 
     def print_stage_queue_data_1 (self):
