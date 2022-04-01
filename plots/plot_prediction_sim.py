@@ -153,28 +153,15 @@ def plot_prediction_idle_periods (actual_idle_periods, predicted_idle_periods):
 
 
 def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
-    fig, axes = plt.subplots(6, 1, sharex=True)
+    fig, axes = plt.subplots(5, 1, sharex=True)
 
     labels = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']
-
-    resourcetypeinfo = rmanager.get_resourcetype_info_all ()
-
-    ax = axes[0]
-
-
-
-    for resource_name in resourcetypeinfo.keys ():
-        print(resource_name, resourcetypeinfo[resource_name]['count'])
-        x_data = [i * 3600 for i in resourcetypeinfo[resource_name]['count']['time']]
-        y_data = resourcetypeinfo[resource_name]['count']['count']
-        p = ax.plot (x_data, y_data)
-
 
     pipelinestage_index = 0
     for pipelinestage_name in plot_data:
         phases_data = plot_data[pipelinestage_name]
         phase_index = 0
-        ax = axes[pipelinestage_index + 1]
+        ax = axes[pipelinestage_index ]
 
         #x.set_ylim (bottom=-2, top=batchsize)
 
@@ -240,5 +227,22 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
 
     # plt.xlabel('Timeline (seconds)')
 
-    plt.show()
+
     #plt.savefig('tmp.png', dpi=300)
+
+    fig1, axes1 = plt.subplots(nrows=1, ncols=1)
+
+    resourcetypeinfo = rmanager.get_resourcetype_info_all()
+
+    ax = axes1
+
+    for resource_name in resourcetypeinfo.keys ():
+        x_data = [i * 3600 for i in resourcetypeinfo[resource_name]['count']['time']]
+        y_data = resourcetypeinfo[resource_name]['count']['count']
+        print(resource_name, x_data, y_data)
+        if resourcetypeinfo[resource_name]['resourcetype'] == 'CPU':
+            ax.plot(x_data, y_data, label=resource_name, linestyle='solid')
+        else:
+            ax.plot (x_data, y_data, label=resource_name, linestyle='dashed')
+    ax.legend()
+    plt.show()

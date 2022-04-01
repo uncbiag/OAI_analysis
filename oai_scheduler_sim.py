@@ -216,27 +216,177 @@ class OAI_Scheduler:
 
         pmanager.prediction_idle_periods[str (phase_tracker + 1)] = [new_cpu_idle_periods, new_gpu_idle_periods]
 
+    def reconfiguration_no_prediction_up_down_underallocations_first (self, rmanager, pmanager, idle_cpus, idle_gpus):
+        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        new_cpus_to_be_added = {}
+        new_gpus_to_be_added = {}
+
+        for pipelinestageindex in cpus_to_be_added.keys():
+            to_be_added = cpus_to_be_added[pipelinestageindex]
+            for cpu_name in to_be_added.keys():
+                if cpu_name in new_cpus_to_be_added.keys():
+                    new_cpus_to_be_added[cpu_name] += to_be_added[cpu_name]
+                else:
+                    new_cpus_to_be_added[cpu_name] = to_be_added[cpu_name]
+
+        for pipelinestageindex in gpus_to_be_added.keys():
+            to_be_added = gpus_to_be_added[pipelinestageindex]
+            for gpu_name in to_be_added.keys():
+                if gpu_name in new_gpus_to_be_added.keys():
+                    new_gpus_to_be_added[gpu_name] += to_be_added[gpu_name]
+                else:
+                    new_gpus_to_be_added[gpu_name] = to_be_added[gpu_name]
+
+        for cpu_type in new_cpus_to_be_added.keys():
+            count = new_cpus_to_be_added[cpu_type]
+            for i in range (0, count):
+                self.add_worker(rmanager, True, False, cpu_type, None)
+
+        for gpu_type in new_gpus_to_be_added.keys():
+            count = new_gpus_to_be_added[gpu_type]
+            for i in range (0, count):
+                self.add_worker(rmanager, False, True, None, gpu_type)
+
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        for cpu_id in cpus_to_be_dropped:
+            if cpu_id not in idle_cpus:
+                print ('CPU', cpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'CPU', cpu_id)
+            idle_cpus.remove(cpu_id)
+        for gpu_id in gpus_to_be_dropped:
+            if gpu_id not in idle_gpus:
+                print('GPU', gpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'GPU', gpu_id)
+            idle_gpus.remove(gpu_id)
+
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        for cpu_id in cpus_to_be_dropped:
+            if cpu_id not in idle_cpus:
+                print ('CPU', cpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'CPU', cpu_id)
+        for gpu_id in gpus_to_be_dropped:
+            if gpu_id not in idle_gpus:
+                print('GPU', gpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'GPU', gpu_id)
+
+    def reconfiguration_no_prediction_up_down_overallocations_first (self, rmanager, pmanager, idle_cpus, idle_gpus):
+
+        print ('------------------------------------------------------')
+
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        for cpu_id in cpus_to_be_dropped:
+            if cpu_id not in idle_cpus:
+                print ('CPU', cpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'CPU', cpu_id)
+            idle_cpus.remove(cpu_id)
+        for gpu_id in gpus_to_be_dropped:
+            if gpu_id not in idle_gpus:
+                print('GPU', gpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'GPU', gpu_id)
+            idle_gpus.remove(gpu_id)
+
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        for cpu_id in cpus_to_be_dropped:
+            if cpu_id not in idle_cpus:
+                print ('CPU', cpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'CPU', cpu_id)
+            idle_cpus.remove(cpu_id)
+        for gpu_id in gpus_to_be_dropped:
+            if gpu_id not in idle_gpus:
+                print('GPU', gpu_id, 'not idle to be dropped')
+                continue
+            self.delete_worker(rmanager, 'GPU', gpu_id)
+            idle_gpus.remove(gpu_id)
+
+        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations(rmanager, self.env.now,
+                                                                                               idle_cpus, idle_gpus)
+
+        new_cpus_to_be_added = {}
+        new_gpus_to_be_added = {}
+
+        for pipelinestageindex in cpus_to_be_added.keys():
+            to_be_added = cpus_to_be_added[pipelinestageindex]
+            for cpu_name in to_be_added.keys():
+                if cpu_name in new_cpus_to_be_added.keys():
+                    new_cpus_to_be_added[cpu_name] += to_be_added[cpu_name]
+                else:
+                    new_cpus_to_be_added[cpu_name] = to_be_added[cpu_name]
+
+        for pipelinestageindex in gpus_to_be_added.keys():
+            to_be_added = gpus_to_be_added[pipelinestageindex]
+            for gpu_name in to_be_added.keys():
+                if gpu_name in new_gpus_to_be_added.keys():
+                    new_gpus_to_be_added[gpu_name] += to_be_added[gpu_name]
+                else:
+                    new_gpus_to_be_added[gpu_name] = to_be_added[gpu_name]
+
+        for cpu_type in new_cpus_to_be_added.keys():
+            count = new_cpus_to_be_added[cpu_type]
+            for i in range(0, count):
+                self.add_worker(rmanager, True, False, cpu_type, None)
+
+        for gpu_type in new_gpus_to_be_added.keys():
+            count = new_gpus_to_be_added[gpu_type]
+            for i in range(0, count):
+                self.add_worker(rmanager, False, True, None, gpu_type)
+
+        print('------------------------------------------------------')
+
     def reconfiguration_no_prediction (self, rmanager, pmanager, idle_cpus, idle_gpus):
+        print ('-----------------------------------------------------')
         cpus_to_be_dropped, gpus_to_be_dropped, cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_down (rmanager, self.env.now, idle_cpus, idle_gpus)
+
+        new_cpus_to_be_added = {}
+        new_gpus_to_be_added = {}
+
+        for pipelinestageindex in cpus_to_be_added.keys ():
+            to_be_added = cpus_to_be_added[pipelinestageindex]
+            for cpu_name in to_be_added.keys ():
+                if cpu_name in new_cpus_to_be_added.keys ():
+                    new_cpus_to_be_added[cpu_name] += to_be_added[cpu_name]
+                else:
+                    new_cpus_to_be_added[cpu_name] = to_be_added[cpu_name]
+
+        for pipelinestageindex in gpus_to_be_added.keys ():
+            to_be_added = gpus_to_be_added[pipelinestageindex]
+            for gpu_name in to_be_added.keys ():
+                if gpu_name in new_gpus_to_be_added.keys ():
+                    new_gpus_to_be_added[gpu_name] += to_be_added[gpu_name]
+                else:
+                    new_gpus_to_be_added[gpu_name] = to_be_added[gpu_name]
+
+
 
         new_cpus_to_be_dropped = []
         new_gpus_to_be_dropped = []
 
         for cpu_id in cpus_to_be_dropped:
             resource = rmanager.get_resource (cpu_id)
-            if resource.cpu.name in cpus_to_be_added:
-                cpus_to_be_added[resource.cpu.name] -= 1
-                if cpus_to_be_added[resource.cpu.name] <= 0:
-                    cpus_to_be_added.pop (resource.cpu.name, None)
+            if resource.cpu.name in new_cpus_to_be_added:
+                new_cpus_to_be_added[resource.cpu.name] -= 1
+                if new_cpus_to_be_added[resource.cpu.name] <= 0:
+                    new_cpus_to_be_added.pop (resource.cpu.name, None)
             else:
                 new_cpus_to_be_dropped.append (resource.id)
 
         for gpu_id in gpus_to_be_dropped:
             resource = rmanager.get_resource (gpu_id)
             if resource.gpu.name in gpus_to_be_added:
-                gpus_to_be_added[resource.gpu.name] -= 1
-                if gpus_to_be_added[resource.gpu.name] <= 0:
-                    gpus_to_be_added.pop (resource.gpu.name, None)
+                new_gpus_to_be_added[resource.gpu.name] -= 1
+                if new_gpus_to_be_added[resource.gpu.name] <= 0:
+                    new_gpus_to_be_added.pop (resource.gpu.name, None)
             else:
                 new_gpus_to_be_dropped.append (resource.id)
 
@@ -252,17 +402,17 @@ class OAI_Scheduler:
                 continue
             self.delete_worker(rmanager, 'GPU', gpu_id)
 
-        for pipelinestageindex in cpus_to_be_added:
-            for cpu_type in cpus_to_be_added[pipelinestageindex]:
-                count = cpus_to_be_added[pipelinestageindex][cpu_type]
-                for i in range (0, count):
-                    self.add_worker(rmanager, True, False, cpu_type, None)
+        for cpu_type in new_cpus_to_be_added.keys():
+            count = new_cpus_to_be_added[cpu_type]
+            for i in range (0, count):
+                self.add_worker(rmanager, True, False, cpu_type, None)
 
-        for pipelinestageindex in gpus_to_be_added:
-            for gpu_type in gpus_to_be_added[pipelinestageindex]:
-                count = gpus_to_be_added[pipelinestageindex][gpu_type]
-                for i in range (0, count):
-                    self.add_worker(rmanager, False, True, None, gpu_type)
+        for gpu_type in new_gpus_to_be_added.keys():
+            count = new_gpus_to_be_added[gpu_type]
+            for i in range (0, count):
+                self.add_worker(rmanager, False, True, None, gpu_type)
+
+        print('-----------------------------------------------------')
 
         return
 
@@ -444,7 +594,9 @@ class OAI_Scheduler:
                     if gpu_idle == True:
                         idle_gpus.append(resource.id)
                 if pmanager.get_pct_complete_no_prediction() >= 10:
-                    self.reconfiguration_no_prediction (rmanager, pmanager, idle_cpus, idle_gpus)
+                    #self.reconfiguration_no_prediction(rmanager, pmanager, idle_cpus, idle_gpus)
+                    self.reconfiguration_no_prediction_up_down_underallocations_first (rmanager, pmanager, idle_cpus, idle_gpus)
+                    #self.reconfiguration_no_prediction_up_down_overallocations_first (rmanager, pmanager, idle_cpus, idle_gpus)
 
                 # predict the execution pattern
                 if last_phase_closed_index != None:
@@ -472,15 +624,16 @@ class OAI_Scheduler:
                         self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now,
                                                  last_phase_closed_index)
                     print('all tasks complete', self.env.now)
-                    # pmanager.print_stage_queue_data_1()
-                    pmanager.print_stage_queue_data_2(rmanager)
-                    # pmanager.print_stage_queue_data_3 (self.idle_periods)
+
                     for idle_cpu in idle_cpus:
                         self.delete_worker(rmanager, 'CPU', idle_cpu.id)
                     for idle_gpu in idle_gpus:
                         self.delete_worker(rmanager, 'GPU', idle_gpu.id)
                     cpu_cost, gpu_cost = rmanager.get_total_cost()
                     print('total cost', cpu_cost, gpu_cost, self.env.now)
+                    # pmanager.print_stage_queue_data_1()
+                    pmanager.print_stage_queue_data_2(rmanager)
+                    # pmanager.print_stage_queue_data_3 (self.idle_periods)
                     break
 
                 yield self.env.timeout(5 / 3600)
