@@ -1221,6 +1221,7 @@ class PipelineManager:
                     print('GPUs to be added', to_be_added)
                     gpus_to_be_added[str(pipelinestageindex)] = to_be_added
 
+            '''
             elif str(pipelinestageindex) in underallocations and underallocations[str(pipelinestageindex)] > 0.0 and total_throughput > 0 and total_throughput == throughputs[str(pipelinestageindex)]:
                 print('reconfiguration up 2 ()', pipelinestage.name, underallocations, overallocations,
                       computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
@@ -1234,6 +1235,7 @@ class PipelineManager:
                 else:
                     print('GPUs to be added', to_be_added)
                     gpus_to_be_added[str(pipelinestageindex)] = to_be_added
+            '''
 
             if str(pipelinestageindex) in overallocations and overallocations[str(pipelinestageindex)] > 0:
                 print('reconfiguration ()', pipelinestage.name, overallocations[str(pipelinestageindex)],
@@ -1323,12 +1325,26 @@ class PipelineManager:
             pending_workitems = pipelinestage.phases[0].current_count - len(available_resources[str(pipelinestageindex)])
 
             if str(pipelinestageindex) in underallocations and pending_workitems > 0 and ((underallocations[str(pipelinestageindex)] >= 1.0 and total_throughput <= 0) or (underallocations[str(pipelinestageindex)] > 0 and throughputs[str(pipelinestageindex)] == total_throughput)):
-                print('reconfiguration ()', pipelinestage.name, underallocations,
+                print('reconfiguration_up_down_underallocations 1 ()', pipelinestage.name, underallocations,
                       computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
                       available_resources, pending_workloads)
                 to_be_added = self.scale_up_configuration_limit(rmanager, pipelinestageindex,
                                                                 computation_pressures[str(pipelinestageindex)][0],
                                                                 max_throughputs[str(pipelinestageindex)], pending_workitems)
+                if pipelinestage.resourcetype == 'CPU':
+                    print('CPUs to be added', to_be_added)
+                    cpus_to_be_added[str(pipelinestageindex)] = to_be_added
+                else:
+                    print('GPUs to be added', to_be_added)
+                    gpus_to_be_added[str(pipelinestageindex)] = to_be_added
+            elif str(pipelinestageindex) in underallocations and pending_workitems > 0 and (underallocations[str(pipelinestageindex)] <= 0.0 and total_throughput <= 0):
+                print('reconfiguration_up_down_underallocations 2 ()', pipelinestage.name, underallocations,
+                      computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
+                      available_resources, pending_workloads)
+                to_be_added = self.scale_up_configuration_limit(rmanager, pipelinestageindex,
+                                                                computation_pressures[str(pipelinestageindex)][0],
+                                                                max_throughputs[str(pipelinestageindex)],
+                                                                pending_workitems)
                 if pipelinestage.resourcetype == 'CPU':
                     print('CPUs to be added', to_be_added)
                     cpus_to_be_added[str(pipelinestageindex)] = to_be_added

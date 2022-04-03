@@ -5,6 +5,7 @@ from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
 from execution_sim import ExecutionSim, ExecutionSimThread
 import simpy
+from performance import add_performance_data
 
 class OAI_Scheduler:
     def __init__(self, env):
@@ -519,6 +520,7 @@ class OAI_Scheduler:
         last_phase_closed_time = self.env.now
 
         self.set_init_idle_start_times(rmanager, self.env.now)
+        self.reconfiguration_last_time = None
 
         no_of_phases_closed = 0
         phase_tracker = -1
@@ -594,9 +596,16 @@ class OAI_Scheduler:
                     if gpu_idle == True:
                         idle_gpus.append(resource.id)
                 if pmanager.get_pct_complete_no_prediction() >= 10:
-                    #self.reconfiguration_no_prediction(rmanager, pmanager, idle_cpus, idle_gpus)
-                    self.reconfiguration_no_prediction_up_down_underallocations_first (rmanager, pmanager, idle_cpus, idle_gpus)
-                    #self.reconfiguration_no_prediction_up_down_overallocations_first (rmanager, pmanager, idle_cpus, idle_gpus)
+                    if self.reconfiguration_last_time == None or self.reconfiguration_last_time + (self.reconfiguration_time_delta / 60) < self.env.now:
+                        if self.algo == 'down':
+                            self.reconfiguration_no_prediction(rmanager, pmanager, idle_cpus, idle_gpus)
+                        elif self.algo == 'overallocation':
+                            self.reconfiguration_no_prediction_up_down_overallocations_first(rmanager, pmanager, idle_cpus,
+                                                                                          idle_gpus)
+                        elif self.algo == 'underallocation':
+                            self.reconfiguration_no_prediction_up_down_underallocations_first(rmanager, pmanager, idle_cpus,
+                                                                                         idle_gpus)
+                        self.reconfiguration_last_time = self.env.now
 
                 # predict the execution pattern
                 if last_phase_closed_index != None:
@@ -631,8 +640,11 @@ class OAI_Scheduler:
                         self.delete_worker(rmanager, 'GPU', idle_gpu.id)
                     cpu_cost, gpu_cost = rmanager.get_total_cost()
                     print('total cost', cpu_cost, gpu_cost, self.env.now)
+
+                    add_performance_data(self.algo, cpu_cost, gpu_cost, self.env.now, self.reconfiguration_time_delta)
+
                     # pmanager.print_stage_queue_data_1()
-                    pmanager.print_stage_queue_data_2(rmanager)
+                    #pmanager.print_stage_queue_data_2(rmanager)
                     # pmanager.print_stage_queue_data_3 (self.idle_periods)
                     break
 

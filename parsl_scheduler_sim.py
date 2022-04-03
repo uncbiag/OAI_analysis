@@ -7,6 +7,7 @@ from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
 from parslfluxsim.performance_sim import read_performance_data
 from plots.plot_prediction_sim import plot_prediction
+from performance import plot_prediction_performance, store_performance_data
 
 import csv
 from itertools import zip_longest
@@ -185,7 +186,7 @@ class Simulation:
         self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
-              max_images, output_file, prediction, batchsize, no_of_prediction_phases):
+              max_images, output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time_delta):
 
         self.r = ResourceManager(resourcefile, availablefile, self.env)
 
@@ -244,6 +245,8 @@ class Simulation:
         self.scheduler.performancedata = self.performancedata
         self.scheduler.no_of_prediction_phases = no_of_prediction_phases
         self.scheduler.batchsize = batchsize
+        self.scheduler.algo = algo
+        self.scheduler.reconfiguration_time_delta = reconfiguration_time_delta
         if prediction == True:
             self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
         else:
@@ -288,13 +291,29 @@ if __name__ == "__main__":
     else:
         batchsize = max_images[0]
 
-    sys.stdout = open('output.txt', 'w')
+    #reconfiguration_algos = ['base', 'down', 'overallocation', 'underallocation']
+    reconfiguration_algos = ['overallocation']
+    no_of_runs = 50
 
-    for i in range (len (max_images)):
-        output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
-        sim = Simulation ()
-        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases)
-        sim.run ()
-        print ('simulation ', i, 'complete')
-    sys.stdout.close()
+    reconfiguration_time_delta = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    original_stdout = sys.stdout
+    for i in range(len(max_images)):
+        for reconfiguration_time in reconfiguration_time_delta:
+            for algo in reconfiguration_algos:
+                for j in range(no_of_runs):
+                    sys.stdout = open('output.txt', 'w')
+                    output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
+                    sim = Simulation ()
+                    sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time)
+                    sim.run ()
+                    sys.stdout.close()
+                    sys.stdout = original_stdout
+                    print(algo, reconfiguration_time, 'simulation ', j, 'complete')
+                print ('algorithm', algo, 'complete')
+                store_performance_data(algo)
+            print ('reconfiguration_time', reconfiguration_time, 'complete')
+
+        #plot_prediction_performance ()
+
     #plot_prediction()
