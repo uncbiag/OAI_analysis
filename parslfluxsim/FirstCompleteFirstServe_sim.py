@@ -282,7 +282,7 @@ class FirstCompleteFirstServe (Policy):
         for resource_id in sorted_completion_times.keys ():
             #print (resource_id, resourcetype)
             item_added = False
-            resource = rmanager.get_resource (resource_id)
+            resource = rmanager.get_resource (resource_id, active=True)
 
             resubmit_workitem = self.pop_resubmit_workitem (resourcetype)
 

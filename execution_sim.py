@@ -12,9 +12,10 @@ class ExecutionSim:
         return self.exe
 
 class ExecutionSimThread:
-    def __init__ (self, env, resource, resourcetype, performancedata):
+    def __init__ (self, env, resource, resourcetype, performancedata, costtype):
         self.env = env
         self.resourcetype = resourcetype
+        self.costtype = costtype
         self.resource = resource
         if self.resourcetype == 'CPU':
             self.resourcename = self.resource.cpu.name
@@ -23,6 +24,7 @@ class ExecutionSimThread:
         self.performancedata = performancedata
         self.iscomplete = False
         self.interrupts = 0
+        self.requesttime = self.env.now
 
         self.distributions = {}
 
@@ -58,7 +60,19 @@ class ExecutionSimThread:
             return gennorm.rvs(shape, location, scale, 1)[0]
 
     def run (self):
-        print (self.resource.id, self.resourcetype, 'started')
+        if self.costtype == 'on_demand':
+            try:
+                if self.costtype == 'on_demand':
+                    yield self.env.timeout(float (1/30))
+                elif self.costtype == 'spot':
+                    yield self.env.timeout(float(1/5))
+            except simpy.Interrupt as interrupt:
+                print ('unexpected')
+                self.resource.print_data()
+        self.startup_time = self.env.now
+        self.resource.set_active (True)
+        self.resource.set_idle_start_time(self.resourcetype, self.env.now)
+        print (self.resource.id, self.resourcetype, 'started', self.env.now)
         while True:
             try:
                 #print ('sleeping')

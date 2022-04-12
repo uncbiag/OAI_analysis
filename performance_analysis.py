@@ -66,22 +66,22 @@ def store_performance_data (algo):
         data.append(base_cpu_cost)
         data.append(base_gpu_cost)
         data.append(base_execution_time)
-        dbfile = open('performance_database_base_'+str(reconfiguration_time_delta), 'wb')
+        dbfile = open('performance/performance_database_base_'+str(reconfiguration_time_delta), 'wb')
     elif algo == 'down':
         data.append(reconfiguration_down_cpu_cost)
         data.append(reconfiguration_down_gpu_cost)
         data.append(reconfiguration_down_execution_time)
-        dbfile = open('performance_database_down_'+str(reconfiguration_time_delta), 'wb')
+        dbfile = open('performance/performance_database_down_'+str(reconfiguration_time_delta), 'wb')
     elif algo == 'overallocation':
         data.append(reconfiguration_up_down_overallocation_cpu_cost)
         data.append(reconfiguration_up_down_overallocation_gpu_cost)
         data.append(reconfiguration_up_down_overallocation_execution_time)
-        dbfile = open('performance_database_overallocation_'+str(reconfiguration_time_delta), 'wb')
+        dbfile = open('performance/performance_database_overallocation_'+str(reconfiguration_time_delta), 'wb')
     elif algo == 'underallocation':
         data.append(reconfiguration_up_down_underallocation_cpu_cost)
         data.append(reconfiguration_up_down_underallocation_gpu_cost)
         data.append(reconfiguration_up_down_underallocation_execution_time)
-        dbfile = open('performance_database_underallocation_'+str(reconfiguration_time_delta), 'wb')
+        dbfile = open('performance/performance_database_underallocation_'+str(reconfiguration_time_delta), 'wb')
 
     data.append(reconfiguration_time_delta)
 
@@ -100,7 +100,7 @@ def analysis3 ():
     execution_time_data = []
 
     for reconfiguration_time in reconfiguration_time_delta_list:
-        dbfile = open('performance_database_overallocation_'+str(reconfiguration_time), 'rb')
+        dbfile = open('performance/performance_database_down_'+str(reconfiguration_time), 'rb')
         data = pickle.load(dbfile)
         cpu_cost[str(reconfiguration_time)] = data[0]
         gpu_cost[str(reconfiguration_time)] = data[1]
@@ -112,14 +112,24 @@ def analysis3 ():
     fig1, axes1 = plt.subplots(nrows=1, ncols=1)
 
     bp = axes1.boxplot(cpu_cost_data)
+    axes1.set_xlabel('Reconfiguration Gap (Minutes)')
+    axes1.set_ylabel('Total CPU Cost ($)')
 
     fig2, axes2 = plt.subplots(nrows=1, ncols=1)
 
     bp = axes2.boxplot(gpu_cost_data)
+    axes2.set_xlabel('Reconfiguration Gap (Minutes)')
+    axes2.set_ylabel('Total GPU Cost ($)')
 
     fig3, axes3 = plt.subplots(nrows=1, ncols=1)
 
     bp = axes3.boxplot(execution_time_data)
+    axes3.set_xlabel('Reconfiguration Gap (Minutes)')
+    axes3.set_ylabel('Total Execution Time (hours)')
+
+    fig1.savefig('images/reconfiguration_time_var_down_cpu.png', dpi=300)
+    fig2.savefig('images/reconfiguration_time_var_down_gpu.png', dpi=300)
+    fig3.savefig('images/reconfiguration_time_var_down_exectime.png', dpi=300)
 
     plt.show()
 
@@ -130,25 +140,25 @@ def analysis2 ():
     overallocation_data = []
     underallocation_data = []
 
-    dbfile = open('performance_database_base', 'rb')
+    dbfile = open('performance/performance_database_base_1', 'rb')
     data = pickle.load(dbfile)
     base_cpu_cost = data[0]
     base_gpu_cost = data[1]
     base_execution_time = data[2]
 
-    dbfile = open('performance_database_down', 'rb')
+    dbfile = open('performance/performance_database_down_1', 'rb')
     data = pickle.load(dbfile)
     reconfiguration_down_cpu_cost = data[0]
     reconfiguration_down_gpu_cost = data[1]
     reconfiguration_down_execution_time = data[2]
 
-    dbfile = open('performance_database_overallocation', 'rb')
+    dbfile = open('performance/performance_database_overallocation_1', 'rb')
     data = pickle.load(dbfile)
     reconfiguration_up_down_overallocation_cpu_cost = data[0]
     reconfiguration_up_down_overallocation_gpu_cost = data[1]
     reconfiguration_up_down_overallocation_execution_time = data[2]
 
-    dbfile = open('performance_database_underallocation', 'rb')
+    dbfile = open('performance/performance_database_underallocation_1', 'rb')
     data = pickle.load(dbfile)
     reconfiguration_up_down_underallocation_cpu_cost = data[0]
     reconfiguration_up_down_underallocation_gpu_cost = data[1]
@@ -177,14 +187,15 @@ def analysis2 ():
         underallocation_data.append (reconfiguration_up_down_underallocation_execution_time[key])
 
     df = pd.DataFrame({'Group':group_data,\
-                  'Base':base_data,'Down':down_data, 'Overallocation':overallocation_data, 'Underallocation':underallocation_data})
-    df = df[['Group','Base','Down', 'Overallocation', 'Underallocation']]
+                  'Base':base_data,'Release-Acquire':down_data, 'Rebalance-A':overallocation_data, 'Rebalance-B':underallocation_data})
+    df = df[['Group','Base','Release-Acquire', 'Rebalance-A', 'Rebalance-B']]
     print (df)
 
-    dd = pd.melt(df, id_vars=['Group'], value_vars=['Base', 'Down', 'Overallocation', 'Underallocation'], var_name='Algorithms')
-    sns.boxplot(x='Group', y='value', data=dd, hue='Algorithms')
+    dd = pd.melt(df, id_vars=['Group'], value_vars=['Base', 'Release-Acquire', 'Rebalance-A', 'Rebalance-B'], var_name='Algorithms')
+    bp = sns.boxplot(x='Group', y='value', data=dd, hue='Algorithms')
+    bp.set(xlabel='Performance Metrics',  ylabel='Value ($ or hours)')
 
-    plt.show()
+    plt.savefig('images/performance_comparison.png', dpi=300)
 
 def analysis1 ():
     dbfile = open('performance_database', 'rb')

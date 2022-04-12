@@ -186,13 +186,13 @@ class Simulation:
         self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
-              max_images, output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time_delta):
+              max_images, output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time_delta, imbalance_limit):
 
         self.r = ResourceManager(resourcefile, availablefile, self.env)
 
         print (self.r)
 
-        self.r.parse_resources()
+        init_resources = self.r.parse_resources()
 
         #self.r.purge_resources()
 
@@ -210,24 +210,24 @@ class Simulation:
 
         self.scheduler = OAI_Scheduler(self.env)
 
-        self.worker_threads = {}
+        self.scheduler.worker_threads = {}
 
-        for resource in self.r.get_resources():
+        for resource in init_resources:
             if resource.cpu != None:
-                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata)
+                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata, 'on_demand')
             else:
                 cpu_thread = None
             if resource.gpu != None:
-                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata)
+                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata, 'on_demand')
             else:
                 gpu_thread = None
-            self.worker_threads[resource.id] = [cpu_thread, gpu_thread]
+            self.scheduler.worker_threads[resource.id] = [cpu_thread, gpu_thread]
 
-        self.workers = {}
+        self.scheduler.workers = {}
 
-        for resource_id in self.worker_threads.keys():
-            cpu_thread = self.worker_threads[resource_id][0]
-            gpu_thread = self.worker_threads[resource_id][1]
+        for resource_id in self.scheduler.worker_threads.keys():
+            cpu_thread = self.scheduler.worker_threads[resource_id][0]
+            gpu_thread = self.scheduler.worker_threads[resource_id][1]
 
             if cpu_thread != None:
                 cpu_thread_exec = ExecutionSim(self.env, cpu_thread)
@@ -237,16 +237,17 @@ class Simulation:
                 gpu_thread_exec = ExecutionSim(self.env, gpu_thread)
             else:
                 gpu_thread_exec = None
-            self.workers[resource_id] = [cpu_thread_exec, gpu_thread_exec]
+            self.scheduler.workers[resource_id] = [cpu_thread_exec, gpu_thread_exec]
 
-        self.scheduler.workers = self.workers
-        self.scheduler.worker_threads = self.worker_threads
+        #self.scheduler.workers = self.workers
+        #self.scheduler.worker_threads = self.worker_threads
         self.scheduler.outputfile = output_file
         self.scheduler.performancedata = self.performancedata
         self.scheduler.no_of_prediction_phases = no_of_prediction_phases
         self.scheduler.batchsize = batchsize
         self.scheduler.algo = algo
         self.scheduler.reconfiguration_time_delta = reconfiguration_time_delta
+        self.scheduler.imbalance_limit = imbalance_limit
         if prediction == True:
             self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
         else:
@@ -293,25 +294,32 @@ if __name__ == "__main__":
 
     #reconfiguration_algos = ['base', 'down', 'overallocation', 'underallocation']
     reconfiguration_algos = ['overallocation']
-    no_of_runs = 50
+    #no_of_runs = 50
+    no_of_runs = 1
 
-    reconfiguration_time_delta = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    #reconfiguration_time_delta = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    reconfiguration_time_delta = [1]
+
+    #imbalance_limits = [5, 10, 15, 20, 25, 30]
+    imbalance_limits = [10]
 
     original_stdout = sys.stdout
     for i in range(len(max_images)):
         for reconfiguration_time in reconfiguration_time_delta:
-            for algo in reconfiguration_algos:
-                for j in range(no_of_runs):
-                    sys.stdout = open('output.txt', 'w')
-                    output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
-                    sim = Simulation ()
-                    sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time)
-                    sim.run ()
-                    sys.stdout.close()
-                    sys.stdout = original_stdout
-                    print(algo, reconfiguration_time, 'simulation ', j, 'complete')
-                print ('algorithm', algo, 'complete')
-                store_performance_data(algo)
+            for imbalance_limit in imbalance_limits:
+                for algo in reconfiguration_algos:
+                    for j in range(no_of_runs):
+                        #sys.stdout = open('output.txt', 'w')
+                        output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
+                        sim = Simulation ()
+                        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time, imbalance_limit)
+                        sim.run ()
+                        #sys.stdout.close()
+                        #sys.stdout = original_stdout
+                        print (algo, reconfiguration_time, 'simulation ', j, 'complete')
+                    # store_performance_data(algo)
+                    print ('algorithm', algo, 'complete')
+                print ('imbalance limit', imbalance_limit, 'complete')
             print ('reconfiguration_time', reconfiguration_time, 'complete')
 
         #plot_prediction_performance ()

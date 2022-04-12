@@ -13,7 +13,6 @@ class CPU:
         self.busy = False
         self.last_completion_time = None
         self.idle_periods = []
-        self.acquisition_time = now
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -67,7 +66,6 @@ class GPU:
         self.busy = False
         self.last_completion_time = None
         self.idle_periods = []
-        self.acquisition_time = now
 
     def reinit (self):
         self.workqueue = WorkItemQueue ()
@@ -114,7 +112,7 @@ class GPU:
 
 class Resource:
 
-    def __init__ (self, i, rmanager):
+    def __init__ (self, i, rmanager, costtype, env):
         self.id = "c" + str(i)
         self.hostname = "c" + str (i)
         self.cpu = None
@@ -127,6 +125,20 @@ class Resource:
         self.counts = {}
         self.executionqueues = [-1, -1]
         self.rmanager = rmanager
+        self.active = False
+        self.costtype = costtype
+        self.env = env
+        self.acquisition_time = None
+
+    def print_data (self):
+        print (self.id)
+
+    def set_active (self, active):
+        self.active = active
+        self.acquisition_time = self.env.now
+
+    def get_active (self):
+        return self.active
 
     def add_cpu (self, cpu, cost, now):
         self.cpu = CPU (cpu, cost, now)
@@ -275,7 +287,7 @@ class Resource:
             max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
             if max_exectime == 0:#first time execution
-                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id) * 2
+                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id, active=True) * 2
 
             if max_exectime == 0:#no one has completed their execution
                 max_exectime = 20 * 60
@@ -289,7 +301,7 @@ class Resource:
             max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
             if max_exectime == 0:#first time execution
-                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id) * 2
+                max_exectime = rmanager.get_max_exectime (workitem_pipelinestages, self.id, active=True) * 2
 
             if max_exectime == 0:#no one has completed their execution
                 max_exectime = 15 * 60
@@ -641,16 +653,19 @@ class ResourceManager:
         self.resourcefile = resourcefile
         self.availablefile = availablefile
         self.resourcetypeinfo = {}
-        self.nodes = []
         self.exectimes = {}
         self.max_exectimes = {}
-        self.cpunodes_count = 0
-        self.gpunodes_count = 0
+        self.active_cpunodes_count = 0
+        self.active_gpunodes_count = 0
+        self.backup_cpunodes_count = 0
+        self.backup_gpunodes_count = 0
         self.cpuid_counter = 0
         self.gpuid_counter = 0
         self.env = env
         self.total_cpu_cost = 0
         self.total_gpu_cost = 0
+        self.active_pool_nodes = []
+        self.backup_pool_nodes = []
 
     def get_startup_time (self, resourcetype):
         if resourcetype in self.resourcetypeinfo.keys ():
@@ -667,51 +682,69 @@ class ResourceManager:
             return True
         return False
 
-    def add_resource (self, cpuok, gpuok, cputype, gputype):
-        print('add resource ()', cpuok, gpuok, cputype, gputype)
+    def add_resource (self, cpuok, gpuok, cputype, gputype, costtype, active):
+        print('add resource ()', cpuok, gpuok, cputype, gputype, costtype, active)
         if cpuok == True:
-            resource = Resource ('c' + str(self.cpuid_counter), self)
+            resource = Resource ('c' + str(self.cpuid_counter), self, costtype, self.env)
             resource.add_cpu(cputype, self.resourcetypeinfo[cputype]['cost'], self.env.now)
-            self.nodes.append(resource)
+            if active == True:
+                self.active_pool_nodes.append(resource)
+                self.active_cpunodes_count += 1
+            else:
+                self.backup_pool_nodes.append(resource)
+                self.backup_cpunodes_count += 1
             self.cpuid_counter += 1
-            self.cpunodes_count += 1
             self.resourcetypeinfo[cputype]['count']['time'].append(self.env.now)
             self.resourcetypeinfo[cputype]['count']['count'].append(self.resourcetypeinfo[cputype]['count']['count'][-1] + 1)
 
             return resource
         elif gpuok == True:
-            resource = Resource('g' + str(self.gpuid_counter), self)
+            resource = Resource('g' + str(self.gpuid_counter), self, costtype, self.env)
             resource.add_gpu(gputype, self.resourcetypeinfo[gputype]['cost'], self.env.now)
-            self.nodes.append(resource)
+            if active == True:
+                self.active_pool_nodes.append(resource)
+                self.active_gpunodes_count += 1
+            else:
+                self.backup_pool_nodes.append(resource)
+                self.backup_gpunodes_count += 1
             self.gpuid_counter += 1
-            self.gpunodes_count += 1
             self.resourcetypeinfo[gputype]['count']['time'].append(self.env.now)
             self.resourcetypeinfo[gputype]['count']['count'].append(self.resourcetypeinfo[gputype]['count']['count'][-1] + 1)
 
             return resource
 
-    def delete_resource (self, resourcetype, resource_id):
-        print ('delete resource ()', resource_id, resourcetype)
+    def delete_resource (self, resourcetype, resource_id, active):
+        print ('delete resource ()', resource_id, resourcetype, active)
+        if active == True:
+            nodes = self.active_pool_nodes
+        else:
+            nodes = self.backup_pool_nodes
         node_index = 0
-        for node in self.nodes:
+        for node in nodes:
             if node.id == resource_id:
                 if resourcetype == 'CPU':
                     self.resourcetypeinfo[node.cpu.name]['count']['time'].append(self.env.now)
                     self.resourcetypeinfo[node.cpu.name]['count']['count'].append (self.resourcetypeinfo[node.cpu.name]['count']['count'][-1] - 1)
-                    self.total_cpu_cost += (self.env.now - node.cpu.acquisition_time) * node.cpu.cost
+                    self.total_cpu_cost += (self.env.now - node.acquisition_time) * node.cpu.cost
                 else:
                     self.resourcetypeinfo[node.gpu.name]['count']['time'].append (self.env.now)
                     self.resourcetypeinfo[node.gpu.name]['count']['count'].append (self.resourcetypeinfo[node.gpu.name]['count']['count'][-1] - 1)
-                    self.total_gpu_cost += (self.env.now - node.gpu.acquisition_time) * node.gpu.cost
+                    self.total_gpu_cost += (self.env.now - node.acquisition_time) * node.gpu.cost
                 break
             node_index += 1
 
-        if node_index < len (self.nodes):
-            self.nodes.pop (node_index)
+        if node_index < len (nodes):
+            nodes.pop (node_index)
             if resourcetype == 'CPU':
-                self.cpunodes_count -= 1
+                if active == True:
+                    self.active_cpunodes_count -= 1
+                else:
+                    self.backup_cpunodes_count -= 1
             else:
-                self.gpunodes_count -= 1
+                if active == True:
+                    self.active_gpunodes_count -= 1
+                else:
+                    self.backup_gpunodes_count -= 1
 
     def get_total_cost (self):
         return self.total_cpu_cost, self.total_gpu_cost
@@ -737,11 +770,11 @@ class ResourceManager:
             self.resourcetypeinfo[cputype['id']]['count']['count'] = [cputype['count']]
             count = cputype['count']
             for i in range (0, count):
-                new_resource = Resource ('c' + str(self.cpuid_counter), self)
+                new_resource = Resource ('c' + str(self.cpuid_counter), self, cputype['costtype'], self.env)
                 new_resource.add_cpu(cputype['id'], cputype['cost'], self.env.now)
-                self.nodes.append(new_resource)
+                self.active_pool_nodes.append(new_resource)
                 self.cpuid_counter += 1
-                self.cpunodes_count += 1
+                self.active_cpunodes_count += 1
 
         for gputype in resources['available']['GPU']:
             self.resourcetypeinfo[gputype['id']] = {}
@@ -754,18 +787,19 @@ class ResourceManager:
             self.resourcetypeinfo[gputype['id']]['count']['count'] = [gputype['count']]
             count = gputype['count']
             for i in range (0, count):
-                new_resource = Resource ('g' + str(self.gpuid_counter), self)
+                new_resource = Resource ('g' + str(self.gpuid_counter), self, gputype['costtype'], self.env)
                 new_resource.add_gpu(gputype['id'], gputype['cost'], self.env.now)
-                self.nodes.append(new_resource)
+                self.active_pool_nodes.append(new_resource)
                 self.gpuid_counter += 1
-                self.gpunodes_count += 1
+                self.active_gpunodes_count += 1
 
         #self.availablenodesdict = self.nodesdict
 
-        print (self.nodes)
+        return self.active_pool_nodes
 
-    def get_max_exectime (self, pipelinestages, resource_id):
-        resources = self.get_resources ()
+    def get_max_exectime (self, pipelinestages, resource_id, active):
+        #TODO: this function is completely wrong, use resourcename and resourcetype structure to get max exectime
+        resources = self.get_resources (active)
 
         max_exectime = 0
         for resource in resources:
@@ -777,11 +811,17 @@ class ResourceManager:
 
         return max_exectime
 
-    def get_cpu_resources_count (self):
-        return self.cpunodes_count
+    def get_cpu_resources_count (self, active):
+        if active == True:
+            return self.active_cpunodes_count
+        else:
+            return self.backup_cpunodes_count
 
-    def get_gpu_resources_count (self):
-        return self.gpunodes_count
+    def get_gpu_resources_count (self, active):
+        if active == True:
+            return self.active_gpunodes_count
+        else:
+            return self.backup_gpunodes_count
 
     def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
         seconds = endtime - starttime
@@ -847,18 +887,34 @@ class ResourceManager:
 
         return weights
 
-    def get_resource (self, resource_id):
-        for node in self.nodes:
+    def get_resource (self, resource_id, active):
+        if active == True:
+            nodes = self.active_pool_nodes
+        else:
+            nodes = self.backup_pool_nodes
+        for node in nodes:
             if node.id == resource_id:
                 return node
         return None
 
-    def get_resources (self):
-        return self.nodes
+    def get_resources (self, active):
+        ret = []
+        if active == True:
+            nodes = self.active_pool_nodes
+        else:
+            nodes = self.backup_pool_nodes
+        for resource in nodes:
+            if resource.active == True:
+                ret.append(resource)
+        return ret
 
-    def get_resources_type (self, resourcetype):
+    def get_resources_type (self, resourcetype, active):
         resources = []
-        for resource in self.nodes:
+        if active == True:
+            nodes = self.active_pool_nodes
+        else:
+            nodes = self.backup_pool_nodes
+        for resource in nodes:
             if resourcetype == 'CPU' and resource.cpu != None:
                 resources.append(resource)
             elif resourcetype == 'GPU' and resource.gpu != None:

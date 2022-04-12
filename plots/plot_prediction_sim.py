@@ -245,4 +245,8 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
         else:
             ax.plot (x_data, y_data, label=resource_name, linestyle='dashed')
     ax.legend()
+    ax.set_xlabel ('Timeline (seconds)')
+    ax.set_ylabel ('Count')
+    fig.savefig('queue_pattern_overallocation_stable.png', dpi=300)
+    fig1.savefig('resource_pattern_overallocation_stable.png', dpi=300)
     plt.show()

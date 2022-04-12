@@ -15,22 +15,24 @@ class OAI_Scheduler:
         self.gpuallocations = {}
 
     def add_worker (self, rmanager, cpuok, gpuok, cputype, gputype):
-        new_resource = rmanager.add_resource (cpuok, gpuok, cputype, gputype)
+        new_resource = rmanager.add_resource (cpuok, gpuok, cputype, gputype, 'on_demand', active=True)
 
+        '''
         if cpuok == True:
             new_resource.set_idle_start_time ('CPU', self.env.now)
         else:
             new_resource.set_idle_start_time ('GPU', self.env.now)
+        '''
 
         print (new_resource.cpu, new_resource.gpu)
 
         if new_resource.cpu != None:
-            cpu_thread = ExecutionSimThread(self.env, new_resource, 'CPU', self.performancedata)
+            cpu_thread = ExecutionSimThread(self.env, new_resource, 'CPU', self.performancedata, 'on_demand')
         else:
             cpu_thread = None
 
         if new_resource.gpu != None:
-            gpu_thread = ExecutionSimThread(self.env, new_resource, 'GPU', self.performancedata)
+            gpu_thread = ExecutionSimThread(self.env, new_resource, 'GPU', self.performancedata, 'on_demand')
         else:
             gpu_thread = None
 
@@ -60,7 +62,7 @@ class OAI_Scheduler:
         self.worker_threads.pop (resource_id, None)
         self.workers.pop (resource_id, None)
 
-        rmanager.delete_resource (resourcetype, resource_id)
+        rmanager.delete_resource (resourcetype, resource_id,active= True)
 
     def scale_up_algo_0 (self, rmanager, pmanager, phase_tracker):
         if phase_tracker == -1:
@@ -218,7 +220,7 @@ class OAI_Scheduler:
         pmanager.prediction_idle_periods[str (phase_tracker + 1)] = [new_cpu_idle_periods, new_gpu_idle_periods]
 
     def reconfiguration_no_prediction_up_down_underallocations_first (self, rmanager, pmanager, idle_cpus, idle_gpus):
-        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit)
 
         new_cpus_to_be_added = {}
         new_gpus_to_be_added = {}
@@ -249,7 +251,7 @@ class OAI_Scheduler:
             for i in range (0, count):
                 self.add_worker(rmanager, False, True, None, gpu_type)
 
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit)
 
         for cpu_id in cpus_to_be_dropped:
             if cpu_id not in idle_cpus:
@@ -264,7 +266,7 @@ class OAI_Scheduler:
             self.delete_worker(rmanager, 'GPU', gpu_id)
             idle_gpus.remove(gpu_id)
 
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit)
 
         for cpu_id in cpus_to_be_dropped:
             if cpu_id not in idle_cpus:
@@ -281,7 +283,7 @@ class OAI_Scheduler:
 
         print ('------------------------------------------------------')
 
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit)
 
         for cpu_id in cpus_to_be_dropped:
             if cpu_id not in idle_cpus:
@@ -296,7 +298,7 @@ class OAI_Scheduler:
             self.delete_worker(rmanager, 'GPU', gpu_id)
             idle_gpus.remove(gpu_id)
 
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus)
+        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit)
 
         for cpu_id in cpus_to_be_dropped:
             if cpu_id not in idle_cpus:
@@ -312,7 +314,7 @@ class OAI_Scheduler:
             idle_gpus.remove(gpu_id)
 
         cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations(rmanager, self.env.now,
-                                                                                               idle_cpus, idle_gpus)
+                                                                                               idle_cpus, idle_gpus, self.imbalance_limit)
 
         new_cpus_to_be_added = {}
         new_gpus_to_be_added = {}
@@ -435,7 +437,7 @@ class OAI_Scheduler:
 
     def report_idle_periods (self, rmanager, since_time, current_time, last_phase_closed_index):
         print ('report_idle_periods ()')
-        resources = rmanager.get_resources ()
+        resources = rmanager.get_resources (active=True)
 
         cpu = {}
         gpu = {}
@@ -480,14 +482,14 @@ class OAI_Scheduler:
             resource.clear_completion_times ()
 
     def set_init_idle_start_times (self, rmanager, now):
-        resources = rmanager.get_resources ()
+        resources = rmanager.get_resources (active=True)
 
         for resource in resources:
             resource.set_idle_start_time ('CPU', now)
             resource.set_idle_start_time ('GPU', now)
 
     def set_idle_start_times (self, rmanager, now):
-        resources = rmanager.get_resources ()
+        resources = rmanager.get_resources (active=True)
 
         for resource in resources:
             cpu_idle, gpu_idle = resource.is_idle ()
@@ -504,8 +506,6 @@ class OAI_Scheduler:
 
         scheduling_policy = FirstCompleteFirstServe("FirstCompleteFirstServe", self.env, pmanager)
 
-        resources = rmanager.get_resources()
-
         first_pipelinestage = pmanager.get_pipelinestage(None, 'CPU')
         if first_pipelinestage == None:
             first_resourcetype = 'GPU'
@@ -519,7 +519,7 @@ class OAI_Scheduler:
 
         last_phase_closed_time = self.env.now
 
-        self.set_init_idle_start_times(rmanager, self.env.now)
+        #self.set_init_idle_start_times(rmanager, self.env.now)
         self.reconfiguration_last_time = None
 
         no_of_phases_closed = 0
@@ -527,6 +527,7 @@ class OAI_Scheduler:
 
         try:
             while True:
+                resources = rmanager.get_resources(active=True)
                 for resource in resources:
                     # print ('###########################')
                     resource.get_status(rmanager, pmanager, self.worker_threads[resource.id], self.outputfile)
@@ -595,6 +596,7 @@ class OAI_Scheduler:
                         idle_cpus.append(resource.id)
                     if gpu_idle == True:
                         idle_gpus.append(resource.id)
+
                 if pmanager.get_pct_complete_no_prediction() >= 10:
                     if self.reconfiguration_last_time == None or self.reconfiguration_last_time + (self.reconfiguration_time_delta / 60) < self.env.now:
                         if self.algo == 'down':
@@ -606,6 +608,7 @@ class OAI_Scheduler:
                             self.reconfiguration_no_prediction_up_down_underallocations_first(rmanager, pmanager, idle_cpus,
                                                                                          idle_gpus)
                         self.reconfiguration_last_time = self.env.now
+
 
                 # predict the execution pattern
                 if last_phase_closed_index != None:
@@ -626,8 +629,9 @@ class OAI_Scheduler:
                         idle_gpus.append(resource)
 
                 # print (len (idle_cpus), len(idle_gpus), rmanager.get_cpu_resources_count(), rmanager.get_gpu_resources_count())
-                if len(idle_cpus) == rmanager.get_cpu_resources_count() and len(
-                        idle_gpus) == rmanager.get_gpu_resources_count() and last_phase_closed_index == pmanager.no_of_columns - 1:
+                #if len(idle_cpus) == rmanager.get_cpu_resources_count(active=True) and len(
+                #        idle_gpus) == rmanager.get_gpu_resources_count(active=True) and last_phase_closed_index == pmanager.no_of_columns - 1:
+                if pmanager.get_pct_complete_no_prediction () >= 100:
                     self.set_idle_start_times(rmanager, self.env.now)
                     if self.env.now > last_phase_closed_time:
                         self.report_idle_periods(rmanager, last_phase_closed_time, self.env.now,
@@ -641,10 +645,10 @@ class OAI_Scheduler:
                     cpu_cost, gpu_cost = rmanager.get_total_cost()
                     print('total cost', cpu_cost, gpu_cost, self.env.now)
 
-                    add_performance_data(self.algo, cpu_cost, gpu_cost, self.env.now, self.reconfiguration_time_delta)
+                    #add_performance_data(self.algo, cpu_cost, gpu_cost, self.env.now, self.reconfiguration_time_delta, self.imbalance_limit)
 
                     # pmanager.print_stage_queue_data_1()
-                    #pmanager.print_stage_queue_data_2(rmanager)
+                    pmanager.print_stage_queue_data_2(rmanager)
                     # pmanager.print_stage_queue_data_3 (self.idle_periods)
                     break
 

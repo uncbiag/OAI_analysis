@@ -8,6 +8,11 @@ from pandas.plotting import table
 import matplotlib as mpl
 import numpy as np
 import seaborn as sns
+from datetime import datetime
+import pickle
+import datetime as dt
+from datetime import datetime
+import matplotlib.dates as mdates
 
 def get_pricing_history ():
     url = 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/compute-optimized-instances.html'
@@ -18,7 +23,7 @@ def get_pricing_history ():
 
     table = soup.find('table', attrs={'id': 'w860aac18c13c27c27b5'})
 
-    # print (table)
+    print (table)
 
     table_head = table.find('thead')
 
@@ -76,11 +81,168 @@ def get_pricing_history ():
     gpu_df = pd.DataFrame(table_data, columns=headers)
     print(gpu_df.head())
 
-def analysis ():
-    cpu_file = open ('cpu_price_history')
+def analysis_2 ():
+    cpu_file = open('aws_cloud_sim/cpu_price_history')
     cpu_json = json.loads(cpu_file.read())
 
-    gpu_file = open ('gpu_price_history')
+    gpu_file = open('aws_cloud_sim/gpu_price_history')
+    gpu_json = json.loads(gpu_file.read())
+
+    cpu_prices = cpu_json['SpotPriceHistory']
+    gpu_prices = gpu_json['SpotPriceHistory']
+
+    cpu_instance_types = []
+    gpu_instance_types = []
+
+    for cpu_price in cpu_prices:
+        if cpu_price['InstanceType'] not in cpu_instance_types:
+            cpu_instance_types.append(cpu_price['InstanceType'])
+
+
+    for gpu_price in gpu_prices:
+        if gpu_price['InstanceType'] not in gpu_instance_types:
+            gpu_instance_types.append(gpu_price['InstanceType'])
+
+
+    url = 'https://instances.vantage.sh/'
+
+    data = requests.get(url).text
+
+    soup = BeautifulSoup(data, 'html.parser')
+
+    table = soup.find('table', attrs={'id':'data'})
+
+    rows = table.find_all('tr')
+
+    cpu_instance_on_demand_prices = {}
+    gpu_instance_on_demand_prices = {}
+
+    for row in rows:
+        id = row.attrs.get("id")
+        if id in cpu_instance_types:
+            td_cost = row.find_all("td", class_="cost-ondemand-linux")
+            cost_span = td_cost[0].find_all('span')
+            cost = cost_span[0].text.strip()
+            cpu_instance_on_demand_prices[id] = cost.split(' ')[0].strip('$')
+        elif id in gpu_instance_types:
+            td_cost = row.find_all("td", class_="cost-ondemand-linux")
+            cost_span = td_cost[0].find_all('span')
+            cost = cost_span[0].text.strip()
+            gpu_instance_on_demand_prices[id] = cost.split(' ')[0].strip('$')
+
+
+    print (cpu_instance_on_demand_prices)
+
+    print (gpu_instance_on_demand_prices)
+
+    cpu_on_demand_prices_file = open('aws_cloud_sim/cpu_on_demand_prices.pkl', 'wb')
+    gpu_on_demand_prices_file = open ('aws_cloud_sim/gpu_on_demand_prices.pkl', 'wb')
+
+    pickle.dump(cpu_instance_on_demand_prices, cpu_on_demand_prices_file)
+    pickle.dump(gpu_instance_on_demand_prices, gpu_on_demand_prices_file)
+
+    cpu_on_demand_prices_file.close()
+    gpu_on_demand_prices_file.close()
+
+def analysis_1 ():
+    cpu_file = open('aws_cloud_sim/cpu_price_history')
+    cpu_json = json.loads(cpu_file.read())
+
+    gpu_file = open('aws_cloud_sim/gpu_price_history')
+    gpu_json = json.loads(gpu_file.read())
+
+    cpu_prices = cpu_json['SpotPriceHistory']
+
+    cpu_price_dict = {}
+
+    for cpu_price in cpu_prices:
+        if cpu_price['ProductDescription'] != 'Linux/UNIX':
+            continue
+        print (cpu_price['Timestamp'])
+        if cpu_price['InstanceType'] not in cpu_price_dict:
+            cpu_price_dict[cpu_price['InstanceType']] = {}
+            if cpu_price['AvailabilityZone'] not in cpu_price_dict[cpu_price['InstanceType']]:
+                cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']] = {}
+                if cpu_price['ProductDescription'] not in cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']]:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']] = []
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']].append ({cpu_price['Timestamp']:cpu_price['SpotPrice']})
+                else:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+            else:
+                if cpu_price['ProductDescription'] not in cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']]:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']] = []
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']].append ({cpu_price['Timestamp']:cpu_price['SpotPrice']})
+                else:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+        else:
+            if cpu_price['AvailabilityZone'] not in cpu_price_dict[cpu_price['InstanceType']]:
+                cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']] = {}
+                if cpu_price['ProductDescription'] not in cpu_price_dict[cpu_price['InstanceType']][
+                    cpu_price['AvailabilityZone']]:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']] = []
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+                else:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+            else:
+                if cpu_price['ProductDescription'] not in cpu_price_dict[cpu_price['InstanceType']][
+                    cpu_price['AvailabilityZone']]:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']] = []
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+                else:
+                    cpu_price_dict[cpu_price['InstanceType']][cpu_price['AvailabilityZone']][
+                        cpu_price['ProductDescription']].append({cpu_price['Timestamp']: cpu_price['SpotPrice']})
+
+
+    for instance_type in cpu_price_dict.keys ():
+        no_of_zones = len (list (cpu_price_dict[instance_type].keys ()))
+        fig, axes = plt.subplots(no_of_zones, 1, sharex=True)
+        zone_index = 0
+        for zone in cpu_price_dict[instance_type].keys ():
+            ax = axes[zone_index]
+
+            for product in cpu_price_dict[instance_type][zone].keys ():
+                data_list = cpu_price_dict[instance_type][zone][product]
+                timestamp_list = []
+                price_list = []
+                for data in data_list:
+                    timestamp_str = list(data.keys())[0]
+                    timestamp_datetime = datetime.fromisoformat(timestamp_str)
+                    #datetimeObj = datetime.strptime(timestamp_str, '%Y-%m-%dT%H::%M::%S.SSSZ')
+                    #print (datetimeObj)
+                    #timestamp_list.append(list (data.keys ())[0])
+                    timestamp_list.append (timestamp_datetime)
+                    price_list.append(list (data.values ())[0])
+
+                fig.autofmt_xdate()
+                xfmt = mdates.DateFormatter('%d-%m-%y %H:%M')
+                ax.xaxis.set_major_formatter(xfmt)
+                ax.plot (timestamp_list, price_list)
+            ax.set_xticks ([])
+            ax.set_yticks([])
+            ax.legend (list (cpu_price_dict[instance_type][zone].keys ()))
+            ax.yaxis.set_label_position("right")
+            ax.set_ylabel(zone)
+
+            zone_index += 1
+
+        fig.add_subplot(111, frame_on=False)
+        plt.xlabel("Timeline (seconds)")
+        plt.tick_params(labelcolor="none", bottom=False, left=False)
+        plt.title(instance_type)
+        plt.show ()
+
+
+
+def analysis ():
+    cpu_file = open ('aws_cloud_sim/cpu_price_history')
+    cpu_json = json.loads(cpu_file.read())
+
+    gpu_file = open ('aws_cloud_sim/gpu_price_history')
     gpu_json = json.loads(gpu_file.read())
 
     '''
@@ -275,4 +437,4 @@ def analysis ():
     '''
 
 if __name__ == "__main__":
-    analysis()
+    analysis_1()
