@@ -1,6 +1,8 @@
 
+## OAI Analysis Pipeline
 
-
+This repository contains the full code to process OAI DESS images. I.e., segmentation, thickness measurement, atlas-registration, 3D to 2D mapping.
+We are currently in the process of refactoring it. The new (not entirely completed yet) codebase can be found in the [OAI Analysis 2 repository](https://github.com/uncbiag/OAI_analysis_2). 
 
 # Knee cartilage analysis from OAI image data
 The analysis interfaces given in [oai_image_analysis.py](./oai_image_analysis.py) include
