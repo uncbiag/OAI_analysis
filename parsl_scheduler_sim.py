@@ -3,11 +3,13 @@ import time, os, sys
 
 from parslfluxsim.resources_sim import ResourceManager
 from oai_scheduler_sim import OAI_Scheduler
+from aws_cloud_sim.costmodel import AWSCostModel
+from aws_cloud_sim.arc_to_aws_mapping import ARCMapping
 from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
 from parslfluxsim.performance_sim import read_performance_data
 from plots.plot_prediction_sim import plot_prediction
-from performance import plot_prediction_performance, store_performance_data
+from performance_analysis import plot_prediction_performance, store_performance_data
 
 import csv
 from itertools import zip_longest
@@ -186,17 +188,24 @@ class Simulation:
         self.r = None
 
     def setup(self, resourcefile, pipelinefile, configfile, availablefile, \
-              max_images, output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time_delta, imbalance_limit):
+              max_images, output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time_delta, imbalance_limit, throughput_target):
 
-        self.r = ResourceManager(resourcefile, availablefile, self.env)
+        self.mapping = ARCMapping ()
+
+        self.c = AWSCostModel ('us-east-1a', 'Linux/UNIX', self.env)
+
+        self.r = ResourceManager(resourcefile, availablefile, self.env, self.c)
 
         print (self.r)
 
-        init_resources = self.r.parse_resources()
+
 
         #self.r.purge_resources()
 
         self.performancedata = read_performance_data()
+
+        #replace ARC resources with AWS
+        self.performancedata = self.mapping.replace_arc_with_aws (self.performancedata)
 
         print (self.performancedata)
 
@@ -209,38 +218,6 @@ class Simulation:
         self.p.build_phases()
 
         self.scheduler = OAI_Scheduler(self.env)
-
-        self.scheduler.worker_threads = {}
-
-        for resource in init_resources:
-            if resource.cpu != None:
-                cpu_thread = ExecutionSimThread(self.env, resource, 'CPU', self.performancedata, 'on_demand')
-            else:
-                cpu_thread = None
-            if resource.gpu != None:
-                gpu_thread = ExecutionSimThread(self.env, resource, 'GPU', self.performancedata, 'on_demand')
-            else:
-                gpu_thread = None
-            self.scheduler.worker_threads[resource.id] = [cpu_thread, gpu_thread]
-
-        self.scheduler.workers = {}
-
-        for resource_id in self.scheduler.worker_threads.keys():
-            cpu_thread = self.scheduler.worker_threads[resource_id][0]
-            gpu_thread = self.scheduler.worker_threads[resource_id][1]
-
-            if cpu_thread != None:
-                cpu_thread_exec = ExecutionSim(self.env, cpu_thread)
-            else:
-                cpu_thread_exec = None
-            if gpu_thread != None:
-                gpu_thread_exec = ExecutionSim(self.env, gpu_thread)
-            else:
-                gpu_thread_exec = None
-            self.scheduler.workers[resource_id] = [cpu_thread_exec, gpu_thread_exec]
-
-        #self.scheduler.workers = self.workers
-        #self.scheduler.worker_threads = self.worker_threads
         self.scheduler.outputfile = output_file
         self.scheduler.performancedata = self.performancedata
         self.scheduler.no_of_prediction_phases = no_of_prediction_phases
@@ -248,6 +225,8 @@ class Simulation:
         self.scheduler.algo = algo
         self.scheduler.reconfiguration_time_delta = reconfiguration_time_delta
         self.scheduler.imbalance_limit = imbalance_limit
+        self.scheduler.mapping = self.mapping
+        self.scheduler.throughput_target = throughput_target
         if prediction == True:
             self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
         else:
@@ -272,7 +251,7 @@ if __name__ == "__main__":
 
     availablefile = "parslflux/available.yml"
 
-    cost = 1000
+    cost = 200
 
     output_directory = "plots/DFS_staging"
 
@@ -303,19 +282,21 @@ if __name__ == "__main__":
     #imbalance_limits = [5, 10, 15, 20, 25, 30]
     imbalance_limits = [10]
 
+    throughput_target = 50 #images per hour
+
     original_stdout = sys.stdout
     for i in range(len(max_images)):
         for reconfiguration_time in reconfiguration_time_delta:
             for imbalance_limit in imbalance_limits:
                 for algo in reconfiguration_algos:
                     for j in range(no_of_runs):
-                        #sys.stdout = open('output.txt', 'w')
+                        sys.stdout = open('output.txt', 'w')
                         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
                         sim = Simulation ()
-                        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time, imbalance_limit)
+                        sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time, imbalance_limit, throughput_target)
                         sim.run ()
-                        #sys.stdout.close()
-                        #sys.stdout = original_stdout
+                        sys.stdout.close()
+                        sys.stdout = original_stdout
                         print (algo, reconfiguration_time, 'simulation ', j, 'complete')
                     # store_performance_data(algo)
                     print ('algorithm', algo, 'complete')

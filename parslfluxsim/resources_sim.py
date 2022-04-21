@@ -4,6 +4,7 @@ import datetime
 import random as rand
 
 from parslflux.workqueue import WorkItemQueue
+from aws_cloud_sim.costmodel import AWSCostModel
 
 class CPU:
     def __init__ (self, name, cost, now):
@@ -112,7 +113,7 @@ class GPU:
 
 class Resource:
 
-    def __init__ (self, i, rmanager, costtype, env):
+    def __init__ (self, i, rmanager, provision_type, env, pipelinestageindex):
         self.id = "c" + str(i)
         self.hostname = "c" + str (i)
         self.cpu = None
@@ -126,9 +127,10 @@ class Resource:
         self.executionqueues = [-1, -1]
         self.rmanager = rmanager
         self.active = False
-        self.costtype = costtype
+        self.provision_type = provision_type
         self.env = env
         self.acquisition_time = None
+        self.temporary_assignment = pipelinestageindex
 
     def print_data (self):
         print (self.id)
@@ -136,6 +138,7 @@ class Resource:
     def set_active (self, active):
         self.active = active
         self.acquisition_time = self.env.now
+        self.temporary_assignment = None
 
     def get_active (self):
         return self.active
@@ -649,9 +652,10 @@ class Resource:
         return None
 
 class ResourceManager:
-    def __init__ (self, resourcefile, availablefile, env):
+    def __init__ (self, resourcefile, availablefile, env, costmodel):
         self.resourcefile = resourcefile
         self.availablefile = availablefile
+        self.costmodel = costmodel
         self.resourcetypeinfo = {}
         self.exectimes = {}
         self.max_exectimes = {}
@@ -667,51 +671,121 @@ class ResourceManager:
         self.active_pool_nodes = []
         self.backup_pool_nodes = []
 
-    def get_startup_time (self, resourcetype):
-        if resourcetype in self.resourcetypeinfo.keys ():
-            return self.resourcetypeinfo[resourcetype]['startuptime'] / 3600
-        return float (60/3600)
+    def get_startup_time (self, resourcetype, provision_type):
+        return float (self.resourcetypeinfo[provision_type][resourcetype]['startuptime'] / 3600)
 
-    def get_availability (self, resourcetype):
-        if resourcetype in self.resourcetypeinfo.keys ():
-            return self.resourcetypeinfo[resourcetype]['availability']
-        return 1.0
+    def get_availability (self, resourcetype, provision_type):
+        return self.resourcetypeinfo[provision_type][resourcetype]['availability']
 
     def request_resource (self, resourcename):
         if rand.random() > 0.5:
             return True
         return False
 
-    def add_resource (self, cpuok, gpuok, cputype, gputype, costtype, active):
-        print('add resource ()', cpuok, gpuok, cputype, gputype, costtype, active)
+    def provision_on_demand_resource (self, resourcetype, computetype):
+
+        cost = self.costmodel.get_on_demand_cost (resourcetype, computetype)
+
+        provision_time = self.costmodel.get_on_demand_startup_time (resourcetype, computetype)
+
+        print (cost, provision_time)
+
+        return cost, provision_time
+
+    def provision_spot_resource (self, resourcetype, computetype, bidding_price):
+
+        cost =  self.costmodel.get_spot_cost(resourcetype, computetype, bidding_price)
+
+        provision_time = self.costmodel.get_spot_startup_time(resourcetype, computetype)
+
+        return cost, provision_time
+
+    def add_resource (self, cpuok, gpuok, cputype, gputype, provision_type, active_pool, bidding_price, pipelinestageindex):
+
+        print ('add resource ()', cpuok, gpuok, cputype, gputype, provision_type, active_pool, bidding_price, pipelinestageindex)
+
         if cpuok == True:
-            resource = Resource ('c' + str(self.cpuid_counter), self, costtype, self.env)
-            resource.add_cpu(cputype, self.resourcetypeinfo[cputype]['cost'], self.env.now)
-            if active == True:
+            if provision_type == 'on_demand':
+                cost, provision_time = self.provision_on_demand_resource (cputype, 'CPU')
+            elif provision_type == 'spot':
+                cost, provision_time = self.provision_spot_resource (cputype, 'CPU', bidding_price)
+
+            if provision_time == None or cost == None:
+                print ('resource provision failed', cputype, provision_type, cost)
+                return None, None
+
+            resource = Resource ('c' + str(self.cpuid_counter), self, provision_type, self.env, pipelinestageindex)
+            resource.add_cpu (cputype, cost, self.env.now)
+
+            if active_pool == True:
                 self.active_pool_nodes.append(resource)
                 self.active_cpunodes_count += 1
             else:
                 self.backup_pool_nodes.append(resource)
                 self.backup_cpunodes_count += 1
             self.cpuid_counter += 1
-            self.resourcetypeinfo[cputype]['count']['time'].append(self.env.now)
-            self.resourcetypeinfo[cputype]['count']['count'].append(self.resourcetypeinfo[cputype]['count']['count'][-1] + 1)
 
-            return resource
+            if provision_type not in self.resourcetypeinfo:
+                self.resourcetypeinfo[provision_type] = {}
+
+            if cputype not in self.resourcetypeinfo[provision_type]:
+                self.resourcetypeinfo[provision_type][cputype] = {}
+
+            self.resourcetypeinfo[provision_type][cputype]['provisiontime'] = provision_time
+            self.resourcetypeinfo[provision_type][cputype]['resourcetype'] = 'CPU'
+            self.resourcetypeinfo[provision_type][cputype]['availability'] = 1.0
+            self.resourcetypeinfo[provision_type][cputype]['cost'] = cost
+
+            if 'count' not in self.resourcetypeinfo[provision_type][cputype]:
+                self.resourcetypeinfo[provision_type][cputype]['count'] = {}
+                self.resourcetypeinfo[provision_type][cputype]['count']['time'] = [self.env.now]
+                self.resourcetypeinfo[provision_type][cputype]['count']['count'] = [1]
+            else:
+                self.resourcetypeinfo[provision_type][cputype]['count']['time'].append(self.env.now)
+                self.resourcetypeinfo[provision_type][cputype]['count']['count'].append(self.resourcetypeinfo[provision_type][cputype]['count']['count'][-1] + 1)
+
+            return resource, provision_time
         elif gpuok == True:
-            resource = Resource('g' + str(self.gpuid_counter), self, costtype, self.env)
-            resource.add_gpu(gputype, self.resourcetypeinfo[gputype]['cost'], self.env.now)
-            if active == True:
+            if provision_type == 'on_demand':
+                cost, provision_time = self.provision_on_demand_resource (gputype, 'GPU')
+            elif provision_type == 'spot':
+                cost, provision_time = self.provision_spot_resource (gputype, 'GPU', bidding_price)
+
+            if provision_time == None or cost == None:
+                print ('resource provision failed', gputype, provision_type, cost)
+                return None, None
+
+            resource = Resource('g' + str(self.gpuid_counter), self, provision_type, self.env, pipelinestageindex)
+            resource.add_gpu(gputype, cost, self.env.now)
+
+            if active_pool == True:
                 self.active_pool_nodes.append(resource)
                 self.active_gpunodes_count += 1
             else:
                 self.backup_pool_nodes.append(resource)
                 self.backup_gpunodes_count += 1
             self.gpuid_counter += 1
-            self.resourcetypeinfo[gputype]['count']['time'].append(self.env.now)
-            self.resourcetypeinfo[gputype]['count']['count'].append(self.resourcetypeinfo[gputype]['count']['count'][-1] + 1)
 
-            return resource
+            if provision_type not in self.resourcetypeinfo:
+                self.resourcetypeinfo[provision_type] = {}
+
+            if gputype not in self.resourcetypeinfo[provision_type]:
+                self.resourcetypeinfo[provision_type][gputype] = {}
+
+            self.resourcetypeinfo[provision_type][gputype]['provisiontime'] = provision_time
+            self.resourcetypeinfo[provision_type][gputype]['resourcetype'] = 'GPU'
+            self.resourcetypeinfo[provision_type][gputype]['availability'] = 1.0
+            self.resourcetypeinfo[provision_type][gputype]['cost'] = cost
+
+            if 'count' not in self.resourcetypeinfo[provision_type][gputype]:
+                self.resourcetypeinfo[provision_type][gputype]['count'] = {}
+                self.resourcetypeinfo[provision_type][gputype]['count']['time'] = [self.env.now]
+                self.resourcetypeinfo[provision_type][gputype]['count']['count'] = [1]
+            else:
+                self.resourcetypeinfo[provision_type][gputype]['count']['time'].append(self.env.now)
+                self.resourcetypeinfo[provision_type][gputype]['count']['count'].append(self.resourcetypeinfo[provision_type][gputype]['count']['count'][-1] + 1)
+
+            return resource, provision_time
 
     def delete_resource (self, resourcetype, resource_id, active):
         print ('delete resource ()', resource_id, resourcetype, active)
@@ -722,14 +796,16 @@ class ResourceManager:
         node_index = 0
         for node in nodes:
             if node.id == resource_id:
-                if resourcetype == 'CPU':
-                    self.resourcetypeinfo[node.cpu.name]['count']['time'].append(self.env.now)
-                    self.resourcetypeinfo[node.cpu.name]['count']['count'].append (self.resourcetypeinfo[node.cpu.name]['count']['count'][-1] - 1)
-                    self.total_cpu_cost += (self.env.now - node.acquisition_time) * node.cpu.cost
-                else:
-                    self.resourcetypeinfo[node.gpu.name]['count']['time'].append (self.env.now)
-                    self.resourcetypeinfo[node.gpu.name]['count']['count'].append (self.resourcetypeinfo[node.gpu.name]['count']['count'][-1] - 1)
-                    self.total_gpu_cost += (self.env.now - node.acquisition_time) * node.gpu.cost
+                if node.active == True:
+                    provision_type = node.provision_type
+                    if resourcetype == 'CPU':
+                        self.resourcetypeinfo[provision_type][node.cpu.name]['count']['time'].append(self.env.now)
+                        self.resourcetypeinfo[provision_type][node.cpu.name]['count']['count'].append (self.resourcetypeinfo[provision_type][node.cpu.name]['count']['count'][-1] - 1)
+                        self.total_cpu_cost += (self.env.now - node.acquisition_time) * node.cpu.cost
+                    else:
+                        self.resourcetypeinfo[provision_type][node.gpu.name]['count']['time'].append (self.env.now)
+                        self.resourcetypeinfo[provision_type][node.gpu.name]['count']['count'].append (self.resourcetypeinfo[provision_type][node.gpu.name]['count']['count'][-1] - 1)
+                        self.total_gpu_cost += (self.env.now - node.acquisition_time) * node.gpu.cost
                 break
             node_index += 1
 
@@ -752,42 +828,62 @@ class ResourceManager:
     def get_resourcetype_info_all (self):
         return self.resourcetypeinfo
 
-    def get_resourcetype_info (self, resourcetype, infotype):
-        return self.resourcetypeinfo[resourcetype][infotype]
+    def get_resourcetype_info (self, resourcetype, infotype, provision_type):
+        if provision_type not in self.resourcetypeinfo:
+            return None
+        return self.resourcetypeinfo[provision_type][resourcetype][infotype]
 
     def parse_resources (self):
+        cpu_types = {}
+        gpu_types = {}
+        yaml_resourcefile = open(self.resourcefile)
+        resources = yaml.load(yaml_resourcefile, Loader=yaml.FullLoader)
+
+        for cputype in resources['available']['CPU']:
+            cpu_types[cputype['id']] = cputype['count']
+
+        for gputype in resources['available']['GPU']:
+            gpu_types[gputype['id']] = gputype['count']
+
+        return cpu_types, gpu_types
+
+    def parse_resources_old (self):
         yaml_resourcefile = open (self.resourcefile)
         resources = yaml.load (yaml_resourcefile, Loader=yaml.FullLoader)
 
         for cputype in resources['available']['CPU']:
-            self.resourcetypeinfo[cputype['id']] = {}
-            self.resourcetypeinfo[cputype['id']]['startuptime'] = cputype['startuptime']
-            self.resourcetypeinfo[cputype['id']]['resourcetype'] = 'CPU'
-            self.resourcetypeinfo[cputype['id']]['availability'] = 1.0
-            self.resourcetypeinfo[cputype['id']]['cost'] = cputype['cost']
-            self.resourcetypeinfo[cputype['id']]['count'] = {}
-            self.resourcetypeinfo[cputype['id']]['count']['time'] = [self.env.now]
-            self.resourcetypeinfo[cputype['id']]['count']['count'] = [cputype['count']]
+            if cputype['provision_type'] not in self.resourcetypeinfo:
+                self.resourcetypeinfo['provision_type'] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['startuptime'] = cputype['startuptime']
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['resourcetype'] = 'CPU'
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['cost'] = cputype['cost']
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count'] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count']['count'] = [cputype['count']]
             count = cputype['count']
             for i in range (0, count):
-                new_resource = Resource ('c' + str(self.cpuid_counter), self, cputype['costtype'], self.env)
+                new_resource = Resource ('c' + str(self.cpuid_counter), self, cputype['provision_type'], self.env)
                 new_resource.add_cpu(cputype['id'], cputype['cost'], self.env.now)
                 self.active_pool_nodes.append(new_resource)
                 self.cpuid_counter += 1
                 self.active_cpunodes_count += 1
 
         for gputype in resources['available']['GPU']:
-            self.resourcetypeinfo[gputype['id']] = {}
-            self.resourcetypeinfo[gputype['id']]['startuptime'] = gputype['startuptime']
-            self.resourcetypeinfo[gputype['id']]['resourcetype'] = 'GPU'
-            self.resourcetypeinfo[gputype['id']]['availability'] = 1.0
-            self.resourcetypeinfo[gputype['id']]['cost'] = gputype['cost']
-            self.resourcetypeinfo[gputype['id']]['count'] = {}
-            self.resourcetypeinfo[gputype['id']]['count']['time'] = [self.env.now]
-            self.resourcetypeinfo[gputype['id']]['count']['count'] = [gputype['count']]
+            if gputype['provision_type'] not in self.resourcetypeinfo:
+                self.resourcetypeinfo['provision_type'] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['startuptime'] = gputype['startuptime']
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['resourcetype'] = 'GPU'
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['cost'] = gputype['cost']
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count'] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count']['count'] = [gputype['count']]
             count = gputype['count']
             for i in range (0, count):
-                new_resource = Resource ('g' + str(self.gpuid_counter), self, gputype['costtype'], self.env)
+                new_resource = Resource ('g' + str(self.gpuid_counter), self, gputype['provision_type'], self.env)
                 new_resource.add_gpu(gputype['id'], gputype['cost'], self.env.now)
                 self.active_pool_nodes.append(new_resource)
                 self.gpuid_counter += 1
@@ -799,7 +895,7 @@ class ResourceManager:
 
     def get_max_exectime (self, pipelinestages, resource_id, active):
         #TODO: this function is completely wrong, use resourcename and resourcetype structure to get max exectime
-        resources = self.get_resources (active)
+        resources = self.get_resources ('active', active)
 
         max_exectime = 0
         for resource in resources:
@@ -859,7 +955,7 @@ class ResourceManager:
         count = 0
         for resource_name in self.exectimes.keys ():
             resourcename_execution_times = []
-            if self.get_resourcetype_info(resource_name, 'resourcetype') == resourcetype:
+            if self.get_resourcetype_info(resource_name, 'resourcetype', 'on_demand') == resourcetype:
                 if len (list (self.exectimes[resource_name].keys ())) < no_of_pipelinestages:
                     continue
                 for pipelinestage in self.exectimes[resource_name].keys ():
@@ -897,14 +993,14 @@ class ResourceManager:
                 return node
         return None
 
-    def get_resources (self, active):
+    def get_resources (self, pool, active):
         ret = []
-        if active == True:
+        if pool == 'active':
             nodes = self.active_pool_nodes
         else:
             nodes = self.backup_pool_nodes
         for resource in nodes:
-            if resource.active == True:
+            if resource.active == active:
                 ret.append(resource)
         return ret
 
@@ -922,8 +1018,9 @@ class ResourceManager:
         return resources
 
     def get_resource_names (self, resourcetype):
+        provision_type = 'on_demand'
         resource_names = []
-        for resource_name in self.resourcetypeinfo.keys ():
-            if self.resourcetypeinfo[resource_name]['resourcetype'] == resourcetype:
+        for resource_name in self.resourcetypeinfo[provision_type].keys ():
+            if self.resourcetypeinfo[provision_type][resource_name]['resourcetype'] == resourcetype:
                 resource_names.append(resource_name)
         return resource_names

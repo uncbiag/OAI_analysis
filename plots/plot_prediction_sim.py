@@ -234,16 +234,44 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
 
     resourcetypeinfo = rmanager.get_resourcetype_info_all()
 
+    print (resourcetypeinfo)
+
     ax = axes1
 
-    for resource_name in resourcetypeinfo.keys ():
-        x_data = [i * 3600 for i in resourcetypeinfo[resource_name]['count']['time']]
-        y_data = resourcetypeinfo[resource_name]['count']['count']
-        print(resource_name, x_data, y_data)
-        if resourcetypeinfo[resource_name]['resourcetype'] == 'CPU':
-            ax.plot(x_data, y_data, label=resource_name, linestyle='solid')
-        else:
-            ax.plot (x_data, y_data, label=resource_name, linestyle='dashed')
+    if 'on_demand' in resourcetypeinfo.keys ():
+        for resource_name in resourcetypeinfo['on_demand'].keys ():
+            x_data_on_demand = [i * 3600 for i in resourcetypeinfo['on_demand'][resource_name]['count']['time']]
+            y_data_on_demand = resourcetypeinfo['on_demand'][resource_name]['count']['count']
+
+            x_data_on_demand_new = [x_data_on_demand[0]]
+            y_data_on_demand_new = [y_data_on_demand[0]]
+
+            index = 1
+
+            while index < len (x_data_on_demand):
+                x_data_on_demand_new.append (x_data_on_demand[index])
+                y_data_on_demand_new.append (y_data_on_demand[index - 1])
+                x_data_on_demand_new.append (x_data_on_demand[index])
+                y_data_on_demand_new.append(y_data_on_demand[index])
+                index += 1
+
+
+            #print(resource_name, x_data, y_data)
+            if resourcetypeinfo['on_demand'][resource_name]['resourcetype'] == 'CPU':
+                ax.plot(x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='solid')
+            else:
+                ax.plot (x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='dashed')
+
+
+    if 'spot' in resourcetypeinfo.keys ():
+        for resource_name in resourcetypeinfo['spot'].keys ():
+            x_data_spot = [i * 3600 for i in resourcetypeinfo['spot'][resource_name]['count']['time']]
+            y_data_spot = resourcetypeinfo['spot'][resource_name]['count']['count']
+            #print(resource_name, x_data, y_data)
+            if resourcetypeinfo['spot'][resource_name]['resourcetype'] == 'CPU':
+                ax.plot (x_data_spot, y_data_spot, label=resource_name, linestyle='dotted')
+            else:
+                ax.plot(x_data_spot, y_data_spot, label=resource_name, linestyle='dashdott')
     ax.legend()
     ax.set_xlabel ('Timeline (seconds)')
     ax.set_ylabel ('Count')

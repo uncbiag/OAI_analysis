@@ -366,492 +366,6 @@ class PipelineStage:
 
         return self.avg_resource_service_rate
 
-    def get_time_required_1 (self, rmanager, target, current_time, phase_index):
-        #print('get_time_required_1 ()', self.name, target, current_time)
-
-        pipelinestage_resources = rmanager.get_resources_type(self.resourcetype)
-        phase = self.phases[phase_index]
-        resource_data = {}
-        end_times = {}
-        total_queued_work = 0
-
-        #print('get_time_required_1 ()', phase.pcurrent_executors)
-        #print('get_time_required_1 ()', phase.pqueued)
-
-        for resource_id in phase.pcurrent_executors:
-            resource = rmanager.get_resource(resource_id)
-            queued_work = resource.get_work_left(self.resourcetype, current_time)
-            #print(resource_id, queued_work)
-            if (queued_work == None or queued_work == 0) and resource_id in phase.pqueued.keys():
-                queued_work = 1 - phase.pqueued[resource_id][0]
-
-            exectime = resource.get_exectime(self.name, self.resourcetype)
-            service_rate = 1 / exectime
-            times_required = queued_work / service_rate
-            #queued_work, finish_time, service_rate, resource.id
-            resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
-            total_queued_work += queued_work
-
-        #print('get_time_required_1 ()', total_queued_work)
-
-        resource_index = 0
-        while resource_index < len(pipelinestage_resources):
-            resource = pipelinestage_resources[resource_index]
-            if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
-                resource_index += 1
-                continue
-
-            if total_queued_work + 1 > target:
-                resource_data[resource.id] = [0, -1, 0, resource.id]
-                end_times[resource.id] = current_time
-            else:
-                queued_work = 1
-                exectime = resource.get_exectime(self.name, self.resourcetype)
-                service_rate = 1 / exectime
-                times_required = queued_work / service_rate
-                # queued_work, finish_time, service_rate, resource.id
-                resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
-                total_queued_work += queued_work
-
-            resource_index += 1
-
-        #print('get_time_required_1 ()', resource_data)
-        #print('get_time_required_1 ()', end_times)
-
-        while True:
-            sorted_resource_items = sorted(resource_data.items(), key=lambda kv: kv[1][1])
-            selected_resource_key = None
-            for resource in sorted_resource_items:
-                end_time = resource[1][1]
-                if end_time > 0.0:
-                    selected_resource_key = resource[0]
-                    break
-            if end_time <= 0.0:
-                break
-            #print(target, total_queued_work, end_time, sorted_resource_items)
-            #print(end_times)
-
-            resource = resource_data[selected_resource_key]
-
-            resource[0] = 0.0
-            end_times[selected_resource_key] = resource[1]
-
-            if total_queued_work + 1 <= target:
-                resource[0] = 1
-                total_queued_work += 1
-                resource[1] += (resource[0] / resource[2])
-            else:
-                resource[0] = 0
-                resource[1] = -1
-
-        sorted_end_times = sorted(end_times.items(), key=lambda kv: kv[1])
-
-        final_end_times = {}
-
-        for end_time in sorted_end_times:
-            final_end_times[end_time[0]] = end_time[1]
-
-        final_end_time = list(final_end_times.values())[-1]
-        resource_release_time = list(final_end_times.values())[0]
-
-        #print('get_time_required_1 ()', final_end_times)
-
-        return final_end_time, resource_release_time, final_end_times
-
-    def get_time_required_2 (self, rmanager, target, current_time, phase_index):
-        #print ('get_time_required_2 ()', self.name, target, current_time)
-
-        pipelinestage_resources = rmanager.get_resources_type(self.resourcetype)
-        phase = self.phases[phase_index]
-        resource_data = {}
-        end_times = {}
-        total_queued_work = 0
-
-        #print ('get_time_required_2 ()', phase.pcurrent_executors)
-        #print ('get_time_required_2 ()', phase.pqueued)
-
-        for resource_id in phase.pcurrent_executors:
-            resource = rmanager.get_resource (resource_id)
-            queued_work = resource.get_work_left(self.resourcetype, current_time)
-            #print (resource_id, queued_work)
-            if (queued_work == None or queued_work == 0) and resource_id in phase.pqueued.keys ():
-                queued_work = 1 - phase.pqueued[resource_id][0]
-
-            exectime = resource.get_exectime(self.name, self.resourcetype)
-            service_rate = 1 / exectime
-            times_required = queued_work / service_rate
-            #queued_work, finish_time, service_rate, resource.id
-            resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
-            total_queued_work += queued_work
-
-        #print ('get_time_required_2 ()', total_queued_work)
-
-        resource_index = 0
-        while resource_index < len (pipelinestage_resources):
-            resource = pipelinestage_resources[resource_index]
-            if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
-                resource_index += 1
-                continue
-            elif resource.id in phase.pcurrent_executors:
-                phase.p_outputs.append(current_time)
-                phase.persistent_p_outputs.append(current_time)
-
-            if total_queued_work + 1 > target:
-                resource_data[resource.id] = [0, -1, 0, resource.id]
-                end_times[resource.id] = current_time
-            else:
-                queued_work = 1
-                exectime = resource.get_exectime(self.name, self.resourcetype)
-                service_rate = 1 / exectime
-                times_required = queued_work / service_rate
-                # queued_work, finish_time, service_rate, resource.id
-                resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
-                total_queued_work += queued_work
-
-            resource_index += 1
-
-        #print ('get_time_required_2 ()', resource_data)
-        #print ('get_time_required_2 ()', end_times)
-
-        while True:
-            sorted_resource_items = sorted(resource_data.items(), key=lambda kv: kv[1][1])
-            selected_resource_key = None
-            for resource in sorted_resource_items:
-                end_time = resource[1][1]
-                if end_time > 0.0:
-                    selected_resource_key = resource[0]
-                    break
-            if end_time <= 0.0:
-                break
-            #print (target, total_queued_work, end_time, sorted_resource_items)
-            #print (end_times)
-
-            resource = resource_data[selected_resource_key]
-
-            resource[0] = 0.0
-            end_times[selected_resource_key] = resource[1]
-
-            phase.p_outputs.append (resource[1])
-            phase.persistent_p_outputs.append (resource[1])
-
-            if total_queued_work + 1 <= target:
-                resource[0] = 1
-                total_queued_work += 1
-                resource[1] += (resource[0] / resource[2])
-            else:
-                resource[0] = 0
-                resource[1] = -1
-
-        sorted_end_times = sorted(end_times.items(), key=lambda kv: kv[1])
-
-        final_end_times = {}
-
-        for end_time in sorted_end_times:
-            final_end_times[end_time[0]] = end_time[1]
-
-        final_end_time = list (final_end_times.values ())[-1]
-        resource_release_time = list (final_end_times.values ())[0]
-
-        #print ('get_time_required_2 ()', final_end_times)
-
-        return final_end_time, resource_release_time, final_end_times
-
-    def get_time_required_3 (self, rmanager, target, current_time, phase_index, previous_phase_outputs, starttimes):
-        #print ('get_time_required_3 ()', self.name, target, current_time)
-
-        pipelinestage_resources = rmanager.get_resources_type(self.resourcetype)
-        phase = self.phases[phase_index]
-        resource_data = {}
-        end_times = {}
-
-        #print ('get_time_required_3 ()', phase.pcurrent_executors)
-        #print ('get_time_required_3 ()', phase.pqueued)
-        #print('get_time_required_3 ()', previous_phase_outputs)
-
-        for resource_id in phase.pcurrent_executors:
-            resource = rmanager.get_resource (resource_id)
-            queued_work = resource.get_work_left(self.resourcetype, current_time)
-            #print (resource_id, queued_work)
-            if (queued_work == None or queued_work == 0) and resource_id in phase.pqueued.keys ():
-                queued_work = 1 - phase.pqueued[resource_id][0]
-
-            exectime = resource.get_exectime(self.name, self.resourcetype)
-            service_rate = 1 / exectime
-            times_required = queued_work / service_rate
-            #queued_work, finish_time, service_rate, resource.id
-            resource_data[resource.id] = [queued_work, current_time + times_required, service_rate, resource.id]
-
-        resource_index = 0
-        while resource_index < len (pipelinestage_resources):
-            resource = pipelinestage_resources[resource_index]
-            if resource.id in phase.pcurrent_executors and resource_data[resource.id][0] > 0.0:
-                resource_index += 1
-                continue
-            elif resource.id in phase.pcurrent_executors:
-                phase.p_outputs.append(current_time)
-                phase.persistent_p_outputs.append(current_time)
-
-            if len (previous_phase_outputs) <= 0:
-                resource_data[resource.id] = [0, -1, 0, resource.id]
-                if starttimes == None:
-                    end_times[resource.id] = current_time
-                else:
-                    end_times[resource.id] = starttimes[resource.id]
-                continue
-
-            exectime = resource.get_exectime(self.name, self.resourcetype)
-            service_rate = 1 / exectime
-            times_required = 1 / service_rate
-
-            if starttimes == None:
-                prev_end_time = current_time
-            else:
-                prev_end_time = starttimes[resource.id]
-            if prev_end_time > previous_phase_outputs[0]:
-                resource_data[resource.id] = [1, prev_end_time + times_required, service_rate, resource.id]
-            else:
-                resource_data[resource.id] = [1, previous_phase_outputs[0] + times_required, service_rate, resource.id]
-
-            resource_index += 1
-            previous_phase_outputs.pop(0)
-
-        #print ('get_time_required_3 ()', resource_data)
-        #print ('get_time_required_3 ()', end_times)
-        #print ('get_time_required_3 ()', previous_phase_outputs)
-
-        while True:
-            sorted_resource_items = sorted(resource_data.items(), key=lambda kv: kv[1][1])
-            selected_resource_key = None
-            for resource in sorted_resource_items:
-                end_time = resource[1][1]
-                if end_time > 0.0:
-                    selected_resource_key = resource[0]
-                    break
-            if end_time <= 0.0:
-                break
-            #print (target, end_time, sorted_resource_items)
-            #print (previous_phase_outputs)
-            #print (end_times)
-
-            resource = resource_data[selected_resource_key]
-            resource[0] = 0.0
-            end_times[selected_resource_key] = resource[1]
-
-            phase.p_outputs.append (resource[1])
-            phase.persistent_p_outputs.append (resource[1])
-
-            if len (previous_phase_outputs) > 0:
-                resource[0] = 1
-                if resource[1] > previous_phase_outputs[0]:
-                    resource[1] += (resource[0] / resource[2])
-                else:
-                    resource[1] = previous_phase_outputs[0] + (resource[0] / resource[2])
-                previous_phase_outputs.pop(0)
-            else:
-                resource[0] = 0
-                resource[1] = -1
-
-        sorted_end_times = sorted(end_times.items(), key=lambda kv: kv[1])
-
-        final_end_times = {}
-
-        for end_time in sorted_end_times:
-            final_end_times[end_time[0]] = end_time[1]
-
-        final_end_time = list(final_end_times.values())[-1]
-        resource_release_time = list(final_end_times.values())[0]
-
-        #print('get_time_required_3 ()', final_end_times)
-
-        return final_end_time, resource_release_time, final_end_times
-
-    def get_possible_work_done (self, rmanager, idle_times, target, fractional_work_allowed):
-        execution_times = {}
-        fractional_work = {}
-        output_times = []
-        work_done = 0
-        assigned_work = 0
-
-        #print ('get_possible_work_done () idle_times', idle_times[2].items ())
-
-        sorted_idle_times = dict(sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
-        starttime = None
-
-        while assigned_work < target:
-            #print('get_possible_work_done ():', work_done, sorted_idle_times)
-            assigned_work_snapshot = assigned_work
-
-            resource_index = 0
-            fractional_work_done = False
-            while resource_index < len (list (sorted_idle_times.keys ())):
-                resource_key = list (sorted_idle_times.keys ())[resource_index]
-                resource_data = sorted_idle_times[resource_key][-1]
-
-                time_left = resource_data[2]
-
-                resource = rmanager.get_resource(resource_key)
-                resource_service_rate = 1 / resource.get_exectime(self.name, self.resourcetype)
-                time_taken = 1 / resource_service_rate
-
-                #print ('get_possible_work_done ()', time_taken, time_left, resource.id)
-
-                if time_left >= time_taken:
-                    work_done += 1
-                    assigned_work += 1
-                    expired = time_taken
-
-                    if starttime == None:
-                        starttime = resource_data[0]
-
-                    if resource.id not in execution_times:
-                        execution_times[resource.id] = [resource_data[0], resource_data[0] + expired, work_done]
-                        output_times.append (resource_data[0] + time_taken)
-                    else:
-                        output_times.append(execution_times[resource.id][1] + time_taken)
-                        execution_times[resource.id][1] += expired
-                        execution_times[resource.id][2] += work_done
-
-                    resource_data[2] -= expired
-                    resource_data[0] += expired
-                    break
-                elif time_left > 0.0 and fractional_work_allowed == True:
-                    assigned_work += 1
-                    if starttime == None:
-                        starttime = resource_data[0]
-                    #work_done, [start_time, fractional_finish_time, whole_finish_time]
-                    fractional_work[resource_key] = [1 * (time_left / time_taken), [resource_data[0], resource_data[1], resource_data[0] + time_taken]]
-                    expired = time_left
-                    resource_data[2] -= expired
-                    resource_data[0] += expired
-                    fractional_work_done = True
-                    break
-
-                resource_index += 1
-
-            sorted_idle_times = dict(sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
-
-            if assigned_work_snapshot == assigned_work and fractional_work_done == False:
-                break
-
-        idle_times[0] = list (sorted_idle_times.values())[0][-1][0]
-        idle_times[1] = list (sorted_idle_times.values())[0][-1][1]
-        idle_times[2] = sorted_idle_times
-
-        output_times.sort()
-
-        #print ('------------------------------------')
-        #print ('remaining idle times ()', idle_times)
-        #print ('work done ()', work_done)
-        #print ('output times ()', output_times)
-        #print ('fraction work ()', fractional_work)
-        #print('------------------------------------')
-
-        return starttime, work_done, idle_times, output_times, fractional_work
-
-    def get_possible_work_done_2 (self, rmanager, idle_times,
-                                  target, prev_output_times, fractional_work_allowed):
-        fractional_work = {}
-        output_times = []
-        work_done = 0
-
-        starttime = None
-
-        #print ('get_possible_work_done_2 () idle_times', idle_times[2].items())
-        #print ('get_possible_work_done_2 () prev_output_times', prev_output_times)
-
-        sorted_idle_times = dict (sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
-
-        while work_done < target:
-            #print('get_possible_work_done_2 ():', work_done, sorted_idle_times)
-            work_done_snapshot = work_done
-
-            fractional_work_done = False
-            resource_index = 0
-            while resource_index < len(list(sorted_idle_times.keys())) and len (prev_output_times) > 0:
-
-                resource_key = list(sorted_idle_times.keys())[resource_index]
-                resource_data = sorted_idle_times[resource_key][-1]
-
-                #print ('get_possible_work_done_2 ()', 'resource_data', resource_key, resource_data)
-                #print ('get_possible_work_done_2 ()', 'prev_output', prev_output_times)
-
-                if prev_output_times[0] >= resource_data[1]:
-                    #print ('get_possible_work_done_2 ()', prev_output_times[0], resource_data[1])
-                    resource_index += 1
-                    continue
-
-                time_left = resource_data[1] - prev_output_times[0]
-
-                if time_left >= resource_data[2]:
-                    time_left = resource_data[2]
-                    start_time = resource_data[0]
-                else:
-                    start_time = prev_output_times[0]
-
-                resource = rmanager.get_resource(resource_key)
-                resource_service_rate = 1 / resource.get_exectime(self.name, self.resourcetype)
-                time_taken = 1 / resource_service_rate
-
-                #print ('get_possible_work_done_2 ()', time_taken, time_left, resource.id, start_time, prev_output_times[0])
-
-                if time_left >= time_taken:
-                    if starttime == None:
-                        starttime = start_time
-                    work_done += 1
-                    expired = time_taken
-                    output_times.append(start_time + time_taken)
-
-                    if start_time > resource_data[0]:
-                        #split idle times
-                        sorted_idle_times[resource_key].insert (-1, [resource_data[0], start_time, start_time - resource_data[0]])
-
-                    resource_data[0] = (start_time + expired)
-                    resource_data[2] = resource_data[1] - resource_data[0]
-                    prev_output_times.pop (0)
-                    break
-                elif time_left > 0.0 and fractional_work_allowed == True:
-                    if starttime == None:
-                        starttime = start_time
-
-                    if start_time > resource_data[0]:
-                        #split idle times
-                        sorted_idle_times[resource_key].insert (-1, [resource_data[0], start_time, start_time - resource_data[0]])
-
-                        # work_done, [start_time, fractional_finish_time, whole_finish_time]
-                    fractional_work[resource_key] = [1 * (time_left / time_taken),
-                                                     [start_time, resource_data[1],
-                                                      start_time + time_taken]]
-
-                    expired = time_left
-                    resource_data[0] = (start_time + expired)
-                    resource_data[2] = resource_data[1] - resource_data[0]
-
-                    fractional_work_done = True
-                    prev_output_times.pop (0)
-                    break
-
-                resource_index += 1
-
-            sorted_idle_times = dict(sorted(idle_times[2].items(), key=lambda kv: kv[1][-1][0]))
-
-            if work_done_snapshot == work_done and fractional_work_done == False:
-                break
-
-        idle_times[0] = list(sorted_idle_times.values())[0][-1][0]
-        idle_times[1] = list(sorted_idle_times.values())[0][-1][1]
-        idle_times[2] = sorted_idle_times
-
-        output_times.sort()
-
-        #print('------------------------------------')
-        #print('remaining idle times ()', idle_times)
-        #print('work done ()', work_done)
-        #print('output times ()', output_times)
-        #print('fraction work ()', fractional_work)
-        #print('------------------------------------')
-
-        return starttime, work_done, idle_times, output_times, prev_output_times, fractional_work
-
 
     def print_data (self, index):
         if index < len (self.phases):
@@ -940,7 +454,21 @@ class PipelineManager:
                         throughput = 1 / exectime
                     else:
                         throughput = 1 / exectime
-                    performance_to_cost_ratio += throughput / rmanager.get_resourcetype_info (resource_name, 'cost')
+                    ret = rmanager.get_resourcetype_info (resource_name, 'cost', 'on_demand')
+                    if ret != None:
+                        on_demand_cost = ret
+                    else:
+                        on_demand_cost = 0
+
+                    ret = rmanager.get_resourcetype_info(resource_name, 'cost', 'spot')
+                    if ret != None:
+                        spot_cost = ret
+                    else:
+                        spot_cost = 0
+
+                    total_cost = on_demand_cost + spot_cost
+
+                    performance_to_cost_ratio += throughput / total_cost
 
             if performance_to_cost_ratio == 0:
                 weighted_performance_to_cost_ratio[resource_name] = 0
@@ -1140,18 +668,23 @@ class PipelineManager:
                 break
         return to_be_added
 
-    def scale_up_configuration_limit (self, rmanager, pipelinestageindex, input_pressure, throughput, resource_limit):
+    def scale_up_configuration_limit (self, rmanager, pipelinestageindex, input_pressure, throughput, resource_limit, throughput_limit):
         to_be_added = {}
         target_throughput = input_pressure - throughput
+        if throughput_limit != 0:
+            target_throughput = throughput_limit - throughput
         pipelinestage = self.pipelinestages[pipelinestageindex]
         added_throughput = 0
         total_acquired = 0
+
+        if target_throughput <= 0:
+            return to_be_added
 
         while True:
             weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking_all(rmanager,
                                                                                            pipelinestage.resourcetype)
 
-            print('scale_up_configuration', weighted_pcr_ranking)
+            print('scale_up_configuration_limit', weighted_pcr_ranking)
 
             for resource_name in weighted_pcr_ranking.keys():
                 exectime = rmanager.get_exectime(resource_name, pipelinestage.name)
@@ -1164,7 +697,7 @@ class PipelineManager:
 
                 resource_available = rmanager.request_resource(resource_name)
 
-                print('scale_up_configuration', resource_name, resource_throughput, resource_available, throughput, target_throughput)
+                print('scale_up_configuration_limit', resource_name, resource_throughput, resource_available, throughput, target_throughput, resource_limit)
 
                 if resource_available == True:
                     if added_throughput + resource_throughput > added_throughput:
@@ -1190,6 +723,7 @@ class PipelineManager:
         computation_pressures= {}
         available_resources = {}
         max_throughputs = {}
+        upcoming_throughputs = {}
 
         total_cpu_input_pressure = 0
         total_gpu_input_pressure = 0
@@ -1204,6 +738,10 @@ class PipelineManager:
 
         while pipelinestageindex >= 0:
             pipelinestage = self.pipelinestages[pipelinestageindex]
+            if pipelinestageindex - 2 >= 0:
+                prev_sametype_pipelinestage = self.pipelinestages[pipelinestageindex - 2]
+            else:
+                prev_sametype_pipelinestage = None
             if pipelinestage.resourcetype == 'CPU':
                 free_resources = current_free_cpus
             else:
@@ -1260,151 +798,138 @@ class PipelineManager:
                     rmanager, 0)
                 free_resources.clear()
 
+            if prev_sametype_pipelinestage != None:
+                upcoming_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, prev_sametype_pipelinestage.phases[0].current_executors)
+                upcoming_throughputs[str(pipelinestageindex)] += max_throughputs[str(pipelinestageindex)]
+            else:
+                upcoming_throughputs[str(pipelinestageindex)] = max_throughputs[str(pipelinestageindex)]
+
             pipelinestageindex -= 1
 
-        return throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput
+        return throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput, upcoming_throughputs
 
-    def reconfiguration_down(self, rmanager, current_time, free_cpus, free_gpus):
-        print('empty cpus', len(free_cpus))
-        print('empty gpus', len(free_gpus))
+    def calculate_pipeline_stats_new (self, rmanager, current_time, free_cpus, free_gpus):
+        throughputs = {}
+        pending_workloads = {}
+        computation_pressures= {}
+        available_resources = {}
+        max_throughputs = {}
+        upcoming_throughputs = {}
 
-        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput = self.calculate_pipeline_stats (rmanager, current_time, free_cpus, free_gpus)
+        total_cpu_input_pressure = 0
+        total_gpu_input_pressure = 0
+        total_cpu_throughput = 0
+        total_gpu_throughput = 0
+
+        pipelinestageindex = 0
+        current_free_cpus = copy.deepcopy(free_cpus)
+        current_free_gpus = copy.deepcopy(free_gpus)
 
 
-        overallocations = {}
-        underallocations = {}
 
-        overallocations[str(0)] = 0.0
-        underallocations[str(0)] = 0.0
-
-        gpus_to_be_added = {}
-        cpus_to_be_added = {}
-        gpus_to_be_dropped = []
-        cpus_to_be_dropped = []
-
-        pipelinestageindex = 1
-        while pipelinestageindex < len(self.pipelinestages):
+        while pipelinestageindex < len (self.pipelinestages):
             pipelinestage = self.pipelinestages[pipelinestageindex]
 
             if pipelinestage.resourcetype == 'CPU':
-                total_throughput = total_cpu_throughput
+                free_resources = current_free_cpus
             else:
-                total_throughput = total_gpu_throughput
+                free_resources = current_free_gpus
 
-            if max_throughputs[str(pipelinestageindex)] == 0:
-                overallocations[str(pipelinestageindex)] = 0.0
-                if throughputs[str(pipelinestageindex - 1)] > 0:
-                    underallocations[str(pipelinestageindex)] = 1.0
+            available_resources[str(pipelinestageindex)] = copy.deepcopy(pipelinestage.phases[0].current_executors)
+
+            for free_resource_id in free_resources:
+                free_resource = rmanager.get_resource (free_resource_id, True)
+
+                if free_resource.active == False:
+                    if free_resource.temporary_assignment == str (pipelinestageindex):
+                        available_resources[str(pipelinestageindex)].append (free_resource_id)
+                        free_resources.remove (free_resource_id)
+
+
+            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(rmanager, 0)
+
+            if pipelinestageindex != 0:
+                if pipelinestage.resourcetype == 'CPU':
+                    pending_workloads[str(pipelinestageindex)] = pipelinestage.phases[0].current_count - len(
+                        pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager,
+                                                                                                             'CPU',
+                                                                                                             current_time)
                 else:
-                    underallocations[str(pipelinestageindex)] = 0.0
-            elif throughputs[str(str(pipelinestageindex))] < max_throughputs[str(pipelinestageindex)]:
-                underallocations[str(pipelinestageindex)] = 0.0
-                if computation_pressures[str(pipelinestageindex)][0] > 0:
-                    overallocations[str(pipelinestageindex)] = (max_throughputs[str(pipelinestageindex)] -
-                                                                computation_pressures[str(pipelinestageindex)][0]) / \
-                                                               max_throughputs[str(pipelinestageindex)]
-                else:
-                    overallocations[str(pipelinestageindex)] = (max_throughputs[str(pipelinestageindex)] - throughputs[
-                        str(pipelinestageindex)]) / max_throughputs[str(pipelinestageindex)]
+                    pending_workloads[str(pipelinestageindex)] = pipelinestage.phases[0].current_count - len(
+                        pipelinestage.phases[0].current_executors) + pipelinestage.phases[0].get_queued_work(rmanager,
+                                                                                                             'GPU',
+                                                                                                             current_time)
+
+            if pipelinestage.resourcetype == 'CPU':
+                if pipelinestageindex < len(self.pipelinestages) - 1:
+                    total_gpu_input_pressure += throughputs[str(pipelinestageindex)]
             else:
-                overallocations[str(pipelinestageindex)] = 0.0
-                if computation_pressures[str(pipelinestageindex)][0] > 0:
-                    underallocations[str(pipelinestageindex)] = (computation_pressures[str(pipelinestageindex)][0] -
-                                                                 max_throughputs[str(pipelinestageindex)]) / \
-                                                                computation_pressures[str(pipelinestageindex)][0]
-                else:
-                    underallocations[str(pipelinestageindex)] = 0.0
+                if pipelinestageindex < len(self.pipelinestages) - 1:
+                    total_cpu_input_pressure += throughputs[str(pipelinestageindex)]
 
-            if str(pipelinestageindex) in underallocations and underallocations[str(pipelinestageindex)] >= 1.0 and total_throughput <= 0:
-                pending_workitems = pipelinestage.phases[0].current_count - len(
-                    available_resources[str(pipelinestageindex)])
-                print('reconfiguration up 1 ()', pipelinestage.name, underallocations, overallocations,
-                      computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
-                      available_resources, pending_workloads)
-                to_be_added = self.scale_up_configuration(rmanager, pipelinestageindex,
-                                                          computation_pressures[str(pipelinestageindex)][0],
-                                                          max_throughputs[str(pipelinestageindex)])
+            if pipelinestage.resourcetype == 'CPU':
+                total_cpu_throughput += throughputs[str(pipelinestageindex)]
+            else:
+                total_gpu_throughput += throughputs[str(pipelinestageindex)]
 
-                #to_be_added = self.scale_up_configuration_limit(rmanager, pipelinestageindex,
-                #                                          computation_pressures[str(pipelinestageindex)][0],
-                #                                          max_throughputs[str(pipelinestageindex)], pending_workitems)
-                if pipelinestage.resourcetype == 'CPU':
-                    print('CPUs to be added', to_be_added)
-                    cpus_to_be_added[str(pipelinestageindex)] = to_be_added
-                else:
-                    print('GPUs to be added', to_be_added)
-                    gpus_to_be_added[str(pipelinestageindex)] = to_be_added
-
-            '''
-            elif str(pipelinestageindex) in underallocations and underallocations[str(pipelinestageindex)] > 0.0 and total_throughput > 0 and total_throughput == throughputs[str(pipelinestageindex)]:
-                print('reconfiguration up 2 ()', pipelinestage.name, underallocations, overallocations,
-                      computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
-                      available_resources, pending_workloads)
-                to_be_added = self.scale_up_configuration(rmanager, pipelinestageindex,
-                                                          computation_pressures[str(pipelinestageindex)][0],
-                                                          max_throughputs[str(pipelinestageindex)])
-                if pipelinestage.resourcetype == 'CPU':
-                    print('CPUs to be added', to_be_added)
-                    cpus_to_be_added[str(pipelinestageindex)] = to_be_added
-                else:
-                    print('GPUs to be added', to_be_added)
-                    gpus_to_be_added[str(pipelinestageindex)] = to_be_added
-            '''
-
-            if str(pipelinestageindex) in overallocations and overallocations[str(pipelinestageindex)] > 0:
-                print('reconfiguration ()', pipelinestage.name, overallocations[str(pipelinestageindex)],
-                      computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
-                      available_resources)
-                to_be_dropped = self.scale_down_configuration(rmanager, pipelinestageindex,
-                                                              overallocations[str(pipelinestageindex)],
-                                                              max_throughputs[str(pipelinestageindex)],
-                                                              available_resources[str(pipelinestageindex)])
-                if pipelinestage.resourcetype == 'CPU':
-                    print('CPUs to be dropped', to_be_dropped)
-                    cpus_to_be_dropped.extend(to_be_dropped)
-                else:
-                    print('GPUs to be dropped', to_be_dropped)
-                    gpus_to_be_dropped.extend(to_be_dropped)
+            if pipelinestageindex == 0:
+                computation_pressures[str(pipelinestageindex)] = [0, throughputs[str(pipelinestageindex)]]
+            else:
+                prev_pipelinestage = self.pipelinestages[pipelinestageindex - 1]
+                throughputs[str(pipelinestageindex - 1)] = prev_pipelinestage.get_current_throughput(rmanager, 0)
+                computation_pressures[str(pipelinestageindex)] = [throughputs[str(pipelinestageindex - 1)],
+                                                                  throughputs[str(pipelinestageindex)]]
 
             pipelinestageindex += 1
 
-        if total_gpu_throughput <= 0 and total_gpu_input_pressure <= 0:
-            gpu_weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking(rmanager, 'GPU', free_gpus)
 
-            to_be_dropped = []
-
-            for gpu_id in gpu_weighted_pcr_ranking.keys():
-                gpu = rmanager.get_resource(gpu_id)
-                if rmanager.get_availability(gpu.gpu.name) > 0.8:
-                    to_be_dropped.append(gpu.id)
-            print('GPUs to be dropped', to_be_dropped)
-            gpus_to_be_dropped.extend(to_be_dropped)
-
-        if total_cpu_throughput <= 0 and total_cpu_input_pressure <= 0:
-            cpu_weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking(rmanager, 'CPU', free_cpus)
-
-            to_be_dropped = []
-
-            for cpu_id in cpu_weighted_pcr_ranking.keys():
-                cpu = rmanager.get_resource(cpu_id)
-                if rmanager.get_availability(cpu.cpu.name) > 0.8:
-                    to_be_dropped.append(cpu.id)
-            print('CPUs to be dropped', to_be_dropped)
-            cpus_to_be_dropped.extend (to_be_dropped)
-
-        print('total throughput', total_cpu_throughput, total_gpu_throughput)
-        print('total input pressure', total_cpu_input_pressure, total_gpu_input_pressure)
-        print('computation pressures', computation_pressures)
-        print('max throughputs', max_throughputs)
-        print ('available resources', available_resources)
-
-        return cpus_to_be_dropped, gpus_to_be_dropped, cpus_to_be_added, gpus_to_be_added
+        pipelinestageindex = len (self.pipelinestages) - 1
 
 
-    def reconfiguration_up_down_underallocations (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit):
+        while pipelinestageindex >= 0:
+
+            pipelinestage = self.pipelinestages[pipelinestageindex]
+
+            if pipelinestageindex - 2 >= 0:
+                prev_sametype_pipelinestage = self.pipelinestages[pipelinestageindex - 2]
+            else:
+                prev_sametype_pipelinestage = None
+
+            if pipelinestage.resourcetype == 'CPU':
+                free_resources = current_free_cpus
+            else:
+                free_resources = current_free_gpus
+
+
+            if throughputs[str(pipelinestageindex)] <= 0:
+                if computation_pressures[str(pipelinestageindex)][0] <= 0:
+                    #available_resources[str(pipelinestageindex)] = []
+                    max_throughputs[str(pipelinestageindex)] = 0
+                else:
+                    available_resources[str(pipelinestageindex)].extend (copy.deepcopy(free_resources))
+                    max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager,
+                                                                                                          available_resources[str (pipelinestageindex)])
+                    free_resources.clear()
+            else:
+                available_resources[str(pipelinestageindex)].extend (free_resources)
+                max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager,
+                                                                                                      available_resources[str(pipelinestageindex)])
+                free_resources.clear()
+
+            if prev_sametype_pipelinestage != None:
+                upcoming_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager, available_resources[str (pipelinestageindex - 2)])
+                upcoming_throughputs[str(pipelinestageindex)] += max_throughputs[str(pipelinestageindex)]
+            else:
+                upcoming_throughputs[str(pipelinestageindex)] = max_throughputs[str(pipelinestageindex)]
+
+            pipelinestageindex -= 1
+
+        return throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput, upcoming_throughputs
+
+    def reconfiguration_up_down_underallocations (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit, throughput_target):
         print('reconfiguration_up_down_underallocations ()', free_cpus, free_gpus)
 
-        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput = self.calculate_pipeline_stats(rmanager, current_time, free_cpus, free_gpus)
+        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput, upcoming_throughputs = self.calculate_pipeline_stats_new(rmanager, current_time, free_cpus, free_gpus)
 
         underallocations = {}
         underallocations[str(0)] = 0.0
@@ -1438,13 +963,27 @@ class PipelineManager:
 
             pending_workitems = pipelinestage.phases[0].current_count - len(available_resources[str(pipelinestageindex)])
 
+            throughput_limit = 0
+
+            if pipelinestageindex < len (self.pipelinestages) - 1:
+                next_pipelinestage_upcoming_throughput = upcoming_throughputs[str (pipelinestageindex + 1)]
+
+                prev_pipelinestage_throughput = computation_pressures[str(pipelinestageindex)][0]
+
+                if next_pipelinestage_upcoming_throughput < prev_pipelinestage_throughput:
+                    throughput_limit = next_pipelinestage_upcoming_throughput
+                else:
+                    throughput_limit = prev_pipelinestage_throughput
+
+
             if str(pipelinestageindex) in underallocations and pending_workitems > 0 and ((underallocations[str(pipelinestageindex)] >= 1.0 and total_throughput <= 0) or (underallocations[str(pipelinestageindex)] > 0 and throughputs[str(pipelinestageindex)] == total_throughput)):
                 print('reconfiguration_up_down_underallocations 1 ()', pipelinestage.name, underallocations,
                       computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
                       available_resources, pending_workloads)
+
                 to_be_added = self.scale_up_configuration_limit(rmanager, pipelinestageindex,
                                                                 computation_pressures[str(pipelinestageindex)][0],
-                                                                max_throughputs[str(pipelinestageindex)], pending_workitems)
+                                                                max_throughputs[str(pipelinestageindex)], pending_workitems, throughput_limit)
 
                 #to_be_added = self.scale_up_configuration_limit_imbalance_limit(rmanager, pipelinestageindex,
                 #                                                computation_pressures[str(pipelinestageindex)][0],
@@ -1463,7 +1002,7 @@ class PipelineManager:
                 to_be_added = self.scale_up_configuration_limit(rmanager, pipelinestageindex,
                                                                 computation_pressures[str(pipelinestageindex)][0],
                                                                 max_throughputs[str(pipelinestageindex)],
-                                                                pending_workitems)
+                                                                pending_workitems, throughput_limit)
 
                 #to_be_added = self.scale_up_configuration_limit_imbalance_limit(rmanager, pipelinestageindex,
                 #                                                computation_pressures[str(pipelinestageindex)][0],
@@ -1480,11 +1019,11 @@ class PipelineManager:
 
         return cpus_to_be_added, gpus_to_be_added
 
-    def reconfiguration_up_down_overallocations (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit):
+    def reconfiguration_up_down_overallocations (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit, throughput_target):
 
         print('reconfiguration_up_down_overallocations ()', free_cpus, free_gpus)
 
-        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput = self.calculate_pipeline_stats(rmanager, current_time, free_cpus, free_gpus)
+        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput, upcoming_throughputs = self.calculate_pipeline_stats_new(rmanager, current_time, free_cpus, free_gpus)
 
         overallocations = {}
 
@@ -1541,14 +1080,14 @@ class PipelineManager:
 
         return cpus_to_be_dropped, gpus_to_be_dropped
 
-    def reconfiguration_drop (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit):
+    def reconfiguration_drop (self, rmanager, current_time, free_cpus, free_gpus, imbalance_limit, throughput_target):
 
         gpus_to_be_dropped = []
         cpus_to_be_dropped = []
 
         print ('reconfiguration_drop ()', free_cpus, free_gpus)
 
-        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput = self.calculate_pipeline_stats(rmanager, current_time, free_cpus, free_gpus)
+        throughputs, pending_workloads, computation_pressures, available_resources, max_throughputs, total_cpu_input_pressure, total_gpu_input_pressure, total_cpu_throughput, total_gpu_throughput, upcoming_throughputs = self.calculate_pipeline_stats_new(rmanager, current_time, free_cpus, free_gpus)
 
         if total_gpu_throughput <= 0 and total_gpu_input_pressure <= 0:
             gpu_weighted_pcr_ranking = self.get_weighted_performance_to_cost_ratio_ranking(rmanager, 'GPU', free_gpus)
@@ -1557,8 +1096,7 @@ class PipelineManager:
 
             for gpu_id in gpu_weighted_pcr_ranking.keys():
                 gpu = rmanager.get_resource(gpu_id, active=True)
-                if rmanager.get_availability(gpu.gpu.name) > 0.8:
-                    to_be_dropped.append(gpu.id)
+                to_be_dropped.append(gpu.id)
             print('GPUs to be dropped', to_be_dropped)
             gpus_to_be_dropped.extend(to_be_dropped)
 
@@ -1568,9 +1106,8 @@ class PipelineManager:
             to_be_dropped = []
 
             for cpu_id in cpu_weighted_pcr_ranking.keys():
-                cpu = rmanager.get_resource(cpu_id)
-                if rmanager.get_availability(cpu.cpu.name) > 0.8:
-                    to_be_dropped.append(cpu.id)
+                cpu = rmanager.get_resource(cpu_id, active=True)
+                to_be_dropped.append(cpu.id)
             print('CPUs to be dropped', to_be_dropped)
             cpus_to_be_dropped.extend(to_be_dropped)
 
@@ -1579,9 +1116,9 @@ class PipelineManager:
         print('computation pressures', computation_pressures)
         print('max throughputs', max_throughputs)
         print('available resources', available_resources)
+        print ('pending_workloads ', pending_workloads)
 
         return cpus_to_be_dropped, gpus_to_be_dropped
-
 
 
     def parse_pipelines (self, rmanager):
@@ -1634,539 +1171,6 @@ class PipelineManager:
                 pipelinestage.phases[current_index].prediction_reset ()
 
 
-    def check_throttle_idleness(self, last_phase_closed_index, current_time, pending_workitem):
-        pipelinestage_index = int(pending_workitem.version) + 1
-        phase_index = pending_workitem.phase_index
-
-        pipelinestage = self.pipelinestages[pipelinestage_index]
-        phase = pipelinestage.phases[phase_index]
-
-        if phase.pthrottle_idle_period != -1:
-            if phase.pthrottle_idle_start_time == -1:
-                phase.pthrottle_idle_start_time = current_time
-
-            if phase.pthrottle_idle_start_time + phase.pthrottle_idle_period > current_time:
-                #print ('check_throttle_idleness', pipelinestage.name, current_time, phase.pthrottle_idle_start_time, phase.pthrottle_idle_period)
-                return False, phase.pthrottle_idle_start_time + phase.pthrottle_idle_period
-            else:
-                return True, phase.pthrottle_idle_start_time + phase.pthrottle_idle_period
-
-        return True, -1
-
-    def check_workitem_waiting_idleness (self, rmanager, resource_id, resourcetype, last_phase_closed_index, target_pipelinestage, current_time):
-        current_phase_index = last_phase_closed_index + 1
-        print ('into check_workitem_waiting_idleness ()')
-        pipelinestage_index = 0
-        for pipelinestage in self.pipelinestages:
-            if pipelinestage.resourcetype == resourcetype:
-                if pipelinestage_index + 2 < len (self.pipelinestages):
-                    next_sametype_pipelinestage = self.pipelinestages[pipelinestage_index + 2]
-                    print('check_workitem_waiting_idleness ()', pipelinestage.name, current_phase_index, next_sametype_pipelinestage.phases[current_phase_index].total_count)
-                    if next_sametype_pipelinestage.phases[current_phase_index].total_count == 0:
-                        next_pipelinestage = self.pipelinestages[pipelinestage_index + 1]
-                        print('check_workitem_waiting_idleness ()', next_sametype_pipelinestage.name,
-                              current_phase_index)
-                        print ('check_workitem_waiting_idleness ()', next_pipelinestage.phases[current_phase_index].current_executors)
-                        min_time_left = -1
-                        for executor_id in next_pipelinestage.phases[current_phase_index].current_executors:
-                            executor = rmanager.get_resource (executor_id)
-                            time_left = executor.get_time_left (next_pipelinestage.resourcetype, current_time)
-                            if time_left == None:
-                                continue
-                            if min_time_left == -1:
-                                min_time_left = time_left
-                            elif min_time_left > time_left:
-                                min_time_left = time_left
-
-                        print('check_workitem_waiting_idleness ()',min_time_left)
-
-                        target_resource = rmanager.get_resource (resource_id)
-                        target_exectime = target_resource.get_exectime(target_pipelinestage)
-                        if min_time_left != -1 and target_exectime > min_time_left:
-                            print ('check_workitem_waiting_idleness ()', pipelinestage.name, current_phase_index, min_time_left, resource_id, target_exectime)
-                            return False
-                        break
-                    else:
-                        return False
-            pipelinestage_index += 1
-
-        return True
-
-    def predict_execution_fixed (self, rmanager, current_time, batchsize, last_phase_index_closed, no_of_prediction_phases):
-        index = last_phase_index_closed + 1
-
-        total_cpu_idle_periods = {}
-        total_gpu_idle_periods = {}
-
-        print(index, '###############################################################')
-
-        self.prediction_reset (index)
-
-        prediction_key = str (current_time)
-
-        self.prediction_times.append(prediction_key)
-
-        while index < last_phase_index_closed + (no_of_prediction_phases + 1) and index < self.no_of_columns:
-
-            cpu_idle_periods = []
-            gpu_idle_periods = []
-
-            prev_prev_pipelinestage_phase = None
-            prev_pipelinestage_phase = None
-            prev_pipelinestage = None
-            prev_prev_pipelinestage = None
-
-            pipelinestage_index = 0
-            for pipelinestage in self.pipelinestages:
-
-                phase = pipelinestage.phases[index]
-
-                if phase.active == False and phase.complete == True: #not neeeded
-                    pipelinestage_index += 1
-                    continue
-
-                # Calculate queued work
-                queued_work = phase.get_queued_work(rmanager, pipelinestage.resourcetype, current_time)
-
-                # calculate service rates
-                all_resource_service_rate = pipelinestage.get_resource_service_rate(rmanager)
-                avg_resource_service_rate = pipelinestage.get_avg_resource_service_rate(rmanager)
-                pipelinestage_resources = rmanager.get_resources_type(pipelinestage.resourcetype)
-
-                phase.target = batchsize
-                phase.pending_output = phase.target - phase.ptotal_complete
-                work_to_be_done = queued_work + phase.pcurrent_count - len(phase.pcurrent_executors) + (phase.target - phase.ptotal_count)
-
-                if phase.pending_output == 0:
-                    pipelinestage_index += 1
-                    continue
-
-                print(phase.pipelinestage, queued_work, phase.current_count, phase.pcurrent_count, phase.total_complete, phase.ptotal_complete, phase.total_count, phase.ptotal_count)
-
-                if prev_pipelinestage_phase == None:
-
-                    if phase.pstarttime == -1:
-                        phase.pstarttime = current_time
-                        #print ('setting pstarttime')
-                    if phase.pfirst_workitem_completion_time == -1:
-                        phase.pfirst_workitem_completion_time = phase.pstarttime + 1 / avg_resource_service_rate  # use fastest
-                        #print ('setting pfirst_workitem_completion_time')
-
-                    finish_time, first_resource_release_time, end_times = pipelinestage.get_time_required_2(rmanager, work_to_be_done, current_time, index)
-
-                    phase.pendtime = finish_time
-
-                    phase.end_times = end_times
-
-                    if phase.pfirst_resource_release_time == -1:
-                        phase.pfirst_resource_release_target = batchsize - (len (pipelinestage_resources) - 1)
-                        phase.pfirst_resource_release_time = first_resource_release_time
-                        #print ('setting pfirst_resource_release_time')
-
-                    phase.predictions[prediction_key] = [current_time, index, pipelinestage.name.split(':')[0],
-                                                         phase.starttime, phase.pstarttime, phase.pendtime,
-                                                         phase.pending_output, phase.pfirst_workitem_completion_time, phase.pfirst_resource_release_time]
-                else:
-                    prev_sametype_phase = prev_prev_pipelinestage_phase
-
-                    if phase.pstarttime == -1:
-                        #print ('setting pstarttime', current_time, prev_pipelinestage_phase.pfirst_workitem_completion_time)
-                        if prev_sametype_phase == None:
-                            if current_time > prev_pipelinestage_phase.pfirst_workitem_completion_time:
-                                phase.pstarttime = current_time
-                            else:
-                                phase.pstarttime = prev_pipelinestage_phase.pfirst_workitem_completion_time
-                        else:
-                            #print ('setting pstarttime', prev_sametype_phase.pfirst_resource_release_time)
-                            if prev_pipelinestage_phase.pfirst_workitem_completion_time > prev_sametype_phase.pfirst_resource_release_time:
-                                phase.pstarttime = prev_pipelinestage_phase.pfirst_workitem_completion_time
-                            else:
-                                phase.pstarttime = prev_sametype_phase.pfirst_resource_release_time
-
-                            if current_time > phase.pstarttime:
-                                phase.pstarttime = current_time
-
-                    if phase.pfirst_workitem_completion_time == -1:
-                        phase.pfirst_workitem_completion_time = phase.pstarttime + 1 / avg_resource_service_rate
-                        # print ('setting pfirst_workitem_completion_time')
-
-                    starttimes = None
-                    if prev_sametype_phase != None:
-                        starttimes = prev_sametype_phase.end_times
-                        if prev_pipelinestage_phase.pfirst_workitem_completion_time > prev_sametype_phase.pfirst_resource_release_time:
-                            idle_periods = self.get_idle_periods(prev_sametype_phase.end_times, phase.pstarttime)
-                            idle_period_start = list(idle_periods.values())[0][-1][0]
-
-                            print('idle period 1', prev_sametype_phase.pipelinestage, [idle_period_start, phase.pstarttime],
-                                  idle_periods)
-
-                            if phase.resourcetype == 'CPU':
-                                cpu_idle_periods.append([idle_period_start, phase.pstarttime, idle_periods])
-                            else:
-                                gpu_idle_periods.append([idle_period_start, phase.pstarttime, idle_periods])
-
-                    if prev_pipelinestage.all_resource_service_rate > pipelinestage.all_resource_service_rate:
-                        finish_time, first_resource_release_time, end_times = pipelinestage.get_time_required_3(rmanager,
-                                                                                                     work_to_be_done,
-                                                                                                     current_time,
-                                                                                                     index, prev_pipelinestage_phase.p_outputs, starttimes)
-
-                        phase.pendtime = finish_time
-                        phase.end_times = end_times
-
-                        if phase.pfirst_resource_release_time == -1:
-                            #print ('setting pfirst_resource_release_time')
-                            phase.pfirst_resource_release_target = batchsize - (len(pipelinestage_resources) - 1)
-                            phase.pfirst_resource_release_time = first_resource_release_time
-
-                        if pipelinestage_index == len(self.pipelinestages) - 1:
-                            idle_periods = self.get_idle_periods (phase.end_times, phase.pendtime)
-                            idle_period_start = list(idle_periods.values())[0][-1][0]
-                            idle_period_end = phase.pendtime
-
-                            print('idle period 2', phase.pipelinestage,
-                                  [idle_period_start, idle_period_end],
-                                  idle_periods)
-
-                            if phase.resourcetype == 'CPU':
-                                cpu_idle_periods.append([idle_period_start, idle_period_end, idle_periods])
-                            else:
-                                gpu_idle_periods.append([idle_period_start, idle_period_end, idle_periods])
-
-                        phase.predictions[prediction_key] = [current_time, index, pipelinestage.name.split(':')[0],
-                                                             phase.starttime, phase.pstarttime, phase.pendtime,
-                                                             phase.pending_output,
-                                                             phase.pfirst_workitem_completion_time,
-                                                             phase.pfirst_resource_release_time]
-                    else:
-                        if phase.pstarttime < current_time:
-                            queued_finish_time, _, _ = pipelinestage.get_time_required_1(rmanager,
-                                                                                         queued_work + phase.pcurrent_count - len (phase.pcurrent_executors),
-                                                                                         current_time, index)
-                            fastest_finish_time, _, _ = pipelinestage.get_time_required_1(rmanager, work_to_be_done,
-                                                                                          current_time, index)
-                        else:
-                            queued_finish_time, _, _ = pipelinestage.get_time_required_1(rmanager,
-                                                                                         queued_work + phase.pcurrent_count - len(
-                                                                                             phase.pcurrent_executors),
-                                                                                         phase.pstarttime, index)
-                            fastest_finish_time, _, _ = pipelinestage.get_time_required_1(rmanager, work_to_be_done,
-                                                                                          phase.pstarttime, index)
-                        #print(phase.pipelinestage, queued_finish_time)
-
-                        #print(phase.pipelinestage, queued_finish_time, finish_time)
-
-                        if queued_finish_time >= prev_pipelinestage_phase.pendtime:
-                            finish_time, first_resource_release_time, end_times = pipelinestage.get_time_required_3(rmanager,
-                                                                                                     work_to_be_done,
-                                                                                                     current_time,
-                                                                                                     index, prev_pipelinestage_phase.p_outputs, starttimes)
-                            phase.pendtime = finish_time
-                            phase.end_times = end_times
-
-                            if phase.pfirst_resource_release_time == -1:
-                                phase.pfirst_resource_release_target = batchsize - (len(pipelinestage_resources) - 1)
-                                phase.pfirst_resource_release_time = first_resource_release_time
-                        else:
-                            estimated_finish_time = prev_pipelinestage_phase.pendtime + 1 / avg_resource_service_rate
-
-                            idle_period = estimated_finish_time - fastest_finish_time
-                            if phase.pstarttime < current_time:
-                                idle_period_start = current_time
-                            else:
-                                idle_period_start = phase.pstarttime
-
-                            starttimes = {}
-                            idle_periods = {}
-                            for resource in pipelinestage_resources:
-                                if resource.id in phase.pcurrent_executors:
-                                    starttimes[resource.id] = idle_period_start + idle_period #TODO: use a function get_queued_work_resource() that looks into either get_work_left or pqueued {}
-                                    if resource.id in phase.pqueued.keys ():
-                                        idle_periods[resource.id] = [[phase.pqueued[resource.id][1][2], idle_period_start + idle_period, idle_period_start + idle_period - phase.pqueued[resource.id][1][2]]]
-                                    else:
-                                        time_left = resource.get_time_left(phase.resourcetype, current_time)
-                                        idle_periods[resource.id] = [[current_time + time_left, idle_period_start + idle_period, idle_period_start + idle_period - (current_time + time_left)]]
-                                else:
-                                    starttimes[resource.id] = idle_period_start + idle_period
-                                    idle_periods[resource.id] = [[idle_period_start, idle_period_start + idle_period, idle_period]]
-
-                            print('idle period 3', phase.pipelinestage, [idle_period_start,
-                                                                         idle_period_start + idle_period],
-                                                                         idle_periods)
-
-                            if phase.pstarttime >= current_time:
-                                phase.pstarttime = idle_period_start + idle_period
-                                phase.pfirst_workitem_completion_time = phase.pstarttime + (1/avg_resource_service_rate)
-
-                            if index == last_phase_index_closed + 1:
-                                phase.pthrottle_idle_period = idle_period
-
-                            if phase.resourcetype == 'CPU':
-                                cpu_idle_periods.append(
-                                    [idle_period_start, idle_period_start + idle_period, idle_periods])
-                            else:
-                                gpu_idle_periods.append(
-                                    [idle_period_start, idle_period_start + idle_period, idle_periods])
-
-                            finish_time, first_resource_release_time, end_times = pipelinestage.get_time_required_3(rmanager,
-                                                                                                     work_to_be_done,
-                                                                                                     current_time,
-                                                                                                     index, prev_pipelinestage_phase.p_outputs, starttimes)
-                            phase.pendtime = finish_time
-                            phase.end_times = end_times
-
-                            if phase.pfirst_resource_release_time == -1:
-                                phase.pfirst_resource_release_time = first_resource_release_time
-
-
-                        phase.predictions[prediction_key] = [current_time, index, pipelinestage.name.split(':')[0],
-                                                             phase.starttime, phase.pstarttime, phase.pendtime,
-                                                             phase.pending_output,
-                                                             phase.pfirst_workitem_completion_time,
-                                                             phase.pfirst_resource_release_time]
-
-                    if pipelinestage_index == len (self.pipelinestages) - 1:
-                        idle_periods = self.get_idle_periods(prev_pipelinestage_phase.end_times, phase.pendtime)
-
-                        print ('idle period 4', prev_pipelinestage_phase.pipelinestage, [prev_pipelinestage_phase.pendtime, phase.pendtime], idle_periods)
-
-                        if prev_pipelinestage_phase.resourcetype == 'CPU':
-                            cpu_idle_periods.append ([prev_pipelinestage_phase.pendtime, phase.pendtime, idle_periods])
-                        else:
-                            gpu_idle_periods.append ([prev_pipelinestage_phase.pendtime, phase.pendtime, idle_periods])
-
-
-                prediction = phase.predictions[prediction_key]
-
-                output = ""
-                for item in prediction:
-                    output += " " + str(item)
-
-                print ('predict_execution ()', output)
-
-                prev_prev_pipelinestage = prev_pipelinestage
-                prev_pipelinestage = pipelinestage
-                prev_prev_pipelinestage_phase = prev_pipelinestage_phase
-                prev_pipelinestage_phase = phase
-                pipelinestage_index += 1
-
-            print(index, '###############################################################')
-
-            print('cpu idle periods before precompute ()', index, cpu_idle_periods)
-            print('gpu idle periods before precompute ()', index, gpu_idle_periods)
-
-            self.pre_compute_prediction(rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, index + 1, prediction_key)
-
-            print('cpu idle periods post precompute ()', index, cpu_idle_periods)
-            print('gpu idle periods post precompute ()', index, gpu_idle_periods)
-
-            if str(index) not in self.prediction_idle_periods.keys():
-                self.prediction_idle_periods[str(index)] = [cpu_idle_periods, gpu_idle_periods]
-
-            print(index, '***************************************************************')
-
-            index += 1
-            current_time = phase.pendtime
-
-
-        self.prediction_reset(last_phase_index_closed + 1)
-
-    def pre_compute_prediction (self, rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, phase_index, prediction_key):
-
-        current_phase_index = phase_index
-        new_cpu_idle_periods = cpu_idle_periods
-        new_gpu_idle_periods = gpu_idle_periods
-
-        #print('print_prediction_data ()', self.pipelinestage)
-        #print('print_prediction_data ()', self.pstarttime, self.pendtime, self.ptotal_complete, self.pcurrent_count,
-        #      self.ptotal_count, self.pfirst_resource_release_time, self.pfirst_workitem_completion_time)
-        #print('print_prediction_data ()', self.pqueued)
-        #print('print_prediction_data ()', self.pcurrent_executors)
-
-        #sorted_cpu_idle_periods, sorted_gpu_idle_periods, starttimes_dict, output_times_dict, p_output_times_dict, work_done_dict, fractional_work_dict
-        while current_phase_index < self.no_of_columns:
-            if phase_index == current_phase_index:
-                fractional_work_allowed = True
-            else:
-                fractional_work_allowed = False
-            new_cpu_idle_periods, new_gpu_idle_periods, starttimes_dict, work_done_dict, fractional_work_dict =\
-                self.calculate_early_computation (rmanager, batchsize, new_cpu_idle_periods, new_gpu_idle_periods, current_phase_index, fractional_work_allowed)
-
-
-            pipelinestage_index = 0
-            for pipelinestage_name in work_done_dict.keys ():
-                current_pipelinestage = self.pipelinestages[pipelinestage_index]
-                current_phase = current_pipelinestage.phases[current_phase_index]
-
-                pipelinestage_resources = rmanager.get_resources_type(current_pipelinestage.resourcetype)
-
-                #print('pre_compute_prediction ()', pipelinestage_name, fractional_work_dict[pipelinestage_name])
-                #print('pre_compute_prediction ()', pipelinestage_name, current_phase.persistent_p_outputs)
-
-                next_phase = None
-                if pipelinestage_index < len (self.pipelinestages) - 1:
-                    next_phase = self.pipelinestages[pipelinestage_index + 1].phases[current_phase_index]
-
-                if current_phase.pstarttime == -1:
-                    current_phase.pstarttime = starttimes_dict[pipelinestage_name]
-
-                if work_done_dict[pipelinestage_name] > 0.0:
-                    if current_phase.pfirst_workitem_completion_time == -1:
-                        current_phase.pfirst_workitem_completion_time = current_phase.persistent_p_outputs[0]
-
-                    current_phase.ptotal_complete += work_done_dict[pipelinestage_name]
-
-                    current_phase.pending_output = batchsize - current_phase.ptotal_complete
-
-                    if current_phase.ptotal_complete > (batchsize - len (pipelinestage_resources)):
-                        if current_phase.pfirst_resource_release_time == -1:
-                            current_phase.pfirst_resource_release_time = current_phase.persistent_p_outputs[batchsize - len (pipelinestage_resources)]
-
-                    if current_phase.ptotal_complete == batchsize:
-                        current_phase.pendtime = current_phase.persistent_p_outputs[-1]
-
-                    if pipelinestage_index > 0:
-                        current_phase.pcurrent_count -= work_done_dict[pipelinestage_name]
-
-                    if next_phase != None:
-                        next_phase.pcurrent_count += work_done_dict[pipelinestage_name]
-
-                # work_done, start_time, fractional_finish_time, whole_finish_time
-                if len (fractional_work_dict[pipelinestage_name].keys ()) > 0:
-                    current_phase.pcurrent_executors = []
-                    current_phase.pqueued = {}
-                    for resource_key in fractional_work_dict[pipelinestage_name]:
-                        current_phase.pqueued[resource_key] = fractional_work_dict[pipelinestage_name][resource_key]
-                        current_phase.pcurrent_executors.append(resource_key)
-
-                    if pipelinestage_index == 0:
-                        current_phase.pcurrent_count = len (fractional_work_dict[pipelinestage_name].keys ())
-
-                current_phase.ptotal_count = (current_phase.ptotal_complete + current_phase.pcurrent_count)
-
-                current_phase.print_prediction_data()
-                if next_phase != None:
-                    next_phase.print_prediction_data()
-
-                if current_phase.pendtime != -1:
-                    current_phase.predictions[prediction_key] = [prediction_key, current_phase_index, current_phase.pipelinestage.split(':')[0],
-                                                                 current_phase.starttime, current_phase.pstarttime, current_phase.pendtime,
-                                                                 current_phase.pending_output,
-                                                                 current_phase.pfirst_workitem_completion_time,
-                                                                 current_phase.pfirst_resource_release_time]
-
-                if work_done_dict[pipelinestage_name] <= 0.0:
-                    break
-
-                pipelinestage_index += 1
-
-            if pipelinestage_index == 0:
-                break
-
-            current_phase_index += 1
-
-    def calculate_early_computation (self, rmanager, batchsize, cpu_idle_periods, gpu_idle_periods, phase_index, first_index):
-        from operator import itemgetter
-        sorted_cpu_idle_periods = sorted(cpu_idle_periods, key=itemgetter(0))
-        sorted_gpu_idle_periods = sorted(gpu_idle_periods, key=itemgetter(0))
-
-        #print('sorted cpu idle periods ()', phase_index, sorted_cpu_idle_periods)
-        #print('sorted gpu idle periods ()', phase_index, sorted_gpu_idle_periods)
-
-        work_done_dict = {}
-        fractional_work_dict = {}
-        starttimes_dict = {}
-
-        previous_pipelinestage = None
-
-        for pipelinestage in self.pipelinestages:
-
-            current_phase = pipelinestage.phases[phase_index]
-            if previous_pipelinestage != None:
-                previous_phase = previous_pipelinestage.phases[phase_index]
-
-            if pipelinestage.resourcetype == 'CPU':
-                idle_periods = sorted_cpu_idle_periods
-            else:
-                idle_periods = sorted_gpu_idle_periods
-
-            if previous_pipelinestage == None:
-                target = batchsize - (current_phase.ptotal_complete + len (current_phase.pcurrent_executors))
-            else:
-                target = current_phase.pcurrent_count + work_done_dict[previous_pipelinestage.name]
-
-            work_done_dict[pipelinestage.name] = 0
-            fractional_work_dict[pipelinestage.name] = {}
-            starttimes_dict[pipelinestage.name] = -1
-
-            if target == 0:
-                previous_pipelinestage = pipelinestage
-                #print ('calculate_early_computation', 'target is zero', pipelinestage.name)
-                continue
-
-            idle_period_index = 0
-
-            while idle_period_index < len (idle_periods) and work_done_dict[pipelinestage.name] < target:
-                idle_period = idle_periods[idle_period_index]
-
-                #print ('calculate_early_computation', pipelinestage.name, idle_period_index, target, idle_period)
-
-                if previous_pipelinestage == None:
-                    qualified = True
-                else:
-                    #output_times = output_times_dict[previous_pipelinestage.name]
-                    output_times = previous_phase.p_outputs
-                    if len (output_times) <= 0 or idle_period[1] < output_times[0]:
-                        qualified = False
-                    else:
-                        qualified = True
-
-                if previous_pipelinestage != None and qualified == False:
-                    idle_period_index += 1
-                    continue
-
-                if idle_period_index == len (idle_periods) - 1 and first_index == True:
-                    fractional_work_allowed = True
-                else:
-                    fractional_work_allowed = False
-
-                if previous_pipelinestage == None:
-                    starttime, work_done, idle_times, new_output_times, fractional_work = \
-                        pipelinestage.get_possible_work_done (rmanager, idle_periods[idle_period_index],
-                                                              target - work_done_dict[pipelinestage.name],
-                                                              fractional_work_allowed)
-
-                else:
-                    starttime, work_done, idle_times, new_output_times, old_output_times, fractional_work = \
-                        pipelinestage.get_possible_work_done_2 (rmanager, idle_periods[idle_period_index],
-                                                                target - work_done_dict[pipelinestage.name],
-                                                                output_times,
-                                                                fractional_work_allowed)
-                    previous_phase.p_outputs = old_output_times
-
-                if work_done > 0:
-                    #print('calculate_early_computation', pipelinestage.name, idle_period_index, work_done)
-                    idle_periods[idle_period_index] = idle_times
-                    current_phase.p_outputs.extend (new_output_times)
-                    current_phase.persistent_p_outputs.extend (new_output_times.copy ())
-                    work_done_dict[pipelinestage.name] += work_done
-
-                if starttime != None and starttimes_dict[pipelinestage.name] == -1:
-                    starttimes_dict[pipelinestage.name] = starttime
-
-                if fractional_work_allowed == True:
-                    fractional_work_dict[pipelinestage.name] = fractional_work
-
-                idle_period_index += 1
-
-            previous_pipelinestage = pipelinestage
-
-        #print('new sorted cpu idle periods ()', sorted_cpu_idle_periods)
-        #print('new sorted gpu idle periods ()', sorted_gpu_idle_periods)
-
-        return sorted_cpu_idle_periods, sorted_gpu_idle_periods, starttimes_dict, work_done_dict, fractional_work_dict
-
-
     def close_phases_fixed (self, rmanager, anyway):
 
         index = self.last_last_phase_closed_index + 1
@@ -2200,83 +1204,6 @@ class PipelineManager:
 
         return latest_last_phase_closed
 
-    def close_phases (self, rmanager, nowtime):
-        #print ('close phases')
-
-        cpu_resources = rmanager.get_resources_type ('CPU')
-        gpu_resources = rmanager.get_resources_type ('GPU')
-
-        index = 0
-
-        init_length = self.pipelinestages[0].get_phase_length ()
-
-        #print ('close phases size', init_length)
-
-        while index < init_length:
-            #print ('close phases index', index)
-            prev_index_closed = False
-
-            if index == 0:
-                prev_index_closed = True
-            else:
-                prev_index_last_pipelinestage_phase = self.pipelinestages[-1].phases[index - 1]
-
-                #print ('close_phases last stage size', last_pipelinestage.get_phase_length ())
-                #print ('close_phases', index, last_pipelinestage.phases[index - 1].pipelinestage, last_pipelinestage.phases[index - 1].active)
-                if prev_index_last_pipelinestage_phase.active == False:
-                    prev_index_closed = True
-
-            if prev_index_closed == False:
-                break
-
-            current_index_pipelinestage_index = 0
-
-            for pipelinestage in self.pipelinestages:
-                phase = pipelinestage.phases[index]
-
-                if phase.active == False and phase.complete == True:
-                    current_index_pipelinestage_index += 1
-                    continue
-                elif phase.active == False:
-                    break
-
-                if current_index_pipelinestage_index == 0:
-                    prev_pipelinestage_phase_closed = True
-                else:
-                    prev_pipelinestage = self.pipelinestages[current_index_pipelinestage_index - 1]
-                    prev_pipelinestage_phase = prev_pipelinestage.phases[index]
-
-                    if prev_pipelinestage_phase.active == True:
-                        prev_pipelinestage_phase_closed = False
-                    else:
-                        prev_pipelinestage_phase_closed = True
-
-                if prev_pipelinestage_phase_closed == False:
-                    break
-
-                if pipelinestage.resourcetype == 'CPU':
-                    current_resources = cpu_resources
-                else:
-                    current_resources = gpu_resources
-
-                none_executing = True
-
-                for resource in current_resources:
-                    workitem = resource.get_workitem(pipelinestage.resourcetype)
-
-                    #if workitem != None:
-                    #   print ('close phases', pipelinestage.name, resource.id, workitem.version, index, pipelinestage_index)
-
-                    if workitem != None and int(workitem.version) == current_index_pipelinestage_index:
-                        none_executing = False
-                        break
-
-                if none_executing == True:
-                    phase.close_phase()
-
-                current_index_pipelinestage_index += 1
-
-            index += 1
 
     def add_executor (self, workitem, resource, now):
         pipelinestage = self.pipelinestages[int (workitem.version)]

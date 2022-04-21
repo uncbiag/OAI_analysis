@@ -254,24 +254,24 @@ class Policy(object):
         # print ('sort_complete_workitems_by_stage_id ()')
         if resourcetype == 'CPU':
             # print('CPU')
-            self.resubmitcpuqueue = sorted(self.resubmitcpuqueue, key=lambda x: (x.version))
+            self.resubmitcpuqueue = sorted(self.resubmitcpuqueue, key=lambda x: (x.version), reverse=True)
             if len(self.gpuqueue) >= 2:
                 for item in self.gpuqueue:
                     item.print_data()
             # print ('$$$$$$$$$$$$$$')
-            self.gpuqueue = sorted(self.gpuqueue, key=lambda x: (x.version))
+            self.gpuqueue = sorted(self.gpuqueue, key=lambda x: (x.version), reverse=True)
             if len(self.gpuqueue) >= 2:
                 for item in self.gpuqueue:
                     item.print_data()
             # print ('##############')
         else:
             # print('GPU')
-            self.resubmitgpuqueue = sorted(self.resubmitgpuqueue, key=lambda x: (x.version))
+            self.resubmitgpuqueue = sorted(self.resubmitgpuqueue, key=lambda x: (x.version), reverse=True)
             if len(self.cpuqueue) >= 2:
                 for item in self.cpuqueue:
                     item.print_data()
             # print('$$$$$$$$$$$$$$$')
-            self.cpuqueue = sorted(self.cpuqueue, key=lambda x: (x.version))
+            self.cpuqueue = sorted(self.cpuqueue, key=lambda x: (x.version), reverse=True)
             if len(self.cpuqueue) >= 2:
                 for item in self.cpuqueue:
                     item.print_data()

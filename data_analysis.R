@@ -1,10 +1,10 @@
 library(fitdistrplus)
 library(logspline)
-data_df <- read.csv(file = 'C:\\Users\\ssbeh\\Downloads\\OAI_analysis\\plots\\Epyc Rome2.csv')
+data_df <- read.csv(file = 'C:\\Users\\ssbeh\\Downloads\\OAI_analysis\\plots\\Nvidia RTX 20803.csv')
 data <- data_df[[1]]
 
 
-descdist(data, discrete = FALSE)
+#descdist(data, discrete = FALSE)
 #fw <- fitdist(data, "pois")
 
 
