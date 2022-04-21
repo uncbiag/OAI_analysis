@@ -1,10 +1,10 @@
 
-## OAI Analysis Pipeline
+# OAI Analysis Pipeline
 
 This repository contains the full code to process OAI DESS images. I.e., segmentation, thickness measurement, atlas-registration, 3D to 2D mapping.
 We are currently in the process of refactoring it. The new (not entirely completed yet) codebase can be found in the [OAI Analysis 2 repository](https://github.com/uncbiag/OAI_analysis_2). 
 
-# Knee cartilage analysis from OAI image data
+## Knee cartilage analysis from OAI image data
 The analysis interfaces given in [oai_image_analysis.py](./oai_image_analysis.py) include
 
 1. Preprocess image, e.g. Normalized intensties, flip left/right knees to the same orientation.
@@ -23,7 +23,7 @@ See [pipelines.py](./pipelines.py) for how to config and run a analysis pipeline
 
 The atlas is [given](./atlas/atlas_60_LEFT_baseline_NMI).
 
-# Dependencies:
+## Dependencies:
 0. Python >=3.6
 1. [PyMesh](https://github.com/PyMesh/PyMesh): 
     built from source, tested with commit [e3c777a66c92f97dcfea610f66bbffa60701cd5f](https://github.com/PyMesh/PyMesh/tree/e3c777a66c92f97dcfea610f66bbffa60701cd5f) 
@@ -35,9 +35,7 @@ The atlas is [given](./atlas/atlas_60_LEFT_baseline_NMI).
 4. [requirement.txt](./requirement.txt) gives other requirements can be installed from pip or conda.
 
 
-
-
-# Network Version Usage
+## Network Version Use
 
 The network version refers to paper "Networks for Joint Affine and Non-parametric Image Registration" (https://arxiv.org/pdf/1903.08811.pdf) \
 
@@ -56,7 +54,7 @@ python setup.py develop
 ```  
 
 
-Overall the usage is the same as the optimization version.\
+Overall the use is the same as the optimization version.\
 (Make sure the path settings in pipline is correct) \
 Several extra settings need to be done in main function in pipeline.py
 ```
