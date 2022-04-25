@@ -98,7 +98,7 @@ class Phase:
         self.workitems.append(workitem.id)
         if self.pipelinestage_index > 0:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        # print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
+        print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
 
     def remove_workitem(self, currenttime, workitem):
         self.current_count -= 1
@@ -120,7 +120,7 @@ class Phase:
             self.queue_snapshots[str(currenttime)] = self.target - self.total_complete
         else:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        # print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
+        print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
 
     def close_phase(self):
         self.active = False

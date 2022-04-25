@@ -213,7 +213,7 @@ class Simulation:
 
         self.p = PipelineManager(pipelinefile, cost, batchsize, max_images)
 
-        self.p.parse_pipelines(self.r)
+        self.p.parse_pipelines (self.r)
 
         self.p.build_phases()
 
@@ -245,7 +245,7 @@ if __name__ == "__main__":
 
     configfile = "oaiconfig.yml"
 
-    pipelinefile = "parslflux/pipeline.yml"
+    pipelinefile = "parslfluxsim/pipeline2.yml"
 
     resourcefile = "parslflux/resources2.yml"
 
@@ -294,6 +294,7 @@ if __name__ == "__main__":
                         output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
                         sim = Simulation ()
                         sim.setup(resourcefile, pipelinefile, configfile, availablefile, max_images[i], output_file, prediction, batchsize, no_of_prediction_phases, algo, reconfiguration_time, imbalance_limit, throughput_target)
+
                         sim.run ()
                         sys.stdout.close()
                         sys.stdout = original_stdout

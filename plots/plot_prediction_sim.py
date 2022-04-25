@@ -152,7 +152,7 @@ def plot_prediction_idle_periods (actual_idle_periods, predicted_idle_periods):
 
 
 
-def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
+def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batchsize):
     fig, axes = plt.subplots(5, 1, sharex=True)
 
     labels = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']
@@ -179,6 +179,8 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
                 y_data.append(value)
 
             p = ax.plot(x_data, y_data)
+
+            '''
             ax.plot ([int (float (phase_starttime) * 3600), int (float (phase_starttime) * 3600)] , [1, -1], p[0].get_color ())
             ax.plot ([int (float (phase_endtime) * 3600), int (float (phase_endtime) * 3600)], [1, -1], p[0].get_color ())
             ax.plot ([int (float (phase_starttime) * 3600), int (float (phase_endtime) * 3600)] , [0, 0], p[0].get_color ())
@@ -212,6 +214,7 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
                 ax.text (int(float(prediction_endtime) * 3600), y_limit - (prediction_index + 1), str (prediction_timediff) + '[' + str(percentage_diff) + '%]', fontsize=10)
 
                 prediction_index += 2
+            '''
 
             phase_index += 1
 
@@ -230,11 +233,42 @@ def plot_prediction_sim_0 (rmanager, plot_data, prediction_times, batchsize):
 
     #plt.savefig('tmp.png', dpi=300)
 
+    fig2, axes2 = plt.subplots(5, 1, sharex=True)
+
+    throughput_record = pmanager.get_throughput_record ()
+
+
+    for pipelinestage_index in throughput_record:
+        throughput_data = throughput_record[pipelinestage_index]
+
+        #print (throughput_data)
+
+        ax = axes2[int (pipelinestage_index)]
+
+        x_data = []
+        y_data = []
+        for data in throughput_data:
+            time = int(float(data[0]) * 3600)
+            x_data.append(time)
+            y_data.append(data[1])
+
+        ax.plot(x_data, y_data)
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(labels[int (pipelinestage_index)])
+
+    fig2.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Throughput")
+
+
     fig1, axes1 = plt.subplots(nrows=1, ncols=1)
 
     resourcetypeinfo = rmanager.get_resourcetype_info_all()
 
-    print (resourcetypeinfo)
+    #print (resourcetypeinfo)
 
     ax = axes1
 

@@ -285,7 +285,7 @@ class Resource:
 
         if resourcetype == 'CPU' and self.cpu != None and self.cpu.workqueue.is_empty () == False:
             workitem = self.cpu.workqueue.get_workitem ()
-            workitem_pipelinestages = workitem.get_pipelinestages ()
+            workitem_pipelinestages = workitem.get_pipelinestage ()
 
             max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
@@ -299,7 +299,7 @@ class Resource:
 
         if resourcetype == 'GPU' and self.gpu != None and self.gpu.workqueue.is_empty () == False:
             workitem = self.gpu.workqueue.get_workitem ()
-            workitem_pipelinestages = workitem.get_pipelinestages ()
+            workitem_pipelinestages = workitem.get_pipelinestage ()
 
             max_exectime = self.get_max_exectime (workitem_pipelinestages) * 2
 
@@ -333,9 +333,9 @@ class Resource:
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
                     self.cpu.set_idle_start_time (end_time)
-                    self.add_count (workitem.get_pipelinestages ())
-                    rmanager.add_exectime (self.cpu.name, workitem.get_pipelinestages (), start_time, end_time)
-                    self.add_exectime(workitem.get_pipelinestages(), start_time,
+                    self.add_count (workitem.get_pipelinestage ())
+                    rmanager.add_exectime (self.cpu.name, workitem.get_pipelinestage (), start_time, end_time)
+                    self.add_exectime(workitem.get_pipelinestage (), start_time,
                                       end_time)
                 elif status == 'FAILED':
                     #print ('cpu workitem failed')
@@ -358,9 +358,9 @@ class Resource:
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
                     self.gpu.set_idle_start_time(end_time)
-                    self.add_count (workitem.get_pipelinestages ())
-                    rmanager.add_exectime (self.gpu.name, workitem.get_pipelinestages (), start_time, end_time)
-                    self.add_exectime(workitem.get_pipelinestages (), start_time,
+                    self.add_count (workitem.get_pipelinestage ())
+                    rmanager.add_exectime (self.gpu.name, workitem.get_pipelinestage (), start_time, end_time)
+                    self.add_exectime(workitem.get_pipelinestage (), start_time,
                                       end_time)
                 elif status == 'FAILED':
                     #print ('gpu workitem failed')
@@ -575,7 +575,7 @@ class Resource:
         if resourcetype == 'CPU' and self.cpu != None:
             if self.cpu.workqueue.is_empty () == False:
                 workitem = self.cpu.workqueue.get_workitem ()
-                workitem_pipelinestages = workitem.get_pipelinestages ()
+                workitem_pipelinestages = workitem.get_pipelinestage ()
 
                 exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 
@@ -592,7 +592,7 @@ class Resource:
         if resourcetype == 'GPU' and self.gpu != None:
             if self.gpu.workqueue.is_empty () == False:
                 workitem = self.gpu.workqueue.get_workitem ()
-                workitem_pipelinestages = workitem.get_pipelinestages ()
+                workitem_pipelinestages = workitem.get_pipelinestage ()
 
                 exectime = self.get_exectime (workitem_pipelinestages, resourcetype)
 

@@ -97,7 +97,7 @@ class Phase:
         self.workitems.append(workitem.id)
         if self.pipelinestage_index > 0:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        #print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
+        #print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
 
     def remove_workitem (self, currenttime, workitem):
         self.current_count -= 1
@@ -119,7 +119,7 @@ class Phase:
             self.queue_snapshots[str(currenttime)] = self.target - self.total_complete
         else:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        #print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count)
+        #print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
 
     def close_phase (self):
         self.active = False
@@ -199,18 +199,42 @@ class Phase:
 
 
 class PipelineStage:
-    def __init__ (self, stageindex, names, resourcetype, rmanager, target):
+    def __init__ (self, stageindex, name, resourcetype, rmanager, target):
         index = 0
-        self.name = names[index]
-        index += 1
-        while index < len (names):
-            self.name = self.name + ":" + names[index]
-            index += 1
+        self.name = name
         self.index = stageindex
         self.resourcetype = resourcetype
         self.phases = []
         self.rmanager = rmanager
         self.batchsize = target
+        self.exec_parents = []
+        self.exec_children = []
+        self.data_parents = []
+        self.data_children = []
+
+    def add_dependency_child (self, child, type):
+        if type == 'exec':
+            self.exec_children.append (child)
+        else:
+            self.data_children.append(child)
+
+    def add_dependency_parent (self, parent, type):
+        if type == 'exec':
+            self.exec_parents.append (parent)
+        else:
+            self.data_parents.append(parent)
+
+    def get_children (self, type):
+        if type == 'exec':
+            return self.exec_children
+        else:
+            return self.data_children
+
+    def get_parent (self, type):
+        if type == 'exec':
+            return self.exec_parents
+        else:
+            return self.data_parents
 
     def create_phase (self):
         print(self.name, 'create phase')
@@ -288,12 +312,12 @@ class PipelineStage:
         phase.outputs.pop (0)
         phase.p_outputs.pop (0)
 
-    def get_current_throughput (self, rmanager, phase_index):
+    def get_current_throughput (self, phase_index):
         current_executors = self.phases[phase_index].current_executors
 
         thoughput_list = []
         for resource_id in current_executors:
-            resource = rmanager.get_resource (resource_id, active=True)
+            resource = self.rmanager.get_resource (resource_id, active=True)
             if self.resourcetype == 'CPU':
                 resource_name = resource.cpu.name
             else:
@@ -301,9 +325,9 @@ class PipelineStage:
 
             exectime = resource.get_exectime(self.name, self.resourcetype) #TODO: get latest info, not long executimes history
             if exectime == 0:
-                exectime = rmanager.get_exectime(resource_name, self.name)
+                exectime = self.rmanager.get_exectime(resource_name, self.name)
                 if exectime == 0:
-                    print('get_current_throughput ()', 'exectime does not exist')
+                    #print('get_current_throughput ()', 'exectime does not exist')
                     continue
             thoughput_list.append (1 / exectime)
 
@@ -367,14 +391,14 @@ class PipelineStage:
         return self.avg_resource_service_rate
 
 
-    def print_data (self, index):
-        if index < len (self.phases):
-            self.phases[index].print_data ()
+    def print_data (self):
+        print (self.name, self.index, self.resourcetype, self.data_parents, self.exec_parents, self.data_children, self.exec_children)
 
 class PipelineManager:
     def __init__ (self, pipelinefile, budget, batchsize, max_images):
         self.pipelinefile = pipelinefile
         self.pipelinestages = []
+        self.pipelinestages_dict = {}
         self.batchsize = batchsize
         self.budget = budget
         self.last_last_phase_closed_index = -1
@@ -383,6 +407,18 @@ class PipelineManager:
         self.prediction_times = []
         self.prediction_idle_periods = {}
         self.max_images = max_images
+        self.throughput_record = {}
+
+    def record_throughput (self, env):
+        for pipelinestage in self.pipelinestages:
+            current_throughput = pipelinestage.get_current_throughput (0)
+            if str(pipelinestage.index) not in self.throughput_record.keys ():
+                self.throughput_record[str(pipelinestage.index)] = []
+                self.throughput_record[str (pipelinestage.index)].append ([env.now, current_throughput])
+            else:
+                self.throughput_record[str(pipelinestage.index)].append([env.now, current_throughput])
+    def get_throughput_record (self):
+        return self.throughput_record
 
     def get_pct_complete_no_prediction (self):
         return self.pipelinestages[-1].phases[0].total_complete / self.max_images * 100
@@ -747,7 +783,7 @@ class PipelineManager:
             else:
                 free_resources = current_free_gpus
 
-            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(rmanager, 0)
+            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(0)
 
             if pipelinestageindex != 0:
                 if pipelinestage.resourcetype == 'CPU':
@@ -777,7 +813,7 @@ class PipelineManager:
                 computation_pressures[str(pipelinestageindex)] = [0, throughputs[str(pipelinestageindex)]]
             else:
                 prev_pipelinestage = self.pipelinestages[pipelinestageindex - 1]
-                throughputs[str(pipelinestageindex - 1)] = prev_pipelinestage.get_current_throughput(rmanager, 0)
+                throughputs[str(pipelinestageindex - 1)] = prev_pipelinestage.get_current_throughput(0)
                 computation_pressures[str(pipelinestageindex)] = [throughputs[str(pipelinestageindex - 1)],
                                                                   throughputs[str(pipelinestageindex)]]
 
@@ -794,8 +830,7 @@ class PipelineManager:
                 available_resources[str(pipelinestageindex)] = copy.deepcopy(
                     pipelinestage.phases[0].current_executors) + copy.deepcopy(free_resources)
                 max_throughputs[str(pipelinestageindex)] = pipelinestage.get_free_resource_throughput(rmanager,
-                                                                                                      free_resources) + pipelinestage.get_current_throughput(
-                    rmanager, 0)
+                                                                                                      free_resources) + pipelinestage.get_current_throughput(0)
                 free_resources.clear()
 
             if prev_sametype_pipelinestage != None:
@@ -846,7 +881,7 @@ class PipelineManager:
                         free_resources.remove (free_resource_id)
 
 
-            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(rmanager, 0)
+            throughputs[str(pipelinestageindex)] = pipelinestage.get_current_throughput(0)
 
             if pipelinestageindex != 0:
                 if pipelinestage.resourcetype == 'CPU':
@@ -876,7 +911,7 @@ class PipelineManager:
                 computation_pressures[str(pipelinestageindex)] = [0, throughputs[str(pipelinestageindex)]]
             else:
                 prev_pipelinestage = self.pipelinestages[pipelinestageindex - 1]
-                throughputs[str(pipelinestageindex - 1)] = prev_pipelinestage.get_current_throughput(rmanager, 0)
+                throughputs[str(pipelinestageindex - 1)] = prev_pipelinestage.get_current_throughput(0)
                 computation_pressures[str(pipelinestageindex)] = [throughputs[str(pipelinestageindex - 1)],
                                                                   throughputs[str(pipelinestageindex)]]
 
@@ -976,7 +1011,7 @@ class PipelineManager:
                     throughput_limit = prev_pipelinestage_throughput
 
 
-            if str(pipelinestageindex) in underallocations and pending_workitems > 0 and ((underallocations[str(pipelinestageindex)] >= 1.0 and total_throughput <= 0) or (underallocations[str(pipelinestageindex)] > 0 and throughputs[str(pipelinestageindex)] == total_throughput)):
+            if str(pipelinestageindex) in underallocations and pending_workitems > 0 and ((underallocations[str(pipelinestageindex)] >= 1.0 and total_throughput <= 0) or underallocations[str(pipelinestageindex)] > 0 and throughputs[str(pipelinestageindex)] == total_throughput):
                 print('reconfiguration_up_down_underallocations 1 ()', pipelinestage.name, underallocations,
                       computation_pressures[str(pipelinestageindex)], max_throughputs[str(pipelinestageindex)],
                       available_resources, pending_workloads)
@@ -1122,6 +1157,43 @@ class PipelineManager:
 
 
     def parse_pipelines (self, rmanager):
+        pipelinedatafile = open(self.pipelinefile)
+        pipelinedata = yaml.load(pipelinedatafile, Loader=yaml.FullLoader)
+
+        index = 0
+        for pipelinestage_node in pipelinedata['pipelinestages']:
+            pipelinestage_name = pipelinestage_node['name']
+            pipelinestage_resourcetype = pipelinestage_node['resourcetype']
+
+            new_pipelinestage = PipelineStage(index, pipelinestage_name, pipelinestage_resourcetype, rmanager, self.batchsize)
+
+            self.pipelinestages.append(new_pipelinestage)
+            self.pipelinestages_dict[pipelinestage_name] = new_pipelinestage
+
+            index += 1
+
+        for pipelinestage_node in pipelinedata['pipelinestages']:
+            pipelinestage = self.pipelinestages_dict[pipelinestage_node['name']]
+            if 'exec_dependencies' in pipelinestage_node:
+                exec_dependencies = pipelinestage_node['exec_dependencies']
+
+                for dependency in exec_dependencies:
+                    parent_pipelinestage = self.pipelinestages_dict[dependency]
+                    pipelinestage.add_dependency_parent (parent_pipelinestage, 'exec')
+                    parent_pipelinestage.add_dependency_child (pipelinestage, 'exec')
+
+            if 'data_dependencies' in pipelinestage_node:
+                data_dependencies = pipelinestage_node['data_dependencies']
+
+                for dependency in data_dependencies:
+                    parent_pipelinestage = self.pipelinestages_dict[dependency]
+                    pipelinestage.add_dependency_parent (parent_pipelinestage, 'data')
+                    parent_pipelinestage.add_dependency_child (pipelinestage, 'data')
+
+        for pipelinestage in self.pipelinestages:
+            pipelinestage.print_data ()
+
+    def parse_pipelines_old (self, rmanager):
         pipelinedatafile = open (self.pipelinefile)
         pipelinedata = yaml.load (pipelinedatafile, Loader = yaml.FullLoader)
 
@@ -1206,15 +1278,17 @@ class PipelineManager:
 
 
     def add_executor (self, workitem, resource, now):
+        #print ('add_executor ()', workitem.id, workitem.version,  resource.id)
         pipelinestage = self.pipelinestages[int (workitem.version)]
         pipelinestage.add_executor (workitem, resource, now)
-        if int (workitem.version) > 0:
-            prev_pipelinestage = self.pipelinestages[int (workitem.version) - 1]
-            prev_pipelinestage.remove_output (workitem)
+        #if int (workitem.version) > 0:
+        #    prev_pipelinestage = self.pipelinestages[int (workitem.version) - 1]
+        #    prev_pipelinestage.remove_output (workitem)
 
     def remove_executor (self, workitem, resource, now):
+        #print('remove_executor ()', workitem.id, workitem.version, resource.id)
         pipelinestage = self.pipelinestages[int (workitem.version)]
-        pipelinestage.add_output(workitem)
+        #pipelinestage.add_output(workitem)
         pipelinestage.remove_executor (workitem, resource, now)
 
     def add_workitem_queue_old (self, workitem, current_time):
@@ -1255,42 +1329,44 @@ class PipelineManager:
                 print ('add_workitem_queue', 'oops', pipelinestage_add.index)
             pipelinestage_add.add_new_workitem (workitem, current_time)
 
-    def add_workitem_queue (self, workitem, current_time, new_workitem_index = -1):
+    def remove_workitem_queue (self, workitem, current_time):
+        if workitem == None:
+            print ('invalid workitem')
+            return
+
+        if workitem.iscomplete == True:
+            if int (workitem.version)  <= len (self.pipelinestages) - 1:
+                pipelinestage_remove = self.pipelinestages[int (workitem.version)]
+            else:
+                pipelinestage_remove = None
+
+            if pipelinestage_remove != None:
+                remove_phase, remove_phase_index = pipelinestage_remove.get_phase (workitem)
+
+                if remove_phase != None:
+                    remove_phase.remove_workitem (current_time, workitem)
+
+    def add_workitem_queue (self, add_workitem, current_time, new_workitem_index = -1):
         pipelinestage_remove = None
         pipelinestage_add = None
 
-        if workitem == None:
+        if add_workitem == None:
             print ('invalid workitem')
             return
         #print ('add_workitem_queue', workitem.id, workitem.iscomplete)
 
-        if workitem.iscomplete == True:
-            if int (workitem.version) >= len (self.pipelinestages) - 1:# should check if stage type matches
-                pipelinestage_remove = self.pipelinestages[int (workitem.version)]
+        pipelinestage_add = self.pipelinestages[int(add_workitem.version)]
+        if pipelinestage_add.index == 0:
+            if new_workitem_index == -1:
+                pipelinestage_add.add_new_workitem(add_workitem, current_time, self.last_first_phase_closed_index)
             else:
-                pipelinestage_remove = self.pipelinestages[int (workitem.version)]
-                pipelinestage_add = self.pipelinestages[int (workitem.version) + 1]
+                pipelinestage_add.add_new_workitem(add_workitem, current_time, new_workitem_index - 1)
+        elif int (add_workitem.version) < len (self.pipelinestages):
+            pipelinestage_add = self.pipelinestages[int(add_workitem.version)]
 
-            if pipelinestage_remove != None:
-                remove_phase, remove_phase_index = pipelinestage_remove.get_phase (workitem)
-                #print ('add_workitem_queue1', remove_phase.pipelinestage, remove_phase_index)
-                if remove_phase != None:
-                    remove_phase.remove_workitem (current_time, workitem)
+            add_phase, add_phase_index = pipelinestage_add.get_phase(add_workitem)
 
-            if pipelinestage_add != None:
-                if pipelinestage_add.resourcetype != pipelinestage_remove.resourcetype: #this shouldn't be done here
-                    add_phase = pipelinestage_add.get_phase_index (remove_phase_index)
-                    add_phase.add_workitem (workitem, current_time)
-        else:
-            pipelinestage_add = self.pipelinestages[int(workitem.version)]
-            if pipelinestage_add.index == 0:
-                if new_workitem_index == -1:
-                    pipelinestage_add.add_new_workitem(workitem, current_time, self.last_first_phase_closed_index)
-                else:
-                    pipelinestage_add.add_new_workitem(workitem, current_time, new_workitem_index - 1)
-            else:
-                print ('add_workitem_queue', 'oops', pipelinestage_add.index)
-
+            add_phase.add_workitem(add_workitem, current_time)
 
     def check_new_workitem_index (self):
         first_pipelinestage = self.pipelinestages[0]
@@ -1304,15 +1380,9 @@ class PipelineManager:
     def build_phases (self):
         for i in range(0, self.no_of_columns):
             index = 0
-            prev_resourcetype = None
-            while True:
-                if index >= len (self.pipelinestages):
-                    print ('build phases', i, index, len (self.pipelinestages))
-                    break
+            while index < len (self.pipelinestages):
                 current_stage = self.pipelinestages[index]
-                if prev_resourcetype == None or current_stage.resourcetype != prev_resourcetype:
-                    current_stage.create_phase ()
-                    prev_resourcetype = current_stage.resourcetype
+                current_stage.create_phase ()
                 index += 1
 
     def print_stage_queue_data_3 (self, actual_idle_periods):
@@ -1325,7 +1395,7 @@ class PipelineManager:
             for phase in pipelinestage.phases:
                 plot_data[pipelinestage.name].append ([phase.queue_snapshots, phase.starttime, phase.endtime, phase.predictions])
 
-        plot_prediction_sim_0 (rmanager, plot_data, self.prediction_times, self.batchsize)
+        plot_prediction_sim_0 (self, rmanager, plot_data, self.prediction_times, self.batchsize)
 
 
     def print_stage_queue_data_1 (self):
@@ -1366,6 +1436,18 @@ class PipelineManager:
     def get_all_pipelinestages (self):
         return self.pipelinestages
 
+    def get_first_pipelinestage (self):
+        return self.pipelinestages[0]
+
+    def get_next_pipelinestages (self, current_pipelinestage):
+        children = current_pipelinestage.get_children ('exec')
+
+        return children
+
+    def get_pipelinestage (self, index):
+        return self.pipelinestages[index]
+
+    '''
     def get_pipelinestage (self, current, resourcetype):
         if current == None:
             if self.pipelinestages[0].get_resourcetype () != resourcetype:
@@ -1384,14 +1466,8 @@ class PipelineManager:
 
         ret = self.pipelinestages[index]
 
-        '''
-        while index < len (self.pipelinestages) and \
-            self.pipelinestages[index].get_resourcetype() == resourcetype:
-            ret.append (self.pipelinestages[index])
-            index += 1
-        '''
-
         return ret
+    '''
 
 if __name__ == "__main__":
     pipelinefile = sys.argv[1]

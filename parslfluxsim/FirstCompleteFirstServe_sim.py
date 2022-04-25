@@ -256,7 +256,7 @@ class FirstCompleteFirstServe (Policy):
                 break
 
 
-    def add_new_workitems_DFS (self, rmanager, pmanager, empty_resources, resourcetype):
+    def add_new_workitems_DFS (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')
         completion_times = {}
 
@@ -296,13 +296,11 @@ class FirstCompleteFirstServe (Policy):
                 pending_workitem = self.pop_pending_workitem (resourcetype)
 
                 if pending_workitem != None:
-                    #pending_workitem.print_data ()
-                    next_workitem = pending_workitem.compose_next_workitem (pmanager, resource_id, resourcetype)
-                    if next_workitem != None:
-                        resource.add_workitem (next_workitem, resourcetype)
-                        pmanager.add_executor (next_workitem, resource, self.env.now)
-                        #next_workitem.print_data()
-                        item_added = True
+                    #print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
+                    pending_workitem.set_resource_id (resource_id)
+                    resource.add_workitem (pending_workitem, resourcetype)
+                    pmanager.add_executor (pending_workitem, resource, self.env.now)
+                    item_added = True
 
             if item_added == False:
                 #new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)

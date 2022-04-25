@@ -1,0 +1,30 @@
+pipelinestages:
+    - name: preprocess
+      resourcetype: CPU
+    - name: segmentation
+      resourcetype: GPU
+      exec_dependencies:
+        - preprocess
+      data_dependencies:
+        - preprocess
+    - name: extractsurfacemesh
+      resourcetype: CPU
+      exec_dependencies:
+        - segmentation
+      data_dependencies:
+        - segmentation
+    - name: registerimagetoatlas
+      resourcetype: GPU
+      exec_dependencies:
+        - preprocess
+      data_dependencies:
+        - preprocess
+    - name: warpmesh
+      resourcetype: CPU
+      exec_dependencies:
+        - registerimagetoatlas
+        - extractsurfacemesh
+      data_dependencies:
+        - preprocess
+        - registerimagetoatlas
+        - extractsurfacemesh

@@ -46,7 +46,7 @@ class WorkItem:
     def get_status(self):
         return self.status
 
-    def get_pipelinestages (self):
+    def get_pipelinestage (self):
         return self.pipelinestage.name
 
     def update_outputlocation(self, location):
@@ -56,16 +56,11 @@ class WorkItem:
         next_pipelinestage = pmanager.get_pipelinestage(self.pipelinestage, resourcetype)
         return next_pipelinestage
 
-    def compose_next_workitem(self, pmanager, resource_id, resourcetype):
-
-        new_pipelinestage = pmanager.get_pipelinestage(self.pipelinestage, resourcetype)
-
-        if new_pipelinestage == None:
-            return None
+    def compose_next_workitem(self, resourcetype, next_pipelinestage):
 
         next_workitem = WorkItem(self.id, self.data, self.resourceid, \
-                                 new_pipelinestage, resource_id, resourcetype, \
-                                 self.version + 1, self.outputlocation)
+                                 next_pipelinestage, None, resourcetype, \
+                                 next_pipelinestage.index, self.outputlocation)
         next_workitem.phase_index = self.phase_index
 
         return next_workitem

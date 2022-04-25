@@ -45,6 +45,7 @@ class InputManager:
 class InputManager2:
     def __init__(self, config_file):
         self.index = 0
+        self.completion_status = {}
 
         config_data_file = open (config_file)
 
@@ -102,6 +103,20 @@ class InputManager2:
     def print_data (self):
         for image in self.analysis_images:
             print (image)
+
+    def set_complete(self, image_id, version, status):
+        if image_id not in self.completion_status:
+            self.completion_status[image_id] = {}
+
+        self.completion_status[image_id][str(version)]= status
+
+        #print('set_complete', image_id, self.completion_status[image_id])
+
+    def is_complete(self, image_id, version):
+        if str(version) in self.completion_status[image_id]:
+            return self.completion_status[image_id][str(version)]
+        else:
+            return False
 
 if __name__ == "__main__":
     configfile = sys.argv[1]
