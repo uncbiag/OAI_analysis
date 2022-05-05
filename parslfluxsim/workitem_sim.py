@@ -25,6 +25,12 @@ class WorkItem:
         self.resourcetype = resourcetype
         self.starttime = -1
         self.endtime = -1
+        self.priority = int (pipelinestage.priority)
+
+    def get_copy (self):
+        copy = WorkItem (self.id, self.data, self.collectfrom, self.pipelinestage, self.resourceid, self.resourcetype, self.version, self.inputlocation)
+        copy.phase_index = self.phase_index
+        return copy
 
     def get_id(self):
         return self.id
@@ -62,12 +68,13 @@ class WorkItem:
                                  next_pipelinestage, None, resourcetype, \
                                  next_pipelinestage.index, self.outputlocation)
         next_workitem.phase_index = self.phase_index
+        next_workitem.starttime = self.starttime
+        next_workitem.endtime = self.endtime
 
         return next_workitem
 
     def print_data(self):
-        #print ('print_data ()', self.id, self.version, self.phase_index, self.resourceid)
-        pass
+        print ('print_data ()', self.id, self.version, self.phase_index, self.resourceid, self.status, self.pipelinestage.index, self.endtime)
 
     def submit(self, pmanager, timeout, thread_exec, env):
         self.timeout = double(timeout)
@@ -77,7 +84,7 @@ class WorkItem:
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
 
-        #print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
+        print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
         thread_exec.interrupt (str(self.version))
 
         # workitem['timeout'] = double (150)
@@ -108,6 +115,7 @@ class WorkItem:
             self.endtime = thread.endtime
             self.status = 'SUCCESS'
             thread.iscomplete = False
+            print ('probe_status ()', self.id, self.endtime)
             return True, self.starttime, self.endtime, 'SUCCESS', thread.timeout
 
         return False, None, None, 'INCOMPLETE', 0

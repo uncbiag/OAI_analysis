@@ -5,6 +5,7 @@ import datetime
 import statistics
 import pandas as pd
 import seaborn as sns
+from operator import add
 
 matplotlib.rcParams['font.size'] = 15
 matplotlib.rcParams['font.family'] = 'Times New Roman'
@@ -261,7 +262,51 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     plt.tick_params(labelcolor="none", bottom=False, left=False)
 
     plt.xlabel("Timeline (seconds)")
-    plt.ylabel("Throughput")
+    plt.ylabel("Throughput (images/hr)")
+
+    data_throughput_record = pmanager.get_data_throughput_record()
+
+    fig3, axes3 = plt.subplots(len (list (data_throughput_record.keys ())) + 1, 1, sharex=True)
+
+    total_x_data = []
+    total_y_data = [0] * len (data_throughput_record[list (data_throughput_record.keys ())[0]])
+    index = 0
+    for pipelinestage_index in data_throughput_record:
+        throughput_data = data_throughput_record[pipelinestage_index]
+
+        ax = axes3[int (pipelinestage_index)]
+
+        x_data = []
+        y_data = []
+        for data in throughput_data:
+            time = int(float(data[0]) * 3600)
+            x_data.append(time)
+            y_data.append(data[1])
+
+
+
+        total_y_data = list(map(add, total_y_data, y_data))
+        if index == 0:
+            total_x_data.extend(x_data)
+
+        ax.plot(x_data, y_data)
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(labels[int (pipelinestage_index)])
+        index += 1
+
+    axes3[-1].plot (total_x_data, total_y_data)
+    axes3[-1].yaxis.set_label_position("right")
+    axes3[-1].set_ylabel('total')
+
+    fig3.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    print (total_y_data)
+    print (total_x_data)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Data Throughput (GB/hr)")
 
 
     fig1, axes1 = plt.subplots(nrows=1, ncols=1)
@@ -311,4 +356,5 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     ax.set_ylabel ('Count')
     fig.savefig('queue_pattern_overallocation_stable.png', dpi=300)
     fig1.savefig('resource_pattern_overallocation_stable.png', dpi=300)
+    fig2.savefig ('throughput_pattern_overallocation_stable.png', dpi=300)
     plt.show()

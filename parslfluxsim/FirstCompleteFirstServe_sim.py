@@ -255,6 +255,72 @@ class FirstCompleteFirstServe (Policy):
                 #print ('add_workitems ()', resource_id, 'workitems not available')
                 break
 
+    def add_new_workitems_DFS_pipelinestage (self, rmanager, imanager, pmanager, empty_resources, resourcetype, pipelinestageindex):
+        print('add_new_workitems_DFS_pipelinestage', pipelinestageindex, len(self.cpuqueue), len(self.gpuqueue))
+        completion_times = {}
+
+        for resource in empty_resources:
+            completion_time = resource.get_last_completion_time(resourcetype)
+
+            if completion_time == None:
+                completion_times[resource.id] = self.env.now
+            else:
+                completion_times[resource.id] = completion_time
+
+        # print (completion_times)
+
+        sorted_completion_times = dict(sorted(completion_times.items(), key=lambda item: item[1]))
+
+        # print (sorted_completion_times)
+
+        #self.sort_complete_workitems_by_priority(resourcetype)
+        # self.sort_complete_workitems_by_stage (resourcetype)
+        # self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
+        self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
+        # self.sort_complete_workitems_by_latest_finish_time (resourcetype)
+
+        for resource_id in sorted_completion_times.keys():
+            # print (resource_id, resourcetype)
+            item_added = False
+            resource = rmanager.get_resource(resource_id, active=True)
+
+            resubmit_workitem = self.pop_resubmit_workitem(resourcetype)
+
+            if resubmit_workitem != None:
+                resubmit_workitem.print_data()
+                resubmit_workitem.set_resource_id(resource_id)
+                resource.add_workitem(resubmit_workitem, resourcetype)
+                pmanager.add_executor(resubmit_workitem, resource.id, self.env.now)
+                item_added = True
+
+            if item_added == False:
+                pending_workitem = self.pop_pending_workitem_indexed(resourcetype, pipelinestageindex)
+
+                if pending_workitem != None:
+                    print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
+                    pending_workitem.set_resource_id(resource_id)
+                    resource.add_workitem(pending_workitem, resourcetype)
+                    pmanager.add_executor(pending_workitem, resource.id, self.env.now)
+                    item_added = True
+
+            if item_added == False:
+                # new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
+                new_workitem = self.get_new_workitem(resourcetype)
+
+                if new_workitem != None:
+                    new_workitem.set_resource_id(resource_id)
+                    resource.add_workitem(new_workitem, resourcetype)
+                    pmanager.add_workitem_queue(new_workitem, self.env.now)
+                    pmanager.add_executor(new_workitem, resource.id, self.env.now)
+                    # new_workitem.print_data ()
+                    item_added = True
+
+            if item_added == False:
+                # print ('add_workitems ()', resource_id, 'workitems not available')
+                break
+
+        print ('add_new_workitems_DFS_pipelinestage',pipelinestageindex, len (self.cpuqueue), len (self.gpuqueue))
+
 
     def add_new_workitems_DFS (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')
@@ -274,7 +340,8 @@ class FirstCompleteFirstServe (Policy):
 
         #print (sorted_completion_times)
 
-        self.sort_complete_workitems_by_stage (resourcetype)
+        self.sort_complete_workitems_by_priority(resourcetype)
+        #self.sort_complete_workitems_by_stage (resourcetype)
         #self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
         #self.sort_complete_workitems_by_earliest_finish_time (resourcetype)
         #self.sort_complete_workitems_by_latest_finish_time (resourcetype)
@@ -290,6 +357,7 @@ class FirstCompleteFirstServe (Policy):
                 resubmit_workitem.print_data ()
                 resubmit_workitem.set_resource_id (resource_id)
                 resource.add_workitem (resubmit_workitem, resourcetype)
+                pmanager.add_executor(resubmit_workitem, resource.id, self.env.now)
                 item_added = True
 
             if item_added == False:
@@ -299,7 +367,7 @@ class FirstCompleteFirstServe (Policy):
                     #print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
                     pending_workitem.set_resource_id (resource_id)
                     resource.add_workitem (pending_workitem, resourcetype)
-                    pmanager.add_executor (pending_workitem, resource, self.env.now)
+                    pmanager.add_executor (pending_workitem, resource.id, self.env.now)
                     item_added = True
 
             if item_added == False:
@@ -310,7 +378,7 @@ class FirstCompleteFirstServe (Policy):
                     new_workitem.set_resource_id (resource_id)
                     resource.add_workitem (new_workitem, resourcetype)
                     pmanager.add_workitem_queue(new_workitem, self.env.now)
-                    pmanager.add_executor (new_workitem, resource, self.env.now)
+                    pmanager.add_executor (new_workitem, resource.id, self.env.now)
                     #new_workitem.print_data ()
                     item_added = True
 

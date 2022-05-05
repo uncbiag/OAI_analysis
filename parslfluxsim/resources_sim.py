@@ -130,7 +130,7 @@ class Resource:
         self.provision_type = provision_type
         self.env = env
         self.acquisition_time = None
-        self.temporary_assignment = pipelinestageindex
+        self.pipelinestageindex = pipelinestageindex
 
     def print_data (self):
         print (self.id)
@@ -138,7 +138,7 @@ class Resource:
     def set_active (self, active):
         self.active = active
         self.acquisition_time = self.env.now
-        self.temporary_assignment = None
+        self.pipelinestageindex = None
 
     def get_active (self):
         return self.active
@@ -245,10 +245,10 @@ class Resource:
 
     def schedule (self, rmanager, pmanager, resourcetype, thread_exec, env):
         if resourcetype == 'CPU' and self.cpu == None:
-            #print (self.id, 'CPU not available')
+            print (self.id, 'CPU not available')
             return
         if resourcetype == 'GPU' and self.gpu == None:
-            #print (self.id, 'GPU not available')
+            print (self.id, 'GPU not available')
             return
 
         if resourcetype == 'CPU' and self.cpu.workqueue.is_empty () == False:
@@ -259,13 +259,16 @@ class Resource:
             self.cpu.set_last_completion_time (None)
             return
 
-        if resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
+        elif resourcetype == 'GPU' and self.gpu.workqueue.is_empty () == False:
             timeout = self.get_timeout_value (rmanager, pmanager, resourcetype)
             self.add_idle_period(resourcetype, env.now)
             self.gpu.workqueue.get_workitem ().submit (pmanager, timeout, thread_exec, env)
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
             return
+
+        else:
+            print ('oops!')
 
     def schedule_whole (self, rmanager, pmanager):
         if self.workqueue.is_empty () == False:
@@ -337,14 +340,17 @@ class Resource:
                     rmanager.add_exectime (self.cpu.name, workitem.get_pipelinestage (), start_time, end_time)
                     self.add_exectime(workitem.get_pipelinestage (), start_time,
                                       end_time)
+                    return end_time - start_time
                 elif status == 'FAILED':
                     #print ('cpu workitem failed')
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
+                    return None
                 elif status == 'CANCELLED':
                     #print ('cpu workitem cancelled')
                     self.cpu.set_busy (False)
                     self.cpu.set_last_completion_time (end_time)
+                    return None
 
                 #self.add_transfer_time (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), r_timetaken)
 
@@ -362,15 +368,20 @@ class Resource:
                     rmanager.add_exectime (self.gpu.name, workitem.get_pipelinestage (), start_time, end_time)
                     self.add_exectime(workitem.get_pipelinestage (), start_time,
                                       end_time)
+                    return end_time - start_time
                 elif status == 'FAILED':
                     #print ('gpu workitem failed')
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
+                    return None
+
                 elif status == 'CANCELLED':
                     #print ('gpu workitem cancelled')
                     self.gpu.set_busy (False)
                     self.gpu.set_last_completion_time (end_time)
+                    return None
 
+        return None
                 #self.add_transfer_time (pmanager.encode_pipeline_stages(workitem.get_pipelinestages ()), r_timetaken)
 
     def get_last_completion_time (self, resourcetype):
@@ -670,6 +681,8 @@ class ResourceManager:
         self.total_gpu_cost = 0
         self.active_pool_nodes = []
         self.backup_pool_nodes = []
+        self.exploration_resources = []
+        self.pinned_resources = []
 
     def get_startup_time (self, resourcetype, provision_type):
         return float (self.resourcetypeinfo[provision_type][resourcetype]['startuptime'] / 3600)
@@ -700,7 +713,7 @@ class ResourceManager:
 
         return cost, provision_time
 
-    def add_resource (self, cpuok, gpuok, cputype, gputype, provision_type, active_pool, bidding_price, pipelinestageindex):
+    def add_resource (self, cpuok, gpuok, cputype, gputype, provision_type, active_pool, bidding_price, pipelinestageindex, exploration):
 
         print ('add resource ()', cpuok, gpuok, cputype, gputype, provision_type, active_pool, bidding_price, pipelinestageindex)
 
@@ -744,6 +757,11 @@ class ResourceManager:
                 self.resourcetypeinfo[provision_type][cputype]['count']['time'].append(self.env.now)
                 self.resourcetypeinfo[provision_type][cputype]['count']['count'].append(self.resourcetypeinfo[provision_type][cputype]['count']['count'][-1] + 1)
 
+            if exploration == True:
+                self.exploration_resources.append (resource)
+            else:
+                self.pinned_resources.append (resource)
+
             return resource, provision_time
         elif gpuok == True:
             if provision_type == 'on_demand':
@@ -785,10 +803,15 @@ class ResourceManager:
                 self.resourcetypeinfo[provision_type][gputype]['count']['time'].append(self.env.now)
                 self.resourcetypeinfo[provision_type][gputype]['count']['count'].append(self.resourcetypeinfo[provision_type][gputype]['count']['count'][-1] + 1)
 
+            if exploration == True:
+                self.exploration_resources.append (resource)
+            else:
+                self.pinned_resources.append (resource)
+
             return resource, provision_time
 
-    def delete_resource (self, resourcetype, resource_id, active):
-        print ('delete resource ()', resource_id, resourcetype, active)
+    def delete_resource (self, resourcetype, resource_id, exploration, active):
+        print ('delete resource ()', resource_id, resourcetype, exploration, active)
         if active == True:
             nodes = self.active_pool_nodes
         else:
@@ -810,7 +833,11 @@ class ResourceManager:
             node_index += 1
 
         if node_index < len (nodes):
-            nodes.pop (node_index)
+            node = nodes.pop (node_index)
+            if exploration == True:
+                self.exploration_resources.remove(node)
+            else:
+                self.pinned_resources.remove(node)
             if resourcetype == 'CPU':
                 if active == True:
                     self.active_cpunodes_count -= 1
@@ -833,19 +860,20 @@ class ResourceManager:
             return None
         return self.resourcetypeinfo[provision_type][resourcetype][infotype]
 
-    def parse_resources (self):
-        cpu_types = {}
-        gpu_types = {}
+    def parse_resources (self, resourcetype):
+        resource_types = {}
+
         yaml_resourcefile = open(self.resourcefile)
         resources = yaml.load(yaml_resourcefile, Loader=yaml.FullLoader)
 
-        for cputype in resources['available']['CPU']:
-            cpu_types[cputype['id']] = cputype['count']
+        if resourcetype == 'CPU':
+            for cputype in resources['available']['CPU']:
+                resource_types[cputype['id']] = cputype['count']
+        else:
+            for gputype in resources['available']['GPU']:
+                resource_types[gputype['id']] = gputype['count']
 
-        for gputype in resources['available']['GPU']:
-            gpu_types[gputype['id']] = gputype['count']
-
-        return cpu_types, gpu_types
+        return resource_types
 
     def parse_resources_old (self):
         yaml_resourcefile = open (self.resourcefile)

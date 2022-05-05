@@ -71,24 +71,19 @@ class Phase:
     def get_executors (self):
         return self.current_executors
 
-    def add_executor (self, resource_id, now):
-        print ('add_executor ()', resource_id)
-        if resource_id not in self.current_executors:
-            self.current_executors.append(resource_id)
-            self.pcurrent_executors.append(resource_id)
+    def add_executor (self, resource, now):
+        if resource.id not in self.current_executors:
+            self.current_executors.append(resource.id)
+            self.pcurrent_executors.append(resource.id)
             if self.total_complete == 0 and self.starttime == -1:
                 self.starttime = now
                 self.pstarttime = now
 
-    def remove_executor (self, resource_id, now):
-        if resource_id in self.current_executors:
-            self.current_executors.remove(resource_id)
-            self.pcurrent_executors.remove(resource_id)
-            self.end_times_dict[resource_id] = now
-        elif 'temp' in self.current_executors:
-            self.current_executors.remove('temp')
-            self.pcurrent_executors.remove('temp')
-            self.end_times_dict['temp'] = now
+    def remove_executor (self, resource, now):
+        if resource.id in self.current_executors:
+            self.current_executors.remove(resource.id)
+            self.pcurrent_executors.remove(resource.id)
+            self.end_times_dict[resource.id] = now
 
     def add_workitem (self, workitem, currenttime):
         if self.active == False:
@@ -102,11 +97,9 @@ class Phase:
         self.workitems.append(workitem.id)
         if self.pipelinestage_index > 0:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
+        #print(self.pipelinestage, 'add workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
 
     def remove_workitem (self, currenttime, workitem):
-        print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count,
-              self.total_count, self.total_complete)
         self.current_count -= 1
         self.pcurrent_count = self.current_count
         self.remove_timestamps[workitem.id + ':' + str (currenttime)] = self.current_count
@@ -126,7 +119,7 @@ class Phase:
             self.queue_snapshots[str(currenttime)] = self.target - self.total_complete
         else:
             self.queue_snapshots[str(currenttime)] = self.current_count
-        print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
+        #print(self.pipelinestage, 'remove workitem', self.index, currenttime, workitem.id, self.current_count, self.total_count, self.total_complete)
 
     def close_phase (self):
         self.active = False
@@ -213,11 +206,6 @@ class PipelineStage:
         self.resourcetype = resourcetype
         self.priority = priority
         self.output_size = output_size
-        self.explorers = {}
-        self.pinned_resources = []
-        self.exploration_needed = True
-        self.exploration_scheduling_needed = False
-        self.exploration_ending_needed = False
         self.phases = []
         self.rmanager = rmanager
         self.batchsize = target
@@ -225,110 +213,6 @@ class PipelineStage:
         self.exec_children = []
         self.data_parents = []
         self.data_children = []
-
-    def get_pending_count (self):
-        return self.phases[0].current_count
-
-    def add_pinned_resource (self, resource_id):
-        print ('add_pinned_resource ()', resource_id)
-        self.pinned_resources.append (resource_id)
-
-    def get_pinned_resources (self, rmanager, status):
-        results = []
-        for resource_id in self.pinned_resources:
-            resource = rmanager.get_resource (resource_id, True)
-            if resource.active == status:
-                results.append (resource_id)
-
-        return results
-
-    def add_exploration_resource (self, resource):
-        self.explorers[resource.id] = [False, False, -1, False] #exploration_scheduled, exploration_ended, exectime
-
-    def remove_exploration_resource (self, resource_id):
-        print ('remvoe_exploration_resource ()', resource_id)
-        resource = self.explorers.pop (resource_id)
-        return resource
-
-    def get_exploration_scheduled (self, resource_id):
-        return self.explorers[resource_id][0]
-
-    def get_exploration_workitem_added_count (self):
-        count = 0
-        for explorer in self.explorers.keys ():
-            if self.explorers[explorer][3] == True:
-                count += 1
-        return count
-
-    def set_exploration_workitem_added (self, resource_id, status):
-        self.explorers[resource_id][3] = status
-
-    def get_exploration_scheduled_count (self):
-        count = 0
-        for explorer in self.explorers.keys ():
-            if self.explorers[explorer][0] == True:
-                count += 1
-
-        print ('get_exploration_scheduled_count ()', count)
-        return count
-
-    def set_exploration_scheduled (self, resource_id, status):
-        self.explorers[resource_id][0] = status
-
-    def get_exploration_ended (self, resource_id):
-        return self.explorers[resource_id][1]
-
-    def get_exploration_ended_count (self):
-        count = 0
-        for explorer in self.explorers.keys ():
-            if self.explorers[explorer][1] == True:
-                count += 1
-
-        print ('get_exploration_ended_count ()', count)
-        return count
-
-    def set_exploration_ended (self, resource_id, status, exec_time):
-        self.explorers[resource_id][1] = status
-        self.explorers[resource_id][2] = exec_time
-
-    def get_all_exploration_scheduled(self):
-        for explorer in self.explorers.values ():
-            if explorer[0] == False:
-                return False
-
-        return True
-
-    def get_all_exploration_ended (self):
-        for explorer in self.explorers.values ():
-            if explorer[1] == False:
-                return False
-
-        return True
-
-    def get_explorers (self):
-        return list (self.explorers.keys ())
-
-    def get_sorted_explorers (self):
-        ret = sorted(self.explorers, key=lambda x: x[1][2])
-        return list (ret.keys ())
-
-    def get_exploration_needed (self):
-        return self.exploration_needed
-
-    def set_exploration_needed (self, exploration_needed):
-        self.exploration_needed = exploration_needed
-
-    def get_exploration_scheduling_needed (self):
-        return self.exploration_scheduling_needed
-
-    def set_exploration_scheduling_needed (self, exploration_scheduling_needed):
-        self.exploration_scheduling_needed = exploration_scheduling_needed
-
-    def get_exploration_ending_needed (self):
-        return self.exploration_ending_needed
-
-    def set_exploration_ending_needed (self, exploration_ending_needed):
-        self.exploration_ending_needed = exploration_ending_needed
 
     def add_dependency_child (self, child, type):
         if type == 'exec':
@@ -386,32 +270,28 @@ class PipelineStage:
         workitem.phase_index = last_first_phase_closed_index + 1
         #print (self.name, 'add new workitem', workitem.id, workitem.phase_index, latest_phase.current_count)
 
-    def add_executor (self, workitem, resource_id, now):
+    def add_executor (self, workitem, resource, now):
         current_phase, index = self.get_phase(workitem)
         if current_phase == None:
             print ('add_executor', workitem.id, 'not found')
             return
-        current_phase.add_executor (resource_id, now)
+        current_phase.add_executor (resource, now)
         #print(self.name, 'add executor', now, workitem.id, index, self.phases[index].total_complete)
 
-    def remove_executor (self, workitem, resource_id, now):
+    def remove_executor (self, workitem, resource, now):
         current_phase, index = self.get_phase(workitem)
         if current_phase == None:
             print('remove_executor', workitem.id, self.name, 'not found')
             return
-        current_phase.remove_executor (resource_id, now)
+        current_phase.remove_executor (resource, now)
         #print(self.name, 'remove executor', workitem.id, index)
 
     def get_current_throughput (self, phase_index):
-        #print ('get_current_throughput ()', self.name)
         current_executors = self.phases[phase_index].current_executors
 
         thoughput_list = []
         for resource_id in current_executors:
-            #print('get_current_throughput ()', resource_id)
             resource = self.rmanager.get_resource (resource_id, active=True)
-            if resource == None:
-                continue
             if self.resourcetype == 'CPU':
                 resource_name = resource.cpu.name
             else:
@@ -559,34 +439,6 @@ class PipelineManager:
 
     def get_pct_complete_no_prediction (self):
         return self.pipelinestages[-1].phases[0].total_complete / self.max_images * 100
-
-    def get_performance_to_cost_ratio_ranking (self, rmanager, pipelinestageindex, resource_ids):
-
-        performance_to_cost_ratio = {}
-        pipelinestage = self.pipelinestages[pipelinestageindex]
-
-        print ('get_performance_to_cost_ratio_ranking ()', resource_ids)
-
-        for resource_id in resource_ids:
-            resource = rmanager.get_resource (resource_id, active=True)
-            if pipelinestage.resourcetype == 'CPU':
-                resource_name = resource.cpu.name
-            else:
-                resource_name = resource.gpu.name
-
-            exectime = resource.get_exectime(pipelinestage.name, pipelinestage.resourcetype)
-            if exectime == 0:
-                exectime = rmanager.get_exectime(resource_name, pipelinestage.name)
-                throughput = 1 / exectime
-            else:
-                throughput = 1 / exectime
-
-            print ('get_performance_to_cost_ratio_ranking ()', resource_id, throughput)
-            performance_to_cost_ratio[resource_id] = throughput / resource.get_cost(pipelinestage.resourcetype)
-
-        performance_to_cost_ratio = dict(sorted(performance_to_cost_ratio.items(), key=lambda item: item[1], reverse=True))
-
-        return performance_to_cost_ratio
 
     def get_weighted_performance_to_cost_ratio_ranking (self, rmanager, resourcetype, resource_ids):
 
@@ -1091,7 +943,7 @@ class PipelineManager:
         for pipelinestage_node in pipelinedata['pipelinestages']:
             pipelinestage_name = pipelinestage_node['name']
             pipelinestage_resourcetype = pipelinestage_node['resourcetype']
-            pipelinestage_priority = int (pipelinestage_node['priority'])
+            pipelinestage_priority = pipelinestage_node['priority']
             pipelinestage_output_size = pipelinestage_node['output_size']
 
             new_pipelinestage = PipelineStage(index, pipelinestage_name, pipelinestage_resourcetype, pipelinestage_priority, pipelinestage_output_size, rmanager, self.batchsize)
@@ -1175,19 +1027,19 @@ class PipelineManager:
         return latest_last_phase_closed
 
 
-    def add_executor (self, workitem, resource_id, now):
+    def add_executor (self, workitem, resource, now):
         #print ('add_executor ()', workitem.id, workitem.version,  resource.id)
         pipelinestage = self.pipelinestages[int (workitem.version)]
-        pipelinestage.add_executor (workitem, resource_id, now)
+        pipelinestage.add_executor (workitem, resource, now)
         #if int (workitem.version) > 0:
         #    prev_pipelinestage = self.pipelinestages[int (workitem.version) - 1]
         #    prev_pipelinestage.remove_output (workitem)
 
-    def remove_executor (self, workitem, resource_id, now):
+    def remove_executor (self, workitem, resource, now):
         #print('remove_executor ()', workitem.id, workitem.version, resource.id)
         pipelinestage = self.pipelinestages[int (workitem.version)]
         #pipelinestage.add_output(workitem)
-        pipelinestage.remove_executor (workitem, resource_id, now)
+        pipelinestage.remove_executor (workitem, resource, now)
 
     def remove_workitem_queue (self, workitem, current_time):
         if workitem == None:

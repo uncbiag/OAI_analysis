@@ -37,7 +37,7 @@ available:
         cost: 1.3
         provision_type: 'on_demand'
       - id: 'Nvidia RTX 2070'
-        count: 3
+        count: 1
         startuptime: 60
         cost: 1.4
         provision_type: 'on_demand'

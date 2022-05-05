@@ -2657,6 +2657,108 @@ class PipelineManager:
 
         return ret
 
+    def parse_pipelines_old (self, rmanager):
+        pipelinedatafile = open (self.pipelinefile)
+        pipelinedata = yaml.load (pipelinedatafile, Loader = yaml.FullLoader)
+
+        #parse pipeline stages
+        pipelinestage_names = []
+        pipelinestage_resourcetypes = []
+
+        for pipelinestage in pipelinedata['pipelinestages']:
+            pipelinestage_names.append (pipelinestage['name'])
+            pipelinestage_resourcetypes.append (pipelinestage['resourcetype'])
+
+        index = 0
+        current_resourcetype = pipelinestage_resourcetypes[index]
+        current_names = []
+        current_names.append(pipelinestage_names[index])
+        current_index = index
+
+        index += 1
+        while index < len (pipelinestage_resourcetypes):
+            if current_resourcetype == pipelinestage_resourcetypes[index]:
+                current_names.append(pipelinestage_names[index])
+            else:
+                self.pipelinestages.append (PipelineStage(current_index, current_names, current_resourcetype, rmanager, self.batchsize))
+                current_index = index
+                current_names.clear()
+                current_resourcetype = pipelinestage_resourcetypes[index]
+                current_names.append(pipelinestage_names[index])
+            index += 1
+        self.pipelinestages.append(PipelineStage(current_index, current_names, current_resourcetype, rmanager, self.batchsize))
+
+
+    def add_workitem_queue_old (self, workitem, current_time):
+        pipelinestage_remove = None
+        pipelinestage_add = None
+
+        if workitem == None:
+            print ('invalid workitem')
+            return
+        #print ('add_workitem_queue', workitem.id, workitem.iscomplete)
+
+        if workitem.iscomplete == True:
+            if int (workitem.version) >= len (self.pipelinestages) - 1:# should check if stage type matches
+                pipelinestage_remove = self.pipelinestages[int (workitem.version)]
+            else:
+                pipelinestage_remove = self.pipelinestages[int (workitem.version)]
+                pipelinestage_add = self.pipelinestages[int (workitem.version) + 1]
+
+            if pipelinestage_remove != None:
+                remove_phase, remove_phase_index = pipelinestage_remove.get_phase (workitem)
+                #print ('add_workitem_queue1', remove_phase, remove_phase_index)
+                if remove_phase != None:
+                    remove_phase.remove_workitem (current_time, workitem)
+
+            if pipelinestage_add != None:
+                if pipelinestage_add.resourcetype != pipelinestage_remove.resourcetype: #this shouldn't be done here
+                    add_phase = pipelinestage_add.get_phase_index (remove_phase_index)
+                    add_phase.add_workitem (workitem, current_time)
+        else:
+            pipelinestage_add = self.pipelinestages[int(workitem.version)]
+            if pipelinestage_add.index == 0:
+                if len (pipelinestage_add.phases) == 0:
+                    self.build_phases(2)
+                else:
+                    if pipelinestage_add.phases[-2].active == False and pipelinestage_add.phases[-2].complete == True:
+                        self.build_phases(1)
+            else:
+                print ('add_workitem_queue', 'oops', pipelinestage_add.index)
+            pipelinestage_add.add_new_workitem (workitem, current_time)
+
+    def get_pipelinestage_old(self, current, resourcetype):
+        if current == None:
+            if self.pipelinestages[0].get_resourcetype() != resourcetype:
+                return None
+
+        elif current.get_resourcetype() == resourcetype or \
+                current.get_index() == len(self.pipelinestages) - 1:
+            return None
+
+        ret = None
+
+        if current == None:
+            index = 0
+        else:
+            index = current.get_index() + 1
+
+        ret = self.pipelinestages[index]
+
+        return ret
+
+    def encode_pipeline_stages(self, pipelinestages):
+        output = ""
+        index = 0
+        for pipelinestage in pipelinestages:
+            if index == len(pipelinestages) - 1:
+                output += str(pipelinestage.get_name())
+            else:
+                output += str(pipelinestage.get_name())
+                output += ":"
+            index += 1
+        return output
+
 
 if __name__ == "__main__":
     pipelinefile = sys.argv[1]

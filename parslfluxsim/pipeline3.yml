@@ -1,19 +1,37 @@
 pipelinestages:
     - name: preprocess
       resourcetype: CPU
+      priority: 0
+      output_size: 28.2
     - name: segmentation
       resourcetype: GPU
+      priority: 1
+      output_size: 153.6
       exec_dependencies:
+        - preprocess
+      data_dependencies:
         - preprocess
     - name: extractsurfacemesh
       resourcetype: CPU
+      priority: 2
+      output_size: 6
       exec_dependencies:
+        - segmentation
+      data_dependencies:
         - segmentation
     - name: registerimagetoatlas
       resourcetype: GPU
+      priority: 3
+      output_size: 234.7
       exec_dependencies:
+        - extractsurfacemesh
+      data_dependencies:
         - extractsurfacemesh
     - name: warpmesh
       resourcetype: CPU
+      priority: 4
+      output_size: 12.57
       exec_dependencies:
+        - registerimagetoatlas
+      data_dependencies:
         - registerimagetoatlas

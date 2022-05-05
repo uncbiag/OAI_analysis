@@ -11,6 +11,7 @@ import seaborn as sns
 from fitter import Fitter, get_common_distributions, get_distributions
 from scipy.stats import *
 import pickle
+import  statistics
 
 cpu_completion_files = [
     'plots/run_64_100_77_98_First_0/complete.txt',
@@ -229,7 +230,7 @@ def read_performance_data ():
     resource_data = {}
 
     for cpu_completion_file in cpu_completion_files:
-        completion_file = open(cpu_completion_file, "r")
+        completion_file = open( cpu_completion_file, "r")
         cpu_completion_lines = completion_file.readlines ()
         images = []
 
@@ -294,6 +295,8 @@ def read_performance_data ():
             if resourceid not in results:
                 results[resourceid] = {}
             results[resourceid][version] = [dist, shape, location, scale]
+
+            #print(version, statistics.mean(resource_data[resourceid][version]))
 
     resource_data = {}
 
@@ -369,8 +372,15 @@ def read_performance_data ():
             results[resourceid][version] = [dist, shape, location, scale]
 
 
+            #print (version, statistics.mean (resource_data[resourceid][version]))
+
+
     print (results)
     return results
 
+def plot_performance_data ():
+    results = read_performance_data()
+
+
 if __name__ == '__main__':
-    create_performance_data()
+    read_performance_data()

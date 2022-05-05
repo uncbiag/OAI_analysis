@@ -230,7 +230,7 @@ class Simulation:
         if prediction == True:
             self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
         else:
-            self.env.process(self.scheduler.run_no_prediction(self.r, self.i, self.p))
+            self.env.process(self.scheduler.run_no_prediction_pin(self.r, self.i, self.p))
 
         print ('done')
 
@@ -245,7 +245,7 @@ if __name__ == "__main__":
 
     configfile = "oaiconfig.yml"
 
-    pipelinefile = "parslfluxsim/pipeline2.yml"
+    pipelinefile = "parslfluxsim/pipeline3.yml"
 
     resourcefile = "parslflux/resources2.yml"
 
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         batchsize = max_images[0]
 
     #reconfiguration_algos = ['base', 'down', 'overallocation', 'underallocation']
-    reconfiguration_algos = ['overallocation']
+    reconfiguration_algos = ['base']
     #no_of_runs = 50
     no_of_runs = 1
 
