@@ -267,9 +267,6 @@ class Resource:
             self.gpu.set_last_completion_time (None)
             return
 
-        else:
-            print ('oops!')
-
     def schedule_whole (self, rmanager, pmanager):
         if self.workqueue.is_empty () == False:
             timeout = self.get_timeout_value_whole (rmanager, pmanager)
@@ -811,11 +808,11 @@ class ResourceManager:
             return resource, provision_time
 
     def delete_resource (self, resourcetype, resource_id, exploration, active):
-        print ('delete resource ()', resource_id, resourcetype, exploration, active)
         if active == True:
             nodes = self.active_pool_nodes
         else:
             nodes = self.backup_pool_nodes
+        print('delete resource ()', resource_id, resourcetype, exploration, active, len(nodes))
         node_index = 0
         for node in nodes:
             if node.id == resource_id:
@@ -833,11 +830,18 @@ class ResourceManager:
             node_index += 1
 
         if node_index < len (nodes):
+            if exploration == True:
+                print ('delete_resource () exploration', len (self.exploration_resources))
+            else:
+                print('delete_resource () pinned', len(self.pinned_resources))
             node = nodes.pop (node_index)
             if exploration == True:
                 self.exploration_resources.remove(node)
+                print ('delete_resource () exploration', len (self.exploration_resources))
             else:
                 self.pinned_resources.remove(node)
+                print('delete_resource () pinned', len(self.pinned_resources))
+
             if resourcetype == 'CPU':
                 if active == True:
                     self.active_cpunodes_count -= 1
@@ -848,6 +852,10 @@ class ResourceManager:
                     self.active_gpunodes_count -= 1
                 else:
                     self.backup_gpunodes_count -= 1
+
+    def add_pinned_resource (self, node_id):
+        node = self.get_resource (node_id, True)
+        self.pinned_resources.append (node)
 
     def get_total_cost (self):
         return self.total_cpu_cost, self.total_gpu_cost

@@ -58,14 +58,14 @@ class Policy(object):
                 return None
 
     def pop_pending_workitem_indexed (self, resourcetype, pipelinestageindex):
-        print ('pop_pending_workitem_indexed ()', resourcetype, pipelinestageindex, len (self.cpuqueue), len(self.gpuqueue))
+        #print ('pop_pending_workitem_indexed ()', resourcetype, pipelinestageindex, len (self.cpuqueue), len(self.gpuqueue))
         ret_workitem = None
         if resourcetype == 'CPU':
             if len (self.cpuqueue) > 0:
                 index = 0
                 for workitem in self.cpuqueue:
                     workitem.print_data()
-                    print (index, workitem.pipelinestage.index, pipelinestageindex)
+                    #print (index, workitem.pipelinestage.index, pipelinestageindex)
                     if str(workitem.pipelinestage.index) == str(pipelinestageindex):
                         break
                     index += 1
@@ -152,11 +152,11 @@ class Policy(object):
 
 
     def remove_new_workitem (self):
-        print ('remove_new_workitem ()', len (self.newworkitemqueue))
+        #print ('remove_new_workitem ()', len (self.newworkitemqueue))
         self.newworkitemqueue.pop (0)
 
     def get_new_workitem(self, resourcetype):
-        print ('get_new_workitem ()', resourcetype, len (self.newworkitemqueue))
+        #print ('get_new_workitem ()', resourcetype, len (self.newworkitemqueue))
         new_workitem = None
         if len (self.newworkitemqueue) > 0:
             if resourcetype == self.newworkitemqueue[0].resourcetype:
@@ -164,9 +164,9 @@ class Policy(object):
         return new_workitem
 
     def add_back_new_workitem (self, workitem):
-        print ('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
+        #print ('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
         self.newworkitemqueue.insert(0, workitem)
-        print('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
+        #print('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
 
     def create_workitem_full (self, imanager, pmanager, resource_id):
         #print ('create_workitem_full ():')
@@ -209,13 +209,13 @@ class Policy(object):
 
 
     def remove_complete_workitem (self, resource, pmanager, env, imanager):
-        print ('remove_complete_workitem ():', resource.id, len (self.cpuqueue), len (self.gpuqueue))
+        #print ('remove_complete_workitem ():', resource.id, len (self.cpuqueue), len (self.gpuqueue))
         cpu_workitem = resource.pop_if_complete ('CPU')
 
         if cpu_workitem != None:
-            print (cpu_workitem.print_data ())
+            #print (cpu_workitem.print_data ())
             if cpu_workitem.get_status () == 'SUCCESS':
-                print ('adding to cpuqueue')
+                #print ('adding to cpuqueue')
                 pmanager.remove_executor(cpu_workitem, resource, env.now)
                 pmanager.remove_workitem_queue(cpu_workitem, env.now)
 
@@ -231,7 +231,7 @@ class Policy(object):
                         for parent_of_child in parents_of_child:
                             if parent_of_child.index == executed_pipelinestage.index:
                                 continue
-                            print (executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name, imanager.is_complete (cpu_workitem.id, parent_of_child.index))
+                            #print (executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name, imanager.is_complete (cpu_workitem.id, parent_of_child.index))
                             if imanager.is_complete (cpu_workitem.id, parent_of_child.index) == True:
                                 continue
                             else:
@@ -257,9 +257,9 @@ class Policy(object):
         gpu_workitem = resource.pop_if_complete ('GPU')
 
         if gpu_workitem != None:
-            print (gpu_workitem.print_data ())
+            #print (gpu_workitem.print_data ())
             if gpu_workitem.get_status () == 'SUCCESS':
-                print ('adding to gpuqueue')
+                #print ('adding to gpuqueue')
                 pmanager.remove_executor(gpu_workitem, resource, env.now)
                 pmanager.remove_workitem_queue(gpu_workitem, env.now)
 
@@ -274,8 +274,8 @@ class Policy(object):
                         for parent_of_child in parents_of_child:
                             if parent_of_child.index == executed_pipelinestage.index:
                                 continue
-                            print(executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name,
-                                  imanager.is_complete(gpu_workitem.id, parent_of_child.index))
+                            #print(executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name,
+                            #      imanager.is_complete(gpu_workitem.id, parent_of_child.index))
                             if imanager.is_complete (gpu_workitem.id, parent_of_child.index) == True:
                                 continue
                             else:
@@ -294,7 +294,7 @@ class Policy(object):
                                 pmanager.add_workitem_queue(next_workitem, env.now)
 
             else:
-                print ('adding to resubmitgpuqueue')
+                #print ('adding to resubmitgpuqueue')
                 self.resubmitgpuqueue.append (gpu_workitem)
 
 
@@ -380,13 +380,13 @@ class Policy(object):
             #print (self.gpuqueue)
         else:
             self.resubmitgpuqueue = sorted (self.resubmitgpuqueue, key=lambda x:x.endtime)
-            print ('before ()')
-            for workitem in self.gpuqueue:
-                print (workitem.id, workitem.endtime)
+            #print ('before ()')
+            #for workitem in self.gpuqueue:
+            #    print (workitem.id, workitem.endtime)
             self.gpuqueue = sorted (self.gpuqueue, key=lambda x:x.endtime)
-            print('after ()')
-            for workitem in self.gpuqueue:
-                print(workitem.id, workitem.endtime)
+            #print('after ()')
+            #for workitem in self.gpuqueue:
+            #    print(workitem.id, workitem.endtime)
             #print (self.resubmitgpuqueue)
             #print (self.cpuqueue)
 

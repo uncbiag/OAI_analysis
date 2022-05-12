@@ -72,7 +72,7 @@ class Phase:
         return self.current_executors
 
     def add_executor (self, resource_id, now):
-        print ('add_executor ()', resource_id)
+        #print ('add_executor ()', resource_id)
         if resource_id not in self.current_executors:
             self.current_executors.append(resource_id)
             self.pcurrent_executors.append(resource_id)

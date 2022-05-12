@@ -302,8 +302,8 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     fig3.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor="none", bottom=False, left=False)
 
-    print (total_y_data)
-    print (total_x_data)
+    #print (total_y_data)
+    #print (total_x_data)
 
     plt.xlabel("Timeline (seconds)")
     plt.ylabel("Data Throughput (GB/hr)")

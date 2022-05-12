@@ -24,11 +24,11 @@ class ExplorationScheduling (Policy):
         if workitem == None:
             workitem = scheduling_policy.get_new_workitem (pipelinestage.resourcetype)
             new_workitem = True
-        else:
-            print ('add_workitem_exploration ()', 'pending')
-            workitem.print_data ()
+        #else:
+        #    print ('add_workitem_exploration ()', 'pending')
+        #    workitem.print_data ()
 
-        print ('add_workitem_exploration', pipelinestage.name, workitem.id)
+        #print ('add_workitem_exploration', pipelinestage.name, workitem.id)
 
         if workitem != None:
             added = False

@@ -573,6 +573,7 @@ class OAI_Scheduler:
             pipelinestage.remove_exploration_resource (pinned_resource)
 
             pipelinestage.add_pinned_resource (pinned_resource)
+            rmanager.add_pinned_resource (pinned_resource)
 
 
     def run_no_prediction_pin (self, rmanager, imanager, pmanager):

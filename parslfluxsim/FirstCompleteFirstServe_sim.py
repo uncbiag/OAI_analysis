@@ -256,7 +256,7 @@ class FirstCompleteFirstServe (Policy):
                 break
 
     def add_new_workitems_DFS_pipelinestage (self, rmanager, imanager, pmanager, empty_resources, resourcetype, pipelinestageindex):
-        print('add_new_workitems_DFS_pipelinestage', pipelinestageindex, len(self.cpuqueue), len(self.gpuqueue))
+        #print('add_new_workitems_DFS_pipelinestage', pipelinestageindex, len(self.cpuqueue), len(self.gpuqueue))
         completion_times = {}
 
         for resource in empty_resources:
@@ -297,7 +297,7 @@ class FirstCompleteFirstServe (Policy):
                 pending_workitem = self.pop_pending_workitem_indexed(resourcetype, pipelinestageindex)
 
                 if pending_workitem != None:
-                    print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
+                    #print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
                     pending_workitem.set_resource_id(resource_id)
                     resource.add_workitem(pending_workitem, resourcetype)
                     pmanager.add_executor(pending_workitem, resource.id, self.env.now)
@@ -319,7 +319,7 @@ class FirstCompleteFirstServe (Policy):
                 # print ('add_workitems ()', resource_id, 'workitems not available')
                 break
 
-        print ('add_new_workitems_DFS_pipelinestage',pipelinestageindex, len (self.cpuqueue), len (self.gpuqueue))
+        #print ('add_new_workitems_DFS_pipelinestage',pipelinestageindex, len (self.cpuqueue), len (self.gpuqueue))
 
 
     def add_new_workitems_DFS (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
