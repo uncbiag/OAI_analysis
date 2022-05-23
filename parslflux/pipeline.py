@@ -348,7 +348,7 @@ class PipelineStage:
         else:
             return self.data_children
 
-    def get_parent (self, type):
+    def get_parents (self, type):
         if type == 'exec':
             return self.exec_parents
         else:
@@ -381,6 +381,7 @@ class PipelineStage:
         return None
 
     def add_new_workitem (self, workitem, current_time, last_first_phase_closed_index):
+        print ('add_new_workitem ()', workitem.id, last_first_phase_closed_index)
         latest_phase = self.phases[last_first_phase_closed_index + 1]
         latest_phase.add_workitem(workitem, current_time)
         workitem.phase_index = last_first_phase_closed_index + 1

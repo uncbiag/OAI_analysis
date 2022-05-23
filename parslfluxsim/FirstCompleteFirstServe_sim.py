@@ -305,7 +305,14 @@ class FirstCompleteFirstServe (Policy):
 
             if item_added == False:
                 # new_workitem = self.create_workitem (imanager, pmanager, resource_id, resourcetype)
-                new_workitem = self.get_new_workitem(resourcetype)
+                # get new workitem only if it has no dependency on other stages
+
+                pipelinestage = pmanager.get_pipelinestage (int (pipelinestageindex))
+                parent_pipelinestages = pipelinestage.get_parents ('exec')
+                if len (parent_pipelinestages) <= 0:
+                    new_workitem = self.get_new_workitem(pipelinestage)
+                else:
+                    new_workitem = None
 
                 if new_workitem != None:
                     new_workitem.set_resource_id(resource_id)

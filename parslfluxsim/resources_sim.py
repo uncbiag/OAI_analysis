@@ -5,7 +5,7 @@ import random as rand
 
 from parslflux.workqueue import WorkItemQueue
 from aws_cloud_sim.costmodel import AWSCostModel
-
+from filesystem.pfs import PFS
 class CPU:
     def __init__ (self, name, cost, now):
         self.name = name
@@ -136,6 +136,7 @@ class Resource:
         print (self.id)
 
     def set_active (self, active):
+        print ('set_active ()', self.id, active)
         self.active = active
         self.acquisition_time = self.env.now
         self.pipelinestageindex = None
@@ -243,6 +244,22 @@ class Resource:
 
         return cpu_idle_periods, gpu_idle_periods
 
+    def mark_exploration_workitem (self, resourcetype, status):
+        if resourcetype == 'CPU' and self.cpu == None:
+            print (self.id, 'CPU not available')
+            return
+        if resourcetype == 'GPU' and self.gpu == None:
+            print (self.id, 'GPU not available')
+            return
+
+        if resourcetype == 'CPU' and self.cpu.workqueue.is_empty() == False:
+            workitem = self.cpu.workqueue.get_workitem()
+            workitem.mark_exploration_item (status)
+
+        elif resourcetype == 'GPU' and self.gpu.workqueue.is_empty() == False:
+            workitem = self.gpu.workqueue.get_workitem()
+            workitem.mark_exploration_item (status)
+
     def schedule (self, rmanager, pmanager, resourcetype, thread_exec, env):
         if resourcetype == 'CPU' and self.cpu == None:
             print (self.id, 'CPU not available')
@@ -266,7 +283,8 @@ class Resource:
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
             return
-
+        else:
+            print ('OPS')
     def schedule_whole (self, rmanager, pmanager):
         if self.workqueue.is_empty () == False:
             timeout = self.get_timeout_value_whole (rmanager, pmanager)
@@ -321,7 +339,7 @@ class Resource:
             if ret == True:
                 self.set_busy (False)
 
-    def get_status (self, rmanager, pmanager, threads, outputfile):
+    def get_status (self, rmanager, threads, outputfile):
         #print ('get_status ():', self.id)
         #first cpu
         if self.cpu != None and self.cpu.workqueue.is_empty () == False:

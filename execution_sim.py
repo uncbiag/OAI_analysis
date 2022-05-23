@@ -3,6 +3,7 @@ import random
 from scipy.stats import *
 import statistics
 import numpy as np
+
 class ExecutionSim:
     def __init__ (self, env, app):
         self.env = env
@@ -61,6 +62,7 @@ class ExecutionSimThread:
             return gennorm.rvs(shape, location, scale, 1)[0]
 
     def run (self):
+
         try:
             yield self.env.timeout(self.provision_time)
         except simpy.Interrupt as interrupt:
@@ -71,6 +73,7 @@ class ExecutionSimThread:
         self.resource.set_active (True)
         self.resource.set_idle_start_time(self.resourcetype, self.env.now)
         print (self.resource.id, self.resourcetype, 'started', self.env.now)
+
         while True:
             try:
                 #print ('sleeping')
@@ -85,20 +88,35 @@ class ExecutionSimThread:
                     version = interrupt.cause
                     #print (self.resourceid, self.resourcetype, version, self.interrupts)
                     startime = self.env.now
+
                     timeout = self.get_timeout(version)
-                    #timeout = self.distributions[version][random.randrange(len(self.distributions))]
-                    #timeouts = self.performancedata[self.resourcename][version]
-                    #timeout_max = max(timeouts)
-                    #timeout_min = min(timeouts)
-                    #timeout = random.randrange(timeout_min, timeout_max, 1)
-                    #timeout = sum(timeouts)/len(timeouts)
-                    #print(self.resourceid, version, timeout_min, timeout_max, timeout/3600, self.interrupts)
-                    yield self.env.timeout (timeout/3600)
+
+                    input_read_starttime = self.env.now
+                    input_read_time = 0
+
+                    exec_starttime = input_read_starttime + input_read_time
+                    exec_endtime = exec_starttime + timeout
+
+                    output_write_time = 0
+                    output_write_endtime = exec_endtime + output_write_time
+
+                    #print (version, 'sleeping', timeout/3600)
+                    yield self.env.timeout ((timeout + input_read_time + output_write_time)/3600)
                     endtime = self.env.now
                     #print (resource_id, version, startime, endtime, 'complete', self.interrupts)
                     self.iscomplete = True
                     self.timeout = timeout
                     self.starttime = startime
                     self.endtime = endtime
+
+                    self.exec_starttime = exec_starttime
+                    self.exec_endtime = exec_endtime
+                    self.input_read_starttime = input_read_starttime
+                    self.input_read_endtime = exec_starttime
+                    self.output_write_starttime = exec_endtime
+                    self.output_write_endtime = output_write_endtime
+
+                    
+
 
 

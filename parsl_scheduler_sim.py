@@ -10,6 +10,7 @@ from parslfluxsim.input_sim import InputManager2
 from parslfluxsim.performance_sim import read_performance_data
 from plots.plot_prediction_sim import plot_prediction
 from performance_analysis import plot_prediction_performance, store_performance_data
+from filesystem.pfs import PFS
 
 import csv
 from itertools import zip_longest
@@ -227,6 +228,7 @@ class Simulation:
         self.scheduler.imbalance_limit = imbalance_limit
         self.scheduler.mapping = self.mapping
         self.scheduler.throughput_target = throughput_target
+        self.scheduler.pfs = PFS (1048576, self.env)
         if prediction == True:
             self.env.process(self.scheduler.run_prediction(self.r, self.i, self.p))
         else:

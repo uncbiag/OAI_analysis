@@ -10,6 +10,7 @@ class Policy(object):
         self.resubmitcpuqueue = []
         self.resubmitgpuqueue = []
         self.pmanager = pmanager
+        self.newworkitemqueue_tracker = {}
 
     def add_back_workitem (self, resourcetype, workitem):
         #print ('add_back_workitem ():')
@@ -57,6 +58,27 @@ class Policy(object):
                 #print ('None')
                 return None
 
+    def get_pending_workitem_indexed_exploration (self, pipelinestage):
+        resourcetype = pipelinestage.resourcetype
+        pipelinestageindex = pipelinestage.index
+
+        if resourcetype == 'CPU':
+            if len(self.cpuqueue) > 0:
+                index = 0
+                for workitem in self.cpuqueue:
+                    if str(workitem.pipelinestage.index) == str(pipelinestageindex) and workitem.exploration_item == True:
+                        return workitem
+                    index += 1
+        else:
+            if len(self.gpuqueue) > 0:
+                index = 0
+                for workitem in self.gpuqueue:
+                    if str(workitem.pipelinestage.index) == str(pipelinestageindex) and workitem.exploration_item == True:
+                        return workitem
+                    index += 1
+
+        return None
+
     def pop_pending_workitem_indexed (self, resourcetype, pipelinestageindex):
         #print ('pop_pending_workitem_indexed ()', resourcetype, pipelinestageindex, len (self.cpuqueue), len(self.gpuqueue))
         ret_workitem = None
@@ -66,7 +88,7 @@ class Policy(object):
                 for workitem in self.cpuqueue:
                     workitem.print_data()
                     #print (index, workitem.pipelinestage.index, pipelinestageindex)
-                    if str(workitem.pipelinestage.index) == str(pipelinestageindex):
+                    if str(workitem.pipelinestage.index) == str(pipelinestageindex) and workitem.exploration_item == False:
                         break
                     index += 1
                 if index < len (self.cpuqueue):
@@ -81,7 +103,7 @@ class Policy(object):
                 index = 0
                 for workitem in self.gpuqueue:
                     workitem.print_data()
-                    if str(workitem.pipelinestage.index) == str(pipelinestageindex):
+                    if str(workitem.pipelinestage.index) == str(pipelinestageindex) and workitem.exploration_item == False:
                         break
                     index += 1
                 if index < len (self.gpuqueue):
@@ -149,24 +171,32 @@ class Policy(object):
         else:
             return self.cpuqueue
 
-
-
     def remove_new_workitem (self):
         #print ('remove_new_workitem ()', len (self.newworkitemqueue))
         self.newworkitemqueue.pop (0)
 
-    def get_new_workitem(self, resourcetype):
-        #print ('get_new_workitem ()', resourcetype, len (self.newworkitemqueue))
+
+    def get_new_workitem (self, pipelinestage):
+        resourcetype = pipelinestage.resourcetype
+        pipelinestageindex = pipelinestage.index
+
         new_workitem = None
-        if len (self.newworkitemqueue) > 0:
-            if resourcetype == self.newworkitemqueue[0].resourcetype:
-                new_workitem = self.newworkitemqueue.pop(0)
+        if str(pipelinestageindex) not in self.newworkitemqueue_tracker:
+            self.newworkitemqueue_tracker[str(pipelinestageindex)] = 0
+
+        print ('get_new_workitem ()', self.newworkitemqueue_tracker[str(pipelinestageindex)])
+
+        if self.newworkitemqueue_tracker[str(pipelinestageindex)] < len(self.newworkitemqueue):
+            if resourcetype == self.newworkitemqueue[self.newworkitemqueue_tracker[str(pipelinestageindex)]].resourcetype:
+                new_workitem = self.newworkitemqueue[self.newworkitemqueue_tracker[str(pipelinestageindex)]]
+                self.newworkitemqueue_tracker[str(pipelinestageindex)] += 1
+
         return new_workitem
 
-    def add_back_new_workitem (self, workitem):
+    def add_back_new_workitem (self, pipelinestageindex):
         #print ('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
-        self.newworkitemqueue.insert(0, workitem)
-        #print('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
+        self.newworkitemqueue_tracker[str(pipelinestageindex)] -= 1
+        print('add_back_new_workitem ()', pipelinestageindex, len (self.newworkitemqueue))
 
     def create_workitem_full (self, imanager, pmanager, resource_id):
         #print ('create_workitem_full ():')
@@ -208,48 +238,61 @@ class Policy(object):
         return new_workitem
 
 
-    def remove_complete_workitem (self, resource, pmanager, env, imanager):
+    #store and remove intermediate data here
+    #pfs.store_file(workitem.id, workitem.version, workitem.pipelinestage.output_size)
+    def remove_complete_workitem (self, resource, pmanager, env, imanager, pfs):
         #print ('remove_complete_workitem ():', resource.id, len (self.cpuqueue), len (self.gpuqueue))
         cpu_workitem = resource.pop_if_complete ('CPU')
 
         if cpu_workitem != None:
             #print (cpu_workitem.print_data ())
+            print ('remove_complete_workitem () CPU', cpu_workitem.exploration_item)
             if cpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to cpuqueue')
                 pmanager.remove_executor(cpu_workitem, resource, env.now)
                 pmanager.remove_workitem_queue(cpu_workitem, env.now)
 
-                if int(cpu_workitem.version) < len (self.pmanager.pipelinestages) - 1:
-                    executed_pipelinestage = pmanager.get_pipelinestage (int (cpu_workitem.version))
-                    imanager.set_complete(cpu_workitem.id, executed_pipelinestage.index, True)
-
-                    children_pipelinestages = executed_pipelinestage.get_children ('exec')
-                    for child_pipelinestage in children_pipelinestages:
-                        parents_of_child = child_pipelinestage.get_parent ('exec')
-
-                        all_parents_complete = True
-                        for parent_of_child in parents_of_child:
-                            if parent_of_child.index == executed_pipelinestage.index:
-                                continue
-                            #print (executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name, imanager.is_complete (cpu_workitem.id, parent_of_child.index))
-                            if imanager.is_complete (cpu_workitem.id, parent_of_child.index) == True:
-                                continue
-                            else:
-                                all_parents_complete = False
-                                break
-                        if all_parents_complete == True:
-                            if child_pipelinestage.resourcetype == 'CPU':
-                                next_workitem = cpu_workitem.compose_next_workitem ('CPU', child_pipelinestage)
-                                self.cpuqueue.append (next_workitem)
-                                imanager.set_complete (cpu_workitem.id, child_pipelinestage.index, False)
-                                pmanager.add_workitem_queue(next_workitem, env.now)
-                            else:
-                                next_workitem = cpu_workitem.compose_next_workitem('GPU', child_pipelinestage)
-                                self.gpuqueue.append(next_workitem)
-                                imanager.set_complete(cpu_workitem.id, child_pipelinestage.index, False)
-                                pmanager.add_workitem_queue(next_workitem, env.now)
+                executed_pipelinestage = pmanager.get_pipelinestage (int (cpu_workitem.version))
+                imanager.set_complete(cpu_workitem.id, executed_pipelinestage.index, True)
 
 
+                data_parent_pipelinestages = executed_pipelinestage.get_parents('data')
+
+                for data_parent_pipelinestage in data_parent_pipelinestages:
+                    pfs.delete_file(cpu_workitem, executed_pipelinestage.index, data_parent_pipelinestage.index)
+
+                data_children_pipelinestages = executed_pipelinestage.get_children('data')
+                if len (data_children_pipelinestages) > 0:
+                    pfs.store_file(cpu_workitem, data_children_pipelinestages)
+
+
+
+                children_pipelinestages = executed_pipelinestage.get_children ('exec')
+
+                for child_pipelinestage in children_pipelinestages:
+                    parents_of_child = child_pipelinestage.get_parents ('exec')
+
+                    all_parents_complete = True
+                    for parent_of_child in parents_of_child:
+                        if parent_of_child.index == executed_pipelinestage.index:
+                            continue
+                        #print (executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name, imanager.is_complete (cpu_workitem.id, parent_of_child.index))
+                        if imanager.is_complete (cpu_workitem.id, parent_of_child.index) == True:
+                            continue
+                        else:
+                            all_parents_complete = False
+                            break
+                    if all_parents_complete == True:
+                        if child_pipelinestage.resourcetype == 'CPU':
+                            next_workitem = cpu_workitem.compose_next_workitem ('CPU', child_pipelinestage)
+                            self.cpuqueue.append (next_workitem)
+                            imanager.set_complete (cpu_workitem.id, child_pipelinestage.index, False)
+                            pmanager.add_workitem_queue(next_workitem, env.now)
+                        else:
+                            next_workitem = cpu_workitem.compose_next_workitem('GPU', child_pipelinestage)
+                            self.gpuqueue.append(next_workitem)
+                            imanager.set_complete(cpu_workitem.id, child_pipelinestage.index, False)
+                            pmanager.add_workitem_queue(next_workitem, env.now)
             else:
                 #print ('adding to resubmitcpuqueue')
                 self.resubmitcpuqueue.append (cpu_workitem)
@@ -258,40 +301,53 @@ class Policy(object):
 
         if gpu_workitem != None:
             #print (gpu_workitem.print_data ())
+            print('remove_complete_workitem () GPU', gpu_workitem.exploration_item)
             if gpu_workitem.get_status () == 'SUCCESS':
                 #print ('adding to gpuqueue')
                 pmanager.remove_executor(gpu_workitem, resource, env.now)
                 pmanager.remove_workitem_queue(gpu_workitem, env.now)
 
-                if int(gpu_workitem.version) < len (self.pmanager.pipelinestages) - 1:
-                    executed_pipelinestage = pmanager.get_pipelinestage (int (gpu_workitem.version))
-                    imanager.set_complete(gpu_workitem.id, executed_pipelinestage.index, True)
 
-                    children_pipelinestages = executed_pipelinestage.get_children ('exec')
-                    for child_pipelinestage in children_pipelinestages:
-                        parents_of_child = child_pipelinestage.get_parent ('exec')
-                        all_parents_complete = True
-                        for parent_of_child in parents_of_child:
-                            if parent_of_child.index == executed_pipelinestage.index:
-                                continue
-                            #print(executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name,
-                            #      imanager.is_complete(gpu_workitem.id, parent_of_child.index))
-                            if imanager.is_complete (gpu_workitem.id, parent_of_child.index) == True:
-                                continue
-                            else:
-                                all_parents_complete = False
-                                break
-                        if all_parents_complete == True:
-                            if child_pipelinestage.resourcetype == 'CPU':
-                                next_workitem = gpu_workitem.compose_next_workitem ('CPU', child_pipelinestage)
-                                self.cpuqueue.append (next_workitem)
-                                imanager.set_complete(gpu_workitem.id, child_pipelinestage.index, False)
-                                pmanager.add_workitem_queue(next_workitem, env.now)
-                            else:
-                                next_workitem = gpu_workitem.compose_next_workitem('GPU', child_pipelinestage)
-                                self.gpuqueue.append(next_workitem)
-                                imanager.set_complete(gpu_workitem.id, child_pipelinestage.index, False)
-                                pmanager.add_workitem_queue(next_workitem, env.now)
+                executed_pipelinestage = pmanager.get_pipelinestage (int (gpu_workitem.version))
+                imanager.set_complete(gpu_workitem.id, executed_pipelinestage.index, True)
+
+
+
+                data_parent_pipelinestages = executed_pipelinestage.get_parents('data')
+
+                for data_parent_pipelinestage in data_parent_pipelinestages:
+                    pfs.delete_file(gpu_workitem, executed_pipelinestage.index, data_parent_pipelinestage.index)
+
+                data_children_pipelinestages = executed_pipelinestage.get_children('data')
+                if len(data_children_pipelinestages) > 0:
+                    pfs.store_file(gpu_workitem, data_children_pipelinestages)
+
+
+                children_pipelinestages = executed_pipelinestage.get_children ('exec')
+                for child_pipelinestage in children_pipelinestages:
+                    parents_of_child = child_pipelinestage.get_parents ('exec')
+                    all_parents_complete = True
+                    for parent_of_child in parents_of_child:
+                        if parent_of_child.index == executed_pipelinestage.index:
+                            continue
+                        #print(executed_pipelinestage.name, child_pipelinestage.name, parent_of_child.name,
+                        #      imanager.is_complete(gpu_workitem.id, parent_of_child.index))
+                        if imanager.is_complete (gpu_workitem.id, parent_of_child.index) == True:
+                            continue
+                        else:
+                            all_parents_complete = False
+                            break
+                    if all_parents_complete == True:
+                        if child_pipelinestage.resourcetype == 'CPU':
+                            next_workitem = gpu_workitem.compose_next_workitem ('CPU', child_pipelinestage)
+                            self.cpuqueue.append (next_workitem)
+                            imanager.set_complete(gpu_workitem.id, child_pipelinestage.index, False)
+                            pmanager.add_workitem_queue(next_workitem, env.now)
+                        else:
+                            next_workitem = gpu_workitem.compose_next_workitem('GPU', child_pipelinestage)
+                            self.gpuqueue.append(next_workitem)
+                            imanager.set_complete(gpu_workitem.id, child_pipelinestage.index, False)
+                            pmanager.add_workitem_queue(next_workitem, env.now)
 
             else:
                 #print ('adding to resubmitgpuqueue')

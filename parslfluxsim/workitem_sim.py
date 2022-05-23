@@ -26,10 +26,15 @@ class WorkItem:
         self.starttime = -1
         self.endtime = -1
         self.priority = int (pipelinestage.priority)
+        self.exploration_item = False
+
+    def mark_exploration_item (self, status):
+        self.exploration_item = status
 
     def get_copy (self):
         copy = WorkItem (self.id, self.data, self.collectfrom, self.pipelinestage, self.resourceid, self.resourcetype, self.version, self.inputlocation)
         copy.phase_index = self.phase_index
+        copy.exploration_item = self.exploration_item
         return copy
 
     def get_id(self):
@@ -70,6 +75,7 @@ class WorkItem:
         next_workitem.phase_index = self.phase_index
         next_workitem.starttime = self.starttime
         next_workitem.endtime = self.endtime
+        next_workitem.exploration_item = self.exploration_item
 
         return next_workitem
 
@@ -85,7 +91,7 @@ class WorkItem:
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
 
-        #print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
+        print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
         thread_exec.interrupt (str(self.version))
 
         # workitem['timeout'] = double (150)
@@ -108,12 +114,23 @@ class WorkItem:
         # print ('probe_status ():', self.id, self.version)
 
         if thread.iscomplete == True:
-            str = "probe_status (complete): {} {} {} {} {} success {}".format(self.id, self.version, thread.starttime, thread.endtime, self.resourceid, thread.timeout)
-            #print (str)
+            str = "probe_status (complete): {} {} {} {} {} success {}".format(self.id, self.version, thread.starttime,
+                                                                              thread.endtime, self.resourceid,
+                                                                              thread.timeout)
+            print (str)
             outputfile.write (str + "\n")
             self.iscomplete = True
+            '''
             self.starttime = thread.starttime
             self.endtime = thread.endtime
+            '''
+            self.starttime = thread.input_read_starttime
+            self.endtime = thread.output_write_endtime
+            self.output_write_starttime = thread.output_write_starttime
+            self.output_write_endtime = thread.output_write_endtime
+            self.input_read_starttime = thread.input_read_starttime
+            self.input_read_endtime = thread.input_read_endtime
+
             self.status = 'SUCCESS'
             thread.iscomplete = False
             #print ('probe_status ()', self.id, self.endtime)

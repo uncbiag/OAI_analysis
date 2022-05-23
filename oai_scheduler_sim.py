@@ -28,7 +28,7 @@ class OAI_Scheduler:
 
         new_resource, provision_time = rmanager.add_resource (cpuok, gpuok, cputype, gputype, provision_type, activepool, bidding_price, pipelinestageindex, exploration)
 
-        print (new_resource.cpu, new_resource.gpu)
+        print ('add_worker ()', new_resource.cpu, new_resource.gpu, provision_time)
 
         if new_resource.cpu != None:
             cpu_thread = ExecutionSimThread(self.env, new_resource, 'CPU', self.performancedata, provision_type, provision_time)
@@ -538,21 +538,27 @@ class OAI_Scheduler:
                 continue
 
             resource = rmanager.get_resource(exploration_resource_id, True)
-            diff = resource.get_status(rmanager, pmanager, self.worker_threads[resource.id], self.outputfile)
+            diff = resource.get_status(rmanager, self.worker_threads[resource.id], self.outputfile)
 
             print ('end_exploration ()', pipelinestage.name, exploration_resource_id, diff)
 
             if diff == None:
                 continue
+            pipelinestage_parents = pipelinestage.get_parents ('exec')
 
-            if pipelinestage.get_exploration_ended_count () <= 0:
-                print ('end_exploration', 'removing workitem')
-                scheduling_policy.remove_complete_workitem (resource, pmanager, self.env, imanager)
+            if len (pipelinestage_parents) <= 0:
+                if pipelinestage.get_exploration_ended_count() <= 0:
+                    resource.mark_exploration_workitem (pipelinestage.resourcetype, True)
+                scheduling_policy.remove_complete_workitem(resource, pmanager, self.env, imanager, self.pfs)
             else:
-                if pipelinestage.resourcetype == 'CPU':
-                    resource.pop_if_complete('CPU')
+                if pipelinestage.get_exploration_ended_count () <= 0:
+                    resource.mark_exploration_workitem(pipelinestage.resourcetype, True)
+                    scheduling_policy.remove_complete_workitem (resource, pmanager, self.env, imanager, self.pfs)
                 else:
-                    resource.pop_if_complete('GPU')
+                    if pipelinestage.resourcetype == 'CPU':
+                        resource.pop_if_complete('CPU')
+                    else:
+                        resource.pop_if_complete('GPU')
 
             pipelinestage.set_exploration_ended(exploration_resource_id, True, diff)
 
@@ -595,35 +601,33 @@ class OAI_Scheduler:
             while True:
                 pipelinestages = pmanager.pipelinestages
 
-
-
                 for pipelinestage in pipelinestages:
                     if pipelinestage.get_exploration_needed () == True:
-                        print ('--------------------------------------')
-                        print (pipelinestage.name, 'exloration_needed')
+                        #print ('--------------------------------------')
+                        #print (pipelinestage.name, 'exloration_needed')
                         ret = self.explore (rmanager, pipelinestage)
 
                         if ret == True:
                             pipelinestage.set_exploration_needed (False)
                             pipelinestage.set_exploration_scheduling_needed (True)
 
-                        print('--------------------------------------')
+                        #print('--------------------------------------')
 
                     elif pipelinestage.get_exploration_scheduling_needed () == True:
-                        print ('######################################')
-                        print(pipelinestage.name, 'exloration_scheduling_needed')
+                        #print ('######################################')
+                        #print(pipelinestage.name, 'exloration_scheduling_needed')
                         self.schedule_exploration (rmanager, pmanager, pipelinestage, exploration_scheduling_policy, scheduling_policy)
                         if pipelinestage.get_all_exploration_scheduled () == True:
                             pipelinestage.set_exploration_scheduling_needed (False)
                             pipelinestage.set_exploration_ending_needed (True)
-                        print('######################################')
+                        #print('######################################')
                     elif pipelinestage.get_exploration_ending_needed ()  == True:
-                        print ('*************************************')
-                        print(pipelinestage.name, 'exloration_ending_needed')
+                        #print ('*************************************')
+                        #print(pipelinestage.name, 'exloration_ending_needed')
                         self.end_exploration (rmanager, imanager, pmanager, scheduling_policy, pipelinestage)
                         if pipelinestage.get_all_exploration_ended () == True:
                             pipelinestage.set_exploration_ending_needed (False)
-                        print('*************************************')
+                        #print('*************************************')
 
                 for pipelinestage in pipelinestages:
                     if pipelinestage.get_exploration_needed () == False and pipelinestage.get_exploration_scheduling_needed () == False and pipelinestage.get_exploration_ending_needed ()  == False:
@@ -631,10 +635,10 @@ class OAI_Scheduler:
                         for resource_id in pinned_resource_ids:
                             pinned_resource = rmanager.get_resource (resource_id, True)
                             # print ('###########################')
-                            pinned_resource.get_status (rmanager, pmanager, self.worker_threads[pinned_resource.id], self.outputfile)
+                            pinned_resource.get_status (rmanager, self.worker_threads[pinned_resource.id], self.outputfile)
                             # print ('###########################')
                             # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            scheduling_policy.remove_complete_workitem (pinned_resource, pmanager, self.env, imanager)
+                            scheduling_policy.remove_complete_workitem (pinned_resource, pmanager, self.env, imanager, self.pfs)
                             # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
                         empty_cpus = []
@@ -773,7 +777,8 @@ class OAI_Scheduler:
                     for idle_gpu in idle_gpus:
                         self.delete_worker(rmanager, 'GPU', idle_gpu.id, False)
                     cpu_cost, gpu_cost = rmanager.get_total_cost()
-                    print('total cost', cpu_cost, gpu_cost, self.env.now)
+                    print('total cost', self.env.now, cpu_cost, gpu_cost, self.pfs.capacity, self.pfs.capacity_in_use, self.pfs.total_entries)
+                    self.pfs.print_data()
 
                     # add_performance_data(self.algo, cpu_cost, gpu_cost, self.env.now, self.reconfiguration_time_delta, self.imbalance_limit)
 
