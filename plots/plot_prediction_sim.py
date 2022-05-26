@@ -153,7 +153,8 @@ def plot_prediction_idle_periods (actual_idle_periods, predicted_idle_periods):
 
 
 
-def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batchsize):
+def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
+
     fig, axes = plt.subplots(5, 1, sharex=True)
 
     labels = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']
@@ -162,7 +163,7 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     for pipelinestage_name in plot_data:
         phases_data = plot_data[pipelinestage_name]
         phase_index = 0
-        ax = axes[pipelinestage_index ]
+        ax = axes[pipelinestage_index]
 
         #x.set_ylim (bottom=-2, top=batchsize)
 
@@ -181,42 +182,6 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
 
             p = ax.plot(x_data, y_data)
 
-            '''
-            ax.plot ([int (float (phase_starttime) * 3600), int (float (phase_starttime) * 3600)] , [1, -1], p[0].get_color ())
-            ax.plot ([int (float (phase_endtime) * 3600), int (float (phase_endtime) * 3600)], [1, -1], p[0].get_color ())
-            ax.plot ([int (float (phase_starttime) * 3600), int (float (phase_endtime) * 3600)] , [0, 0], p[0].get_color ())
-
-            real_timediff = int (float (phase_endtime) * 3600) - int (float (phase_starttime) * 3600)
-
-            ax.text ((int (float (phase_starttime) * 3600) + int (float (phase_endtime) * 3600))/2, 0, str(real_timediff), fontsize=10)
-
-            y_limit = ax.get_ylim()[1] - 1
-
-            prediction_index = 0
-            phase_predictions = phase_data[3]
-            for prediction_time in phase_predictions:
-                prediction = phase_predictions[prediction_time]
-                prediction_starttime = prediction[4]
-                prediction_endtime = prediction[5]
-
-                #ax.plot([int(float(prediction_starttime) * 3600), int(float(prediction_starttime) * 3600)], [1, -1], p[0].get_color())
-                #ax.plot([int(float(prediction_endtime) * 3600), int(float(prediction_endtime) * 3600)], [1, -1], p[0].get_color())
-
-                ax.plot([int(float(prediction_starttime) * 3600), int(float(prediction_starttime) * 3600)], [y_limit - prediction_index, y_limit - (prediction_index + 2)], p[0].get_color())
-                ax.plot([int(float(prediction_endtime) * 3600), int(float(prediction_endtime) * 3600)], [y_limit - prediction_index, y_limit - (prediction_index + 2)], p[0].get_color())
-
-                ax.plot([int(float(prediction_starttime) * 3600), int(float(prediction_endtime) * 3600)],
-                        [y_limit - (prediction_index + 1), y_limit - (prediction_index + 1)], p[0].get_color())
-
-                prediction_timediff = int(float(prediction_endtime) * 3600) - int(float(prediction_starttime) * 3600)
-
-                percentage_diff = round ((real_timediff - prediction_timediff) / prediction_timediff * 100, 2)
-
-                ax.text (int(float(prediction_endtime) * 3600), y_limit - (prediction_index + 1), str (prediction_timediff) + '[' + str(percentage_diff) + '%]', fontsize=10)
-
-                prediction_index += 2
-            '''
-
             phase_index += 1
 
         ax.yaxis.set_label_position("right")
@@ -229,10 +194,50 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     plt.xlabel("Timeline (seconds)")
     plt.ylabel("Queue size")
 
-    # plt.xlabel('Timeline (seconds)')
+    pfs_capacity = pfs.get_capacity()
+    deleted_entries = pfs.get_delete_entries()
 
+    pfs_change_events = {}
 
-    #plt.savefig('tmp.png', dpi=300)
+    for key in deleted_entries:
+        pfs_change_events[key] = []
+
+    for key in deleted_entries:
+        for entry in deleted_entries[key]:
+            add_event = [deleted_entries[key][entry]['entry'], deleted_entries[key][entry]['size'], 0]
+            del_event = [deleted_entries[key][entry]['exit'], deleted_entries[key][entry]['size'], 1]
+            pfs_change_events[key].append(add_event)
+            pfs_change_events[key].append(del_event)
+
+    fig0, axes0 = plt.subplots(4, 1, sharex=True)
+
+    pipelinestage_index = 0
+    for key in deleted_entries:
+        pfs_change_events[key] = sorted(pfs_change_events[key], key=lambda x: x[0])
+
+        x_data = []
+        y_data = []
+        total_size = 0
+        for entry in pfs_change_events[key]:
+            if entry[2] == 0:
+                total_size += entry[1]
+            else:
+                total_size -= entry[1]
+            x_data.append(entry[0] * 3600)
+            y_data.append(total_size)
+
+        ax = axes0[int(pipelinestage_index)]
+        ax.plot(x_data, y_data)
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(labels[int(pipelinestage_index)])
+        pipelinestage_index += 1
+
+    fig0.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Occupied Space (MB)")
 
     fig2, axes2 = plt.subplots(5, 1, sharex=True)
 
@@ -355,6 +360,7 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, prediction_times, batc
     ax.set_xlabel ('Timeline (seconds)')
     ax.set_ylabel ('Count')
     fig.savefig('queue_pattern_overallocation_stable.png', dpi=300)
+    fig0.savefig ('filesystem_space.png', dpi=300)
     fig1.savefig('resource_pattern_overallocation_stable.png', dpi=300)
     fig2.savefig ('throughput_pattern_overallocation_stable.png', dpi=300)
     plt.show()

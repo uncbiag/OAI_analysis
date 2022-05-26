@@ -95,7 +95,7 @@ class ExecutionSimThread:
                     input_read_time = 0
 
                     exec_starttime = input_read_starttime + input_read_time
-                    exec_endtime = exec_starttime + timeout
+                    exec_endtime = exec_starttime + (timeout/3600)
 
                     output_write_time = 0
                     output_write_endtime = exec_endtime + output_write_time

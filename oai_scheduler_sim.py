@@ -783,7 +783,7 @@ class OAI_Scheduler:
                     # add_performance_data(self.algo, cpu_cost, gpu_cost, self.env.now, self.reconfiguration_time_delta, self.imbalance_limit)
 
                     # pmanager.print_stage_queue_data_1()
-                    pmanager.print_stage_queue_data_2(rmanager)
+                    pmanager.print_stage_queue_data_2(rmanager, self.pfs)
                     # pmanager.print_stage_queue_data_3 (self.idle_periods)
                     break
 

@@ -266,7 +266,6 @@ class Policy(object):
                     pfs.store_file(cpu_workitem, data_children_pipelinestages)
 
 
-
                 children_pipelinestages = executed_pipelinestage.get_children ('exec')
 
                 for child_pipelinestage in children_pipelinestages:

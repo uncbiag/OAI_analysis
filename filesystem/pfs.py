@@ -15,6 +15,7 @@ class PFS:
 
         if str (version) not in self.storage.keys ():
             self.storage [str(version)] = {}
+
         if image_id not in self.storage[str(version)]:
             self.storage[str(version)][str(image_id)] = {}
             self.storage[str(version)][str(image_id)]['entrytime'] = workitem.output_write_endtime
@@ -27,6 +28,7 @@ class PFS:
                 pipelinestages.append (child_pipelinestage.index)
 
             self.storage[str(version)][str(image_id)]['children_status'] = pipelinestages
+
 
     def delete_file (self, workitem, current_pipelinestageindex, parent_pipelinestageindex):
         image_id = workitem.id
@@ -63,13 +65,18 @@ class PFS:
                 self.deleted_entries[str(version)][str(image_id)] = {}
                 self.deleted_entries[str(version)][str(image_id)]['entry'] = entrytime
                 self.deleted_entries[str(version)][str(image_id)]['exit'] = exittime
-
+                self.deleted_entries[str(version)][str(image_id)]['size'] = filesize
+            else:
+                self.deleted_entries[str(version)][str(image_id)] = {}
+                self.deleted_entries[str(version)][str(image_id)]['entry'] = entrytime
+                self.deleted_entries[str(version)][str(image_id)]['exit'] = exittime
+                self.deleted_entries[str(version)][str(image_id)]['size'] = filesize
 
             del self.storage[str(version)][str(image_id)]
             self.capacity_in_use -= filesize
             self.total_entries -= 1
 
-    def get_data (self):
+    def get_delete_entries (self):
         return self.deleted_entries
 
     def get_capacity(self):
