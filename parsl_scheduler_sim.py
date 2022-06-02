@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
     configfile = "oaiconfig.yml"
 
-    pipelinefile = "parslfluxsim/pipeline3.yml"
+    pipelinefile = "parslfluxsim/pipeline2.yml"
 
     resourcefile = "parslflux/resources2.yml"
 

@@ -224,7 +224,7 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
             else:
                 total_size -= entry[1]
             x_data.append(entry[0] * 3600)
-            y_data.append(total_size)
+            y_data.append(float (total_size/1024))
 
         ax = axes0[int(pipelinestage_index)]
         ax.plot(x_data, y_data)
@@ -237,7 +237,7 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
     plt.tick_params(labelcolor="none", bottom=False, left=False)
 
     plt.xlabel("Timeline (seconds)")
-    plt.ylabel("Occupied Space (MB)")
+    plt.ylabel("Occupied Space (GB)")
 
     fig2, axes2 = plt.subplots(5, 1, sharex=True)
 
@@ -274,7 +274,8 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
     fig3, axes3 = plt.subplots(len (list (data_throughput_record.keys ())) + 1, 1, sharex=True)
 
     total_x_data = []
-    total_y_data = [0] * len (data_throughput_record[list (data_throughput_record.keys ())[0]])
+    total_y_data = [0] * len (data_throughput_record[list (data_throughput_record.keys ())[0]]
+                              )
     index = 0
     for pipelinestage_index in data_throughput_record:
         throughput_data = data_throughput_record[pipelinestage_index]
@@ -287,8 +288,6 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
             time = int(float(data[0]) * 3600)
             x_data.append(time)
             y_data.append(data[1])
-
-
 
         total_y_data = list(map(add, total_y_data, y_data))
         if index == 0:

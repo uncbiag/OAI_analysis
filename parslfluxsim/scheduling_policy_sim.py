@@ -184,7 +184,7 @@ class Policy(object):
         if str(pipelinestageindex) not in self.newworkitemqueue_tracker:
             self.newworkitemqueue_tracker[str(pipelinestageindex)] = 0
 
-        print ('get_new_workitem ()', self.newworkitemqueue_tracker[str(pipelinestageindex)])
+        #print ('get_new_workitem ()', self.newworkitemqueue_tracker[str(pipelinestageindex)])
 
         if self.newworkitemqueue_tracker[str(pipelinestageindex)] < len(self.newworkitemqueue):
             if resourcetype == self.newworkitemqueue[self.newworkitemqueue_tracker[str(pipelinestageindex)]].resourcetype:
@@ -196,7 +196,7 @@ class Policy(object):
     def add_back_new_workitem (self, pipelinestageindex):
         #print ('add_back_new_workitem ()', workitem.id, len (self.newworkitemqueue))
         self.newworkitemqueue_tracker[str(pipelinestageindex)] -= 1
-        print('add_back_new_workitem ()', pipelinestageindex, len (self.newworkitemqueue))
+        #print('add_back_new_workitem ()', pipelinestageindex, len (self.newworkitemqueue))
 
     def create_workitem_full (self, imanager, pmanager, resource_id):
         #print ('create_workitem_full ():')

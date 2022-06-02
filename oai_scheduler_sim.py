@@ -71,347 +71,6 @@ class OAI_Scheduler:
 
         rmanager.delete_resource (resourcetype, resource_id, exploration, active=True)
 
-
-    def reconfiguration_no_prediction_up_down_underallocations_first (self, rmanager, pmanager, idle_cpus, idle_gpus):
-        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-        final_cpus_to_be_dropped = {}
-        final_gpus_to_be_dropped = {}
-
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-        for cpu_id in cpus_to_be_dropped:
-            resource = rmanager.get_resource (cpu_id, True)
-            if resource.cpu.name not in final_cpus_to_be_dropped:
-                final_cpus_to_be_dropped[resource.cpu.name] = {}
-                final_cpus_to_be_dropped[resource.cpu.name]['busy'] = []
-                final_cpus_to_be_dropped[resource.cpu.name]['free'] = []
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-
-                if cpu_id in idle_cpus:
-                    idle_cpus.remove(cpu_id)
-            else:
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-
-                if cpu_id in idle_cpus:
-                    idle_cpus.remove(cpu_id)
-
-        for gpu_id in gpus_to_be_dropped:
-            resource = rmanager.get_resource(gpu_id, True)
-            if resource.gpu.name not in final_gpus_to_be_dropped:
-                final_gpus_to_be_dropped[resource.gpu.name] = {}
-                final_gpus_to_be_dropped[resource.gpu.name]['busy'] = []
-                final_gpus_to_be_dropped[resource.gpu.name]['free'] = []
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-
-                if gpu_id in idle_gpus:
-                    idle_gpus.remove(gpu_id)
-            else:
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-
-                if gpu_id in idle_gpus:
-                    idle_gpus.remove(gpu_id)
-
-
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-        for cpu_id in cpus_to_be_dropped:
-            resource = rmanager.get_resource (cpu_id, True)
-            if resource.cpu.name not in final_cpus_to_be_dropped:
-                final_cpus_to_be_dropped[resource.cpu.name] = {}
-                final_cpus_to_be_dropped[resource.cpu.name]['busy'] = []
-                final_cpus_to_be_dropped[resource.cpu.name]['free'] = []
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-                idle_cpus.remove(cpu_id)
-            else:
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-                idle_cpus.remove(cpu_id)
-
-        for gpu_id in gpus_to_be_dropped:
-            resource = rmanager.get_resource(gpu_id, True)
-            if resource.gpu.name not in final_gpus_to_be_dropped:
-                final_gpus_to_be_dropped[resource.gpu.name] = {}
-                final_gpus_to_be_dropped[resource.gpu.name]['busy'] = []
-                final_gpus_to_be_dropped[resource.gpu.name]['free'] = []
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-                idle_gpus.remove (gpu_id)
-            else:
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-                idle_gpus.remove(gpu_id)
-
-
-        for cpu_name in final_cpus_to_be_dropped:
-            for cpu_id in final_cpus_to_be_dropped[cpu_name]['free']:
-                self.delete_worker(rmanager, 'CPU', cpu_id)
-
-
-        for gpu_name in final_gpus_to_be_dropped:
-            for gpu_id in final_gpus_to_be_dropped[gpu_name]['free']:
-                self.delete_worker(rmanager, 'GPU', gpu_id)
-
-        for pipelinestageindex in cpus_to_be_added.keys():
-            to_be_added = cpus_to_be_added[pipelinestageindex]
-            for cpu_name in to_be_added.keys():
-                count = to_be_added[cpu_name]
-                for i in range (0, count):
-                    self.add_worker(rmanager, True, False, cpu_name, None, 'on_demand', None, pipelinestageindex)
-
-        for pipelinestageindex in gpus_to_be_added.keys():
-            to_be_added = gpus_to_be_added[pipelinestageindex]
-            for gpu_name in to_be_added.keys():
-                count = to_be_added[gpu_name]
-                for i in range (0, count):
-                    self.add_worker(rmanager, False, True, None, gpu_name, 'on_demand', None, pipelinestageindex)
-
-
-    def reconfiguration_no_prediction_up_down_overallocations_first (self, rmanager, pmanager, idle_cpus, idle_gpus):
-
-        print ('------------------------------------------------------')
-        final_cpus_to_be_dropped = {}
-        final_gpus_to_be_dropped = {}
-
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_up_down_overallocations (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-        for cpu_id in cpus_to_be_dropped:
-            resource = rmanager.get_resource (cpu_id, True)
-            if resource.cpu.name not in final_cpus_to_be_dropped:
-                final_cpus_to_be_dropped[resource.cpu.name] = {}
-                final_cpus_to_be_dropped[resource.cpu.name]['busy'] = []
-                final_cpus_to_be_dropped[resource.cpu.name]['free'] = []
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-
-                if cpu_id in idle_cpus:
-                    idle_cpus.remove(cpu_id)
-            else:
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-
-                if cpu_id in idle_cpus:
-                    idle_cpus.remove(cpu_id)
-
-        for gpu_id in gpus_to_be_dropped:
-            resource = rmanager.get_resource(gpu_id, True)
-            if resource.gpu.name not in final_gpus_to_be_dropped:
-                final_gpus_to_be_dropped[resource.gpu.name] = {}
-                final_gpus_to_be_dropped[resource.gpu.name]['busy'] = []
-                final_gpus_to_be_dropped[resource.gpu.name]['free'] = []
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-
-                if gpu_id in idle_gpus:
-                    idle_gpus.remove(gpu_id)
-            else:
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-
-                if gpu_id in idle_gpus:
-                    idle_gpus.remove(gpu_id)
-
-        cpus_to_be_dropped, gpus_to_be_dropped = pmanager.reconfiguration_drop (rmanager, self.env.now, idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-        for cpu_id in cpus_to_be_dropped:
-            resource = rmanager.get_resource (cpu_id, True)
-            if resource.cpu.name not in final_cpus_to_be_dropped:
-                final_cpus_to_be_dropped[resource.cpu.name] = {}
-                final_cpus_to_be_dropped[resource.cpu.name]['busy'] = []
-                final_cpus_to_be_dropped[resource.cpu.name]['free'] = []
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-                idle_cpus.remove(cpu_id)
-            else:
-                if cpu_id not in idle_cpus:
-                    final_cpus_to_be_dropped[resource.cpu.name]['busy'].append(cpu_id)
-                else:
-                    final_cpus_to_be_dropped[resource.cpu.name]['free'].append(cpu_id)
-                idle_cpus.remove(cpu_id)
-
-        for gpu_id in gpus_to_be_dropped:
-            resource = rmanager.get_resource(gpu_id, True)
-            if resource.gpu.name not in final_gpus_to_be_dropped:
-                final_gpus_to_be_dropped[resource.gpu.name] = {}
-                final_gpus_to_be_dropped[resource.gpu.name]['busy'] = []
-                final_gpus_to_be_dropped[resource.gpu.name]['free'] = []
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-                idle_gpus.remove (gpu_id)
-            else:
-                if gpu_id not in idle_gpus:
-                    final_gpus_to_be_dropped[resource.gpu.name]['busy'].append(gpu_id)
-                else:
-                    final_gpus_to_be_dropped[resource.gpu.name]['free'].append(gpu_id)
-                idle_gpus.remove(gpu_id)
-
-
-        cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_up_down_underallocations(rmanager, self.env.now,
-                                                                                               idle_cpus, idle_gpus, self.imbalance_limit, self.throughput_target)
-
-
-        for pipelinestageindex in cpus_to_be_added.keys ():
-            to_be_added = cpus_to_be_added[pipelinestageindex]
-
-            for cpu_name in to_be_added.keys ():
-                to_be_added_count = to_be_added[cpu_name]
-
-                for i in range(0, to_be_added_count):
-                    if cpu_name not in final_cpus_to_be_dropped:
-                        break
-                    if len (final_cpus_to_be_dropped[cpu_name]['busy']) > 0:
-                        to_be_added[cpu_name] -= 1
-                        final_cpus_to_be_dropped[cpu_name]['busy'].pop (0)
-                    elif len (final_cpus_to_be_dropped[cpu_name]['free']) > 0:
-                        to_be_added[cpu_name] -= 1
-                        final_cpus_to_be_dropped[cpu_name]['busy'].pop (0)
-
-        for pipelinestageindex in gpus_to_be_added.keys():
-            to_be_added = gpus_to_be_added[pipelinestageindex]
-
-            for gpu_name in to_be_added.keys():
-                to_be_added_count = to_be_added[gpu_name]
-
-                for i in range(0, to_be_added_count):
-                    if gpu_name not in final_gpus_to_be_dropped:
-                        break
-                    if len(final_gpus_to_be_dropped[gpu_name]['busy']) > 0:
-                        to_be_added[gpu_name] -= 1
-                        final_gpus_to_be_dropped[gpu_name]['busy'].pop(0)
-                    elif len(final_gpus_to_be_dropped[gpu_name]['free']) > 0:
-                        to_be_added[gpu_name] -= 1
-                        final_gpus_to_be_dropped[gpu_name]['busy'].pop(0)
-
-        for cpu_name in final_cpus_to_be_dropped:
-            for cpu_id in final_cpus_to_be_dropped[cpu_name]['free']:
-                self.delete_worker(rmanager, 'CPU', cpu_id)
-
-
-        for gpu_name in final_gpus_to_be_dropped:
-            for gpu_id in final_gpus_to_be_dropped[gpu_name]['free']:
-                self.delete_worker(rmanager, 'GPU', gpu_id)
-
-        for pipelinestageindex in cpus_to_be_added.keys():
-            to_be_added = cpus_to_be_added[pipelinestageindex]
-            for cpu_name in to_be_added.keys():
-                count = to_be_added[cpu_name]
-                for i in range (0, count):
-                    self.add_worker(rmanager, True, False, cpu_name, None, 'on_demand', None, pipelinestageindex)
-
-        for pipelinestageindex in gpus_to_be_added.keys():
-            to_be_added = gpus_to_be_added[pipelinestageindex]
-            for gpu_name in to_be_added.keys():
-                count = to_be_added[gpu_name]
-                for i in range (0, count):
-                    self.add_worker(rmanager, False, True, None, gpu_name, 'on_demand', None, pipelinestageindex)
-
-        print('------------------------------------------------------')
-
-    def reconfiguration_no_prediction (self, rmanager, pmanager, idle_cpus, idle_gpus):
-        print ('-----------------------------------------------------')
-        cpus_to_be_dropped, gpus_to_be_dropped, cpus_to_be_added, gpus_to_be_added = pmanager.reconfiguration_down (rmanager, self.env.now, idle_cpus, idle_gpus)
-
-        new_cpus_to_be_added = {}
-        new_gpus_to_be_added = {}
-
-        for pipelinestageindex in cpus_to_be_added.keys ():
-            to_be_added = cpus_to_be_added[pipelinestageindex]
-            for cpu_name in to_be_added.keys ():
-                if cpu_name in new_cpus_to_be_added.keys ():
-                    new_cpus_to_be_added[cpu_name] += to_be_added[cpu_name]
-                else:
-                    new_cpus_to_be_added[cpu_name] = to_be_added[cpu_name]
-
-        for pipelinestageindex in gpus_to_be_added.keys ():
-            to_be_added = gpus_to_be_added[pipelinestageindex]
-            for gpu_name in to_be_added.keys ():
-                if gpu_name in new_gpus_to_be_added.keys ():
-                    new_gpus_to_be_added[gpu_name] += to_be_added[gpu_name]
-                else:
-                    new_gpus_to_be_added[gpu_name] = to_be_added[gpu_name]
-
-
-
-        new_cpus_to_be_dropped = []
-        new_gpus_to_be_dropped = []
-
-        for cpu_id in cpus_to_be_dropped:
-            resource = rmanager.get_resource (cpu_id)
-            if resource.cpu.name in new_cpus_to_be_added:
-                new_cpus_to_be_added[resource.cpu.name] -= 1
-                if new_cpus_to_be_added[resource.cpu.name] <= 0:
-                    new_cpus_to_be_added.pop (resource.cpu.name, None)
-            else:
-                new_cpus_to_be_dropped.append (resource.id)
-
-        for gpu_id in gpus_to_be_dropped:
-            resource = rmanager.get_resource (gpu_id)
-            if resource.gpu.name in gpus_to_be_added:
-                new_gpus_to_be_added[resource.gpu.name] -= 1
-                if new_gpus_to_be_added[resource.gpu.name] <= 0:
-                    new_gpus_to_be_added.pop (resource.gpu.name, None)
-            else:
-                new_gpus_to_be_dropped.append (resource.id)
-
-
-        for cpu_id in new_cpus_to_be_dropped:
-            if cpu_id not in idle_cpus:
-                print ('CPU', cpu_id, 'not idle to be dropped')
-                continue
-            self.delete_worker(rmanager, 'CPU', cpu_id)
-        for gpu_id in new_gpus_to_be_dropped:
-            if gpu_id not in idle_gpus:
-                print('GPU', gpu_id, 'not idle to be dropped')
-                continue
-            self.delete_worker(rmanager, 'GPU', gpu_id)
-
-        for cpu_type in new_cpus_to_be_added.keys():
-            count = new_cpus_to_be_added[cpu_type]
-            for i in range (0, count):
-                self.add_worker(rmanager, True, False, cpu_type, None, 'on_demand', None)
-
-        for gpu_type in new_gpus_to_be_added.keys():
-            count = new_gpus_to_be_added[gpu_type]
-            for i in range (0, count):
-                self.add_worker(rmanager, False, True, None, gpu_type, 'on_demand', None)
-
-        print('-----------------------------------------------------')
-
-        return
-
     def report_idle_periods (self, rmanager, since_time, current_time, last_phase_closed_index):
         print ('report_idle_periods ()')
         resources = rmanager.get_resources ('active', True)
@@ -509,8 +168,9 @@ class OAI_Scheduler:
                 gpu_resource_type = exploration_resource_type
 
             for i in range (0, count):
-                new_resource = self.add_worker (rmanager, cpu_type, gpu_type, cpu_resource_type, gpu_resource_type, 'on_demand', None, None, True)
+                new_resource = self.add_worker (rmanager, cpu_type, gpu_type, cpu_resource_type, gpu_resource_type, 'on_demand', None, pipelinestage.index, True)
                 pipelinestage.add_exploration_resource (new_resource)
+
 
         return True
 
@@ -540,7 +200,7 @@ class OAI_Scheduler:
             resource = rmanager.get_resource(exploration_resource_id, True)
             diff = resource.get_status(rmanager, self.worker_threads[resource.id], self.outputfile)
 
-            print ('end_exploration ()', pipelinestage.name, exploration_resource_id, diff)
+            #print ('end_exploration ()', pipelinestage.name, exploration_resource_id, diff)
 
             if diff == None:
                 continue
@@ -562,12 +222,12 @@ class OAI_Scheduler:
 
             pipelinestage.set_exploration_ended(exploration_resource_id, True, diff)
 
-        print ('end_exploration ()', pipelinestage.name, pipelinestage.get_exploration_ended_count ())
+        #print ('end_exploration ()', pipelinestage.name, pipelinestage.get_exploration_ended_count ())
 
         if pipelinestage.get_all_exploration_ended () == True:
             performance_to_cost_ratio = pmanager.get_performance_to_cost_ratio_ranking (rmanager, pipelinestage.index, exploration_resources)
             deletion_list = list (performance_to_cost_ratio.keys ())
-            pinned_resource = deletion_list.pop(0)
+            #pinned_resource = deletion_list.pop(0)
             for explorer_id in deletion_list:
                 if pipelinestage.resourcetype == 'GPU':
                     self.delete_worker(rmanager, 'GPU', explorer_id, True)
@@ -576,11 +236,84 @@ class OAI_Scheduler:
 
                 pipelinestage.remove_exploration_resource(explorer_id)
 
-            pipelinestage.remove_exploration_resource (pinned_resource)
+            #pipelinestage.remove_exploration_resource (pinned_resource)
 
-            pipelinestage.add_pinned_resource (pinned_resource)
-            rmanager.add_pinned_resource (pinned_resource)
+            #pipelinestage.add_pinned_resource (pinned_resource)
+            #rmanager.add_pinned_resource (pinned_resource)
 
+    def perform_exploration (self, rmanager, imanager, pmanager, scheduling_policy, exploration_scheduling_policy):
+        exploration_done = {}
+        for pipelinestage in pmanager.pipelinestages:
+            exploration_done[str(pipelinestage.index)] = False
+
+        print ('perform_exploration ()')
+
+        while True:
+
+            for pipelinestage in pmanager.pipelinestages:
+                if pipelinestage.get_exploration_needed() == True:
+                    print ('--------------------------------------')
+                    print (pipelinestage.name, 'exloration_needed')
+                    ret = self.explore(rmanager, pipelinestage)
+
+                    if ret == True:
+                        pipelinestage.set_exploration_needed(False)
+                        pipelinestage.set_exploration_scheduling_needed(True)
+
+                    print('--------------------------------------')
+
+                elif pipelinestage.get_exploration_scheduling_needed() == True:
+                    print ('######################################')
+                    print(pipelinestage.name, 'exloration_scheduling_needed')
+                    self.schedule_exploration(rmanager, pmanager, pipelinestage, exploration_scheduling_policy,
+                                              scheduling_policy)
+                    if pipelinestage.get_all_exploration_scheduled() == True:
+                        pipelinestage.set_exploration_scheduling_needed(False)
+                        pipelinestage.set_exploration_ending_needed(True)
+                    print('######################################')
+                elif pipelinestage.get_exploration_ending_needed() == True:
+                    print ('*************************************')
+                    print(pipelinestage.name, 'exloration_ending_needed')
+                    self.end_exploration(rmanager, imanager, pmanager, scheduling_policy, pipelinestage)
+                    if pipelinestage.get_all_exploration_ended() == True:
+                        pipelinestage.set_exploration_ending_needed(False)
+                        exploration_done[str(pipelinestage.index)] = True
+                    print('*************************************')
+
+            all_exploration_done = True
+
+            for pipelinestage in pmanager.pipelinestages:
+                if exploration_done[str(pipelinestage.index)] == False:
+                    all_exploration_done = False
+                    break
+
+            if all_exploration_done == False:
+                yield self.env.timeout(5 / 3600)
+                continue
+            else:
+                break
+
+    def perform_initial_allocation (self, rmanager, pmanager):
+        for pipelinestage in pmanager.pipelinestages:
+
+            compute_type = pipelinestage.resourcetype
+
+            performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage (rmanager, pipelinestage.index)
+
+            cpu_ok = False
+            gpu_ok = False
+            if compute_type == 'CPU':
+                cpu_ok = True
+                cpu_resource_type = list(performance_to_cost_ratio_ranking.keys())[0]
+                gpu_resource_type = None
+            else:
+                gpu_ok = True
+                cpu_resource_type = None
+                gpu_resource_type = list(performance_to_cost_ratio_ranking.keys())[0]
+
+            new_resource = self.add_worker(rmanager, cpu_ok, gpu_ok, cpu_resource_type, gpu_resource_type, 'on_demand', None, pipelinestage.index, False)
+            pipelinestage.add_pinned_resource (new_resource.id)
+            rmanager.add_pinned_resource (new_resource)
 
     def run_no_prediction_pin (self, rmanager, imanager, pmanager):
         scheduling_policy = FirstCompleteFirstServe("FirstCompleteFirstServe", self.env, pmanager)
@@ -598,123 +331,131 @@ class OAI_Scheduler:
         no_of_phases_closed = 0
 
         try:
-            while True:
-                pipelinestages = pmanager.pipelinestages
+            exploration_done = {}
+            for pipelinestage in pmanager.pipelinestages:
+                exploration_done[str(pipelinestage.index)] = False
 
-                for pipelinestage in pipelinestages:
-                    if pipelinestage.get_exploration_needed () == True:
-                        #print ('--------------------------------------')
-                        #print (pipelinestage.name, 'exloration_needed')
-                        ret = self.explore (rmanager, pipelinestage)
+            print('perform_exploration ()')
+
+            while True:
+
+                for pipelinestage in pmanager.pipelinestages:
+                    if pipelinestage.get_exploration_needed() == True:
+                        #print('--------------------------------------')
+                        #print(pipelinestage.name, 'exloration_needed')
+                        ret = self.explore(rmanager, pipelinestage)
 
                         if ret == True:
-                            pipelinestage.set_exploration_needed (False)
-                            pipelinestage.set_exploration_scheduling_needed (True)
+                            pipelinestage.set_exploration_needed(False)
+                            pipelinestage.set_exploration_scheduling_needed(True)
 
                         #print('--------------------------------------')
 
-                    elif pipelinestage.get_exploration_scheduling_needed () == True:
-                        #print ('######################################')
-                        #print(pipelinestage.name, 'exloration_scheduling_needed')
-                        self.schedule_exploration (rmanager, pmanager, pipelinestage, exploration_scheduling_policy, scheduling_policy)
-                        if pipelinestage.get_all_exploration_scheduled () == True:
-                            pipelinestage.set_exploration_scheduling_needed (False)
-                            pipelinestage.set_exploration_ending_needed (True)
+                    elif pipelinestage.get_exploration_scheduling_needed() == True:
                         #print('######################################')
-                    elif pipelinestage.get_exploration_ending_needed ()  == True:
-                        #print ('*************************************')
+                        #print(pipelinestage.name, 'exloration_scheduling_needed')
+                        self.schedule_exploration(rmanager, pmanager, pipelinestage, exploration_scheduling_policy,
+                                                  scheduling_policy)
+                        if pipelinestage.get_all_exploration_scheduled() == True:
+                            pipelinestage.set_exploration_scheduling_needed(False)
+                            pipelinestage.set_exploration_ending_needed(True)
+                        #print('######################################')
+                    elif pipelinestage.get_exploration_ending_needed() == True:
+                        #print('*************************************')
                         #print(pipelinestage.name, 'exloration_ending_needed')
-                        self.end_exploration (rmanager, imanager, pmanager, scheduling_policy, pipelinestage)
-                        if pipelinestage.get_all_exploration_ended () == True:
-                            pipelinestage.set_exploration_ending_needed (False)
+                        self.end_exploration(rmanager, imanager, pmanager, scheduling_policy, pipelinestage)
+                        if pipelinestage.get_all_exploration_ended() == True:
+                            pipelinestage.set_exploration_ending_needed(False)
+                            exploration_done[str(pipelinestage.index)] = True
                         #print('*************************************')
 
-                for pipelinestage in pipelinestages:
-                    if pipelinestage.get_exploration_needed () == False and pipelinestage.get_exploration_scheduling_needed () == False and pipelinestage.get_exploration_ending_needed ()  == False:
-                        pinned_resource_ids = pipelinestage.get_pinned_resources (rmanager, True)
-                        for resource_id in pinned_resource_ids:
-                            pinned_resource = rmanager.get_resource (resource_id, True)
-                            # print ('###########################')
-                            pinned_resource.get_status (rmanager, self.worker_threads[pinned_resource.id], self.outputfile)
-                            # print ('###########################')
-                            # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            scheduling_policy.remove_complete_workitem (pinned_resource, pmanager, self.env, imanager, self.pfs)
-                            # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                all_exploration_done = True
 
-                        empty_cpus = []
-                        empty_gpus = []
+                for pipelinestage in pmanager.pipelinestages:
+                    if exploration_done[str(pipelinestage.index)] == False:
+                        all_exploration_done = False
+                        break
 
-                        for resource_id in pinned_resource_ids:
-                            pinned_resource = rmanager.get_resource (resource_id, True)
-                            # print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                            cpu_empty, gpu_empty = pinned_resource.is_empty()
-                            # print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                if all_exploration_done == False:
+                    yield self.env.timeout(5 / 3600)
+                    continue
+                else:
+                    break
 
-                            if cpu_empty == True:
-                                empty_cpus.append(pinned_resource)
-                            if gpu_empty == True:
-                                empty_gpus.append(pinned_resource)
+            self.perform_initial_allocation (rmanager, pmanager)
 
-                        if len(empty_cpus) > 0:
-                            # print ('****************************')
-                            scheduling_policy.add_new_workitems_DFS_pipelinestage(rmanager, imanager, pmanager, empty_cpus, 'CPU', str(pipelinestage.index))
-                            # print ('****************************')
-                        if len(empty_gpus) > 0:
-                            # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-                            scheduling_policy.add_new_workitems_DFS_pipelinestage(rmanager, imanager, pmanager, empty_gpus, 'GPU', str (pipelinestage.index))
-                            # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+            while True:
+                for pipelinestage in pmanager.pipelinestages:
+                    pinned_resource_ids = pipelinestage.get_pinned_resources (rmanager, True)
+                    for resource_id in pinned_resource_ids:
+                        pinned_resource = rmanager.get_resource (resource_id, True)
+                        if pinned_resource.get_active () == False:
+                            continue
+                        # print ('###########################')
+                        pinned_resource.get_status (rmanager, self.worker_threads[pinned_resource.id], self.outputfile)
+                        # print ('###########################')
+                        # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        scheduling_policy.remove_complete_workitem (pinned_resource, pmanager, self.env, imanager, self.pfs)
+                        # print ('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-                        idle_cpus = []
-                        idle_gpus = []
+                    empty_cpus = []
+                    empty_gpus = []
 
+                    for resource_id in pinned_resource_ids:
+                        pinned_resource = rmanager.get_resource (resource_id, True)
+                        if pinned_resource.get_active () == False:
+                            continue
+                        # print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                        cpu_empty, gpu_empty = pinned_resource.is_empty()
+                        # print ('$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
+                        if cpu_empty == True:
+                            empty_cpus.append(pinned_resource)
+                        if gpu_empty == True:
+                            empty_gpus.append(pinned_resource)
+
+                    if len(empty_cpus) > 0:
+                        # print ('****************************')
+                        scheduling_policy.add_new_workitems_DFS_pipelinestage(rmanager, imanager, pmanager, empty_cpus, 'CPU', str(pipelinestage.index))
+                        # print ('****************************')
+                    if len(empty_gpus) > 0:
+                        # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+                        scheduling_policy.add_new_workitems_DFS_pipelinestage(rmanager, imanager, pmanager, empty_gpus, 'GPU', str (pipelinestage.index))
+                        # print ('&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+
+                    idle_cpus = []
+                    idle_gpus = []
+
+                    # print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                    for resource_id in pinned_resource_ids:
+                        pinned_resource = rmanager.get_resource(resource_id, True)
+                        cpu_idle, gpu_idle = pinned_resource.is_idle()
+
+                        if cpu_idle == True:
+                            idle_cpus.append(pinned_resource)
+                        if gpu_idle == True:
+                            idle_gpus.append(pinned_resource)
+
+                        # print (idle_cpus)
+                        # print (idle_gpus)
                         # print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                        for resource_id in pinned_resource_ids:
-                            pinned_resource = rmanager.get_resource(resource_id, True)
-                            cpu_idle, gpu_idle = pinned_resource.is_idle()
 
-                            if cpu_idle == True:
-                                idle_cpus.append(pinned_resource)
-                            if gpu_idle == True:
-                                idle_gpus.append(pinned_resource)
+                    for idle_cpu in idle_cpus:
+                        # print ('scheduling cpu', idle_cpu.id)
+                        idle_cpu.schedule(rmanager, pmanager, 'CPU', self.workers[idle_cpu.id][0].get_exec(), self.env)
 
-                            # print (idle_cpus)
-                            # print (idle_gpus)
-                            # print ('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-
-                        for idle_cpu in idle_cpus:
-                            # print ('scheduling cpu', idle_cpu.id)
-                            idle_cpu.schedule(rmanager, pmanager, 'CPU', self.workers[idle_cpu.id][0].get_exec(), self.env)
-
-                        for idle_gpu in idle_gpus:
-                            # print ('scheduling gpu', idle_gpu.id)
-                            idle_gpu.schedule(rmanager, pmanager, 'GPU', self.workers[idle_gpu.id][1].get_exec(), self.env)
+                    for idle_gpu in idle_gpus:
+                        # print ('scheduling gpu', idle_gpu.id)
+                        idle_gpu.schedule(rmanager, pmanager, 'GPU', self.workers[idle_gpu.id][1].get_exec(), self.env)
 
                 last_phase_closed_index = pmanager.close_phases_fixed(rmanager, False)
-                pmanager.record_throughput(self.env)
+                #pmanager.record_throughput(self.env)
 
                 # scaling code goes here
 
+                pmanager.reconfiguration (self.env)
+
                 '''
-                idle_cpus = []
-                idle_gpus = []
-                for resource_id in pinned_resource_ids:
-                    pinned_resource = rmanager.get_resource(resource_id, True)
-                    cpu_idle, gpu_idle = pinned_resource.is_idle()
-
-                    if cpu_idle == True:
-                        idle_cpus.append(pinned_resource.id)
-                    if gpu_idle == True:
-                        idle_gpus.append(pinned_resource.id)
-
-                inactive_resources_ids = pipelinestage.get_pinned_resources (rmanager, False)
-
-                for resource_id in inactive_resources_ids:
-                    pinned_resource = rmanager.get_resource(resource_id, True)
-                    if pinned_resource.cpu != None:
-                        idle_cpus.append(pinned_resource.id)
-                    if pinned_resource.gpu != None:
-                        idle_gpus.append(pinned_resource.id)
-
 
                 if pmanager.get_pct_complete_no_prediction() >= 10:
                     if self.reconfiguration_last_time == None or self.reconfiguration_last_time + (

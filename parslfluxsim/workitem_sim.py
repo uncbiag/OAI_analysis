@@ -91,7 +91,7 @@ class WorkItem:
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
 
-        print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
+        #print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
         thread_exec.interrupt (str(self.version))
 
         # workitem['timeout'] = double (150)

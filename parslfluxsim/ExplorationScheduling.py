@@ -15,6 +15,7 @@ class ExplorationScheduling (Policy):
         self.env = env
 
     def add_workitem_exploration (self, rmanager, pmanager, pipelinestage, scheduling_policy):
+        #print ('add_workitem_exploration ()')
 
         exploration_resources = pipelinestage.get_explorers ()
 

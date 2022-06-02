@@ -139,7 +139,7 @@ class Resource:
         print ('set_active ()', self.id, active)
         self.active = active
         self.acquisition_time = self.env.now
-        self.pipelinestageindex = None
+        #self.pipelinestageindex = None
 
     def get_active (self):
         return self.active
@@ -283,8 +283,7 @@ class Resource:
             self.gpu.set_busy (True)
             self.gpu.set_last_completion_time (None)
             return
-        else:
-            print ('OPS')
+
     def schedule_whole (self, rmanager, pmanager):
         if self.workqueue.is_empty () == False:
             timeout = self.get_timeout_value_whole (rmanager, pmanager)
