@@ -223,6 +223,18 @@ def create_performance_data ():
             print(f.summary())
             print(f.get_best(method='sumsquare_error'))
 
+def version_to_pipelinestage (version):
+    if version == '0':
+        return 'preprocess'
+    elif version == '1':
+        return 'segmentation'
+    elif version == '2':
+        return 'extractsurfacemesh'
+    elif version == '3':
+        return 'registerimagetoatlas'
+    elif version == '4':
+        return 'warpmesh'
+
 def read_performance_data ():
 
     results = {}
@@ -256,7 +268,7 @@ def read_performance_data ():
 
 
             resourceid = resourceid.strip()
-            images.append([imageid, version, cpu_resource_types[resourceid], starttime, endtime])
+            images.append([imageid, version_to_pipelinestage (version), cpu_resource_types[resourceid], starttime, endtime])
 
         for image in images:
             image[3] -= min_start_time
@@ -327,7 +339,7 @@ def read_performance_data ():
 
 
             resourceid = resourceid.strip()
-            images.append([imageid, version, gpu_resource_types[resourceid], starttime, endtime])
+            images.append([imageid, version_to_pipelinestage (version), gpu_resource_types[resourceid], starttime, endtime])
 
         for image in images:
             image[3] -= min_start_time

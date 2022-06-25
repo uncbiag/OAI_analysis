@@ -14,15 +14,13 @@ class AWSCostModel:
         self.product = product
         self.spot_cpu_price_timeseries = {}
         self.spot_gpu_price_timeseries = {}
-        print ('init cost model')
         self.read_on_demand_cost_model('')
         self.read_spot_cost_model('')
-        print ('init cost model done')
+        print ('AWS cost model done')
 
-    def get_spot_cost (self, resourcetype, computetype, bidding_price):
-        if computetype == 'CPU':
-            if resourcetype not in self.spot_cpu_price_timeseries:
-                return None
+    def get_spot_cost (self, resourcetype, bidding_price):
+
+        if resourcetype not in self.spot_cpu_price_timeseries:
             spot_series = self.spot_cpu_price_timeseries[resourcetype]
 
             current_time = int (self.env.now * 3600)
@@ -31,9 +29,8 @@ class AWSCostModel:
 
             return price
 
-        elif computetype == 'GPU':
-            if resourcetype not in self.spot_gpu_price_timeseries:
-                return None
+
+        elif resourcetype in self.spot_gpu_price_timeseries:
             spot_series = self.spot_gpu_price_timeseries[resourcetype]
 
             current_time = int(self.env.now * 3600)
@@ -42,26 +39,22 @@ class AWSCostModel:
 
             return price
         else:
-            print (resourcetype, computetype, 'not in cost model')
+            print (resourcetype, 'not in cost model')
             return None
 
-    def get_on_demand_cost (self, resourcetype, computetype):
-        if computetype == 'CPU':
-            if resourcetype not in self.cpu_on_demand_prices:
-                return None
+    def get_on_demand_cost (self, resourcetype):
+        if resourcetype in self.cpu_on_demand_prices:
             return float (self.cpu_on_demand_prices[resourcetype])
-        elif computetype == 'GPU':
-            if resourcetype not in self.gpu_on_demand_prices:
-                return None
-            return float (self.gpu_on_demand_prices[resourcetype])
-        else:
-            print (resourcetype, computetype, 'not in cost model')
-            return None
 
-    def get_on_demand_startup_time (self, resourcetype, computetype):
+        if resourcetype in self.gpu_on_demand_prices:
+            return float (self.gpu_on_demand_prices[resourcetype])
+
+        return None
+
+    def get_on_demand_startup_time (self, resourcetype):
         return float (120/3600)
 
-    def get_spot_startup_time (self, resourcetype, computetype):
+    def get_spot_startup_time (self, resourcetype):
         return float (720/3600)
 
     def build_ondemand_cost_model (self, prefix):

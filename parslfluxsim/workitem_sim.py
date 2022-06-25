@@ -1,5 +1,3 @@
-from parslflux.pipeline import PipelineManager
-
 import datetime
 from numpy import double
 import simpy
@@ -11,7 +9,6 @@ class WorkItem:
         self.id = id
         self.version = version
         self.pipelinestage = pipelinestage
-        self.phase_index = -1
         self.data = data
         if collectfrom == None:
             self.collectfrom = resource_id
@@ -26,16 +23,6 @@ class WorkItem:
         self.starttime = -1
         self.endtime = -1
         self.priority = int (pipelinestage.priority)
-        self.exploration_item = False
-
-    def mark_exploration_item (self, status):
-        self.exploration_item = status
-
-    def get_copy (self):
-        copy = WorkItem (self.id, self.data, self.collectfrom, self.pipelinestage, self.resourceid, self.resourcetype, self.version, self.inputlocation)
-        copy.phase_index = self.phase_index
-        copy.exploration_item = self.exploration_item
-        return copy
 
     def get_id(self):
         return self.id
@@ -63,19 +50,13 @@ class WorkItem:
     def update_outputlocation(self, location):
         self.outputlocation = location
 
-    def get_next_pipelinestage (self, pmanager, resourcetype):
-        next_pipelinestage = pmanager.get_pipelinestage(self.pipelinestage, resourcetype)
-        return next_pipelinestage
-
-    def compose_next_workitem(self, resourcetype, next_pipelinestage):
+    def compose_next_workitem(self, next_pipelinestage):
 
         next_workitem = WorkItem(self.id, self.data, self.resourceid, \
-                                 next_pipelinestage, None, resourcetype, \
+                                 next_pipelinestage, None, next_pipelinestage.resourcetype, \
                                  next_pipelinestage.index, self.outputlocation)
-        next_workitem.phase_index = self.phase_index
         next_workitem.starttime = self.starttime
         next_workitem.endtime = self.endtime
-        next_workitem.exploration_item = self.exploration_item
 
         return next_workitem
 
@@ -83,16 +64,16 @@ class WorkItem:
         pass
         #print ('print_data ()', self.id, self.version, self.phase_index, self.resourceid, self.status, self.pipelinestage.index, self.endtime)
 
-    def submit(self, pmanager, timeout, thread_exec, env):
+    def submit(self, timeout, thread_exec, env):
         self.timeout = double(timeout)
         workitem = {}
-        workitem['pipelinestages'] = self.pipelinestage.name
+        workitem['pipelinestage'] = self.pipelinestage.name
         workitem['version'] = str(self.version)
         workitem['collectfrom'] = self.collectfrom
         workitem['workerid'] = self.resourceid
 
         #print ('interrupting', self.resourceid, self.version, self.resourcetype, thread_exec)
-        thread_exec.interrupt (str(self.version))
+        thread_exec.interrupt (str(self.pipelinestage.name) + ':' + str (self.input_read_time) + ':' + str (self.output_write_time))
 
         # workitem['timeout'] = double (150)
         #self.scheduletime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -117,7 +98,7 @@ class WorkItem:
             str = "probe_status (complete): {} {} {} {} {} success {}".format(self.id, self.version, thread.starttime,
                                                                               thread.endtime, self.resourceid,
                                                                               thread.timeout)
-            print (str)
+            #print (str)
             outputfile.write (str + "\n")
             self.iscomplete = True
             '''

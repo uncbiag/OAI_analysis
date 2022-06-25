@@ -17,20 +17,11 @@ import operator
 sys.path.append ('/mnt/beegfs/ssbehera/OAI_analysis/')
 from parslflux.resources import ResourceManager
 from parslflux.pipeline import PipelineManager
-from parslflux.taskset import Taskset
 from parslflux.input import InputManager2
 from parslflux.scheduling_policy import Policy
 
 from parslflux.FirstCompleteFirstServe import FirstCompleteFirstServe
-from parslflux.FastCompleteFirstServe import FastCompleteFirstServe
-from parslflux.FastCompleteFirstServe2 import FastCompleteFirstServe2
-from parslflux.FastCompleteFirstServe3 import FastCompleteFirstServe3
-from parslflux.FastCompleteFirstServe4 import FastCompleteFirstServe4
-from parslflux.FastCompleteFirstServe5 import FastCompleteFirstServe5
-from parslflux.FastCompleteFirstServe6 import FastCompleteFirstServe6
-from parslflux.FastCompleteFirstServe5Alloc import FastCompleteFirstServe5Alloc
-from parslflux.FastCompleteFirstServe6Alloc import FastCompleteFirstServe6Alloc
-from parslflux.FastCompleteFirstServe7Alloc import FastCompleteFirstServe7Alloc
+
 from parslflux.DFS import DFS
 
 @bash_app

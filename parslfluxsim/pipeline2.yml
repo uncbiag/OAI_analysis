@@ -3,6 +3,14 @@ pipelinestages:
       resourcetype: CPU
       priority: 0
       output_size: 28.2
+    - name: registerimagetoatlas
+      resourcetype: GPU
+      priority: 1
+      output_size: 234.7
+      exec_dependencies:
+        - preprocess
+      data_dependencies:
+        - preprocess
     - name: segmentation
       resourcetype: GPU
       priority: 1
@@ -19,14 +27,6 @@ pipelinestages:
         - segmentation
       data_dependencies:
         - segmentation
-    - name: registerimagetoatlas
-      resourcetype: GPU
-      priority: 1
-      output_size: 234.7
-      exec_dependencies:
-        - preprocess
-      data_dependencies:
-        - preprocess
     - name: warpmesh
       resourcetype: CPU
       priority: 3

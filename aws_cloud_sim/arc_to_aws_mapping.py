@@ -33,9 +33,6 @@ class ARCMapping:
         results = {}
         for key in mapping:
             results[self.arctoaws[key]] = mapping[key]
-
-        print (mapping)
-        print (results)
         return results
 
     def get_arc_to_aws (self, resourcetype):

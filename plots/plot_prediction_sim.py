@@ -241,11 +241,12 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
 
     fig2, axes2 = plt.subplots(5, 1, sharex=True)
 
-    throughput_record = pmanager.get_throughput_record ()
+    throughput_record, effective_throughput_record = pmanager.get_throughput_record ()
 
 
     for pipelinestage_index in throughput_record:
         throughput_data = throughput_record[pipelinestage_index]
+        effective_throughput_data = effective_throughput_record[pipelinestage_index]
 
         #print (throughput_data)
 
@@ -253,12 +254,21 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
 
         x_data = []
         y_data = []
+        x_effective_data = []
+        y_effective_data = []
+
         for data in throughput_data:
             time = int(float(data[0]) * 3600)
             x_data.append(time)
             y_data.append(data[1])
 
-        ax.plot(x_data, y_data)
+        for data in effective_throughput_data:
+            time = int (float (data[0]) * 3600)
+            x_effective_data.append (time)
+            y_effective_data.append (data[1])
+
+        ax.plot(x_data, y_data, color='blue')
+        ax.plot (x_effective_data, y_effective_data, color='red')
 
         ax.yaxis.set_label_position("right")
         ax.set_ylabel(labels[int (pipelinestage_index)])

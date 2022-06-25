@@ -558,3 +558,49 @@ def run2(self, rmanager, imanager, pmanager, batchsize):
             yield self.env.timeout(5 / 3600)
     except simpy.Interrupt as i:
         print('WOW!')
+
+    def parse_resources_old (self):
+        yaml_resourcefile = open (self.resourcefile)
+        resources = yaml.load (yaml_resourcefile, Loader=yaml.FullLoader)
+
+        for cputype in resources['available']['CPU']:
+            if cputype['provision_type'] not in self.resourcetypeinfo:
+                self.resourcetypeinfo['provision_type'] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['startuptime'] = cputype['startuptime']
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['resourcetype'] = 'CPU'
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['cost'] = cputype['cost']
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count'] = {}
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[cputype['provision_type']][cputype['id']]['count']['count'] = [cputype['count']]
+            count = cputype['count']
+            for i in range (0, count):
+                new_resource = Resource ('c' + str(self.cpuid_counter), self, cputype['provision_type'], self.env)
+                new_resource.add_cpu(cputype['id'], cputype['cost'], self.env.now)
+                self.active_pool_nodes.append(new_resource)
+                self.cpuid_counter += 1
+                self.active_cpunodes_count += 1
+
+        for gputype in resources['available']['GPU']:
+            if gputype['provision_type'] not in self.resourcetypeinfo:
+                self.resourcetypeinfo['provision_type'] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['startuptime'] = gputype['startuptime']
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['resourcetype'] = 'GPU'
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['availability'] = 1.0
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['cost'] = gputype['cost']
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count'] = {}
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count']['time'] = [self.env.now]
+            self.resourcetypeinfo[gputype['provision_type']][gputype['id']]['count']['count'] = [gputype['count']]
+            count = gputype['count']
+            for i in range (0, count):
+                new_resource = Resource ('g' + str(self.gpuid_counter), self, gputype['provision_type'], self.env)
+                new_resource.add_gpu(gputype['id'], gputype['cost'], self.env.now)
+                self.active_pool_nodes.append(new_resource)
+                self.gpuid_counter += 1
+                self.active_gpunodes_count += 1
+
+        #self.availablenodesdict = self.nodesdict
+
+        return self.active_pool_nodes
