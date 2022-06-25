@@ -26,6 +26,11 @@ class PipelineStage:
         self.batchsize = batchsize
         self.total_complete = 0
 
+    def reset (self):
+        self.pinned_resources = []
+        self.bagofworkitems = BagOfWorkItems (self.index, self.resourcetype)
+        self.total_complete = 0
+
     def add_completion (self, count):
         self.total_complete += count
 
@@ -131,6 +136,10 @@ class PipelineManager:
         self.effective_throughput_record = {}
         self.data_throughput_record = {}
         self.throughput_record = {}
+
+    def reset (self):
+        for pipelinestage in self.pipelinestages:
+            pipelinestage.reset ()
 
     def get_throughput_record (self):
         return self.throughput_record, self.effective_throughput_record

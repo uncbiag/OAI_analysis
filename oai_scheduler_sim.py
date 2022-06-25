@@ -207,7 +207,9 @@ class OAI_Scheduler:
                 else:
                     gpu_ok = True
 
-                new_resource = self.add_worker(rmanager, cpu_ok, gpu_ok, resource_type, 'on_demand',\
+                domain = rmanager.get_resourcetype_info (resource_type, 'domain', 'on_demand')
+
+                new_resource = self.add_worker(rmanager, domain, cpu_ok, gpu_ok, resource_type, 'on_demand',\
                                                None, pipelinestage)
 
         print ('initial allocation done')
@@ -216,7 +218,7 @@ class OAI_Scheduler:
         for pipelinestage in pmanager.pipelinestages:
             pipelinestage.populate_bagofworkitems (imanager)
 
-    def run_no_prediction_pin (self, rmanager, imanager, pmanager, dmanager, exploration):
+    def run_no_prediction_pin_core (self, rmanager, imanager, pmanager, dmanager, exploration):
         scheduling_policy = FirstCompleteFirstServe(self.env)
 
         self.populate_bagofworkitems (imanager, pmanager)
@@ -282,9 +284,8 @@ class OAI_Scheduler:
                 # scaling code goes here
                 #pmanager.reconfiguration (rmanager, self.env)
 
-                idle_resources = []
-
                 for pipelinestage in pmanager.pipelinestages:
+                    idle_resources = []
                     active_pinned_resource_ids = pipelinestage.get_pinned_resources (rmanager, True)
                     explored_resources = []
 
@@ -308,7 +309,8 @@ class OAI_Scheduler:
                         if pipelinestage.get_pending_workitems () <= 0:
                             pipelinestage_completions[pipelinestage.name] = True
                             for idle_resource in idle_resources:
-                                self.delete_worker(rmanager, idle_resource.id, pipelinestage)
+                                if idle_resource.pfs.total_entries <= 0:
+                                    self.delete_worker(rmanager, idle_resource.id, pipelinestage)
                     else:
                         print (pipelinestage.name, len (pipelinestage.pinned_resources), len (explored_resources))
                         if len (pipelinestage.pinned_resources) == len (explored_resources):
@@ -340,7 +342,6 @@ class OAI_Scheduler:
         cpu_cost, gpu_cost = rmanager.get_total_cost()
         print('total cost', self.env.now, cpu_cost, gpu_cost)
         # pmanager.print_stage_queue_data_2(rmanager, self.pfs)
-
 
     def run_no_prediction (self, rmanager, imanager, pmanager):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')

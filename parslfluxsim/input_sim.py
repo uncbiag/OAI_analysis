@@ -93,6 +93,10 @@ class InputManager2:
             return self.completion_status[image_id][str(version)]['resource_id']
         return None
 
+    def reset (self):
+        self.index = 0
+        self.completion_status = {}
+
 if __name__ == "__main__":
     configfile = sys.argv[1]
     i = InputManager2 (configfile)

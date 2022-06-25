@@ -24,7 +24,6 @@ import numpy as np
 class Simulation:
     def __init__(self):
         self.env = simpy.Environment()
-        self.r = None
 
     def setup(self, pipelinefile, configfile, multidomain_resourcefile, \
               max_images, output_file, batchsize):
@@ -44,9 +43,7 @@ class Simulation:
         self.scheduler = OAI_Scheduler(self.env)
         self.scheduler.outputfile = output_file
 
-        self.env.process(self.scheduler.run_no_prediction_pin(self.r, self.i, self.p, self.d, exploration=True))
-
-        print ('done')
+        return self.r, self.i, self.p, self.d
 
     def run (self):
         while self.env.peek() < 2000:
@@ -80,8 +77,15 @@ if __name__ == "__main__":
             #sys.stdout = open('output.txt', 'w')
             output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
             sim = Simulation ()
-            sim.setup (pipelinefile, configfile, multidomain_resourcefile, max_images[i], output_file, batchsize)
+            r,i,p,d = sim.setup (pipelinefile, configfile, multidomain_resourcefile, max_images[i], output_file, batchsize)
+            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, exploration=True))
             sim.run ()
+            p.reset()
+            i.reset()
+            d.reset()
+            print (r.resourcetypeinfo)
+            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, exploration=False))
+            sim.run()
             #sys.stdout.close ()
             #sys.stdout = original_stdout
             #store_performance_data(algo)

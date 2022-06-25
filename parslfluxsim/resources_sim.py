@@ -677,10 +677,13 @@ class ResourceManager:
                 self.backup_pool_nodes.append(resource)
                 self.backup_gpunodes_count += 1
             self.gpuid_counter += 1
+            self.resourcetypeinfo[provision_type][resource_type]['resourcetype'] = 'GPU'
 
         self.resourcetypeinfo[provision_type][resource_type]['provisiontime'] = provision_time
         self.resourcetypeinfo[provision_type][resource_type]['availability'] = 1.0
         self.resourcetypeinfo[provision_type][resource_type]['cost'] = cost
+        self.resourcetypeinfo[provision_type][resource_type]['domain'] = domain
+
 
         if 'count' not in self.resourcetypeinfo[provision_type][resource_type]:
             self.resourcetypeinfo[provision_type][resource_type]['count'] = {}
@@ -689,7 +692,7 @@ class ResourceManager:
         else:
             self.resourcetypeinfo[provision_type][resource_type]['count']['time'].append(self.env.now)
             self.resourcetypeinfo[provision_type][resource_type]['count']['count'].append(
-                self.resourcetypeinfo[provision_type][resource_type]['count']['count'][-1] + 1)
+            self.resourcetypeinfo[provision_type][resource_type]['count']['count'][-1] + 1)
 
         self.pinned_resources.append(resource)
 

@@ -38,6 +38,9 @@ class Domain:
     def get_pfs_handle(self):
         return self.pfs
 
+    def reset (self):
+        self.pfs = PFS(1048576, self.env)
+
 class HPCDomain (Domain):
     def init_cluster(self):
         self.type = 'HPC'
@@ -131,6 +134,10 @@ class DomainManager:
         self.domains = {}
         self.env = env
         self.interdomain_transfer_rate = {}
+
+    def reset (self):
+        for domain in self.domains:
+            self.domains[domain].reset()
 
     def get_interdomain_transfer_latency (self, src_domain_id, dest_domain_id, filesize):
         return filesize / self.interdomain_transfer_rate[str(src_domain_id)][str(dest_domain_id)]
