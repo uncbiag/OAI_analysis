@@ -78,7 +78,7 @@ class PFS:
             self.capacity_in_use -= filesize
             self.total_entries -= 1
 
-    def get_read_lateny (self, size):
+    def get_read_latency (self, size):
         return float (size/self.read_bandwidth)
 
     def get_write_latency (self, size):

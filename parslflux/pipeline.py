@@ -80,6 +80,7 @@ class PipelineStage:
             self.exec_parents.append (parent)
         else:
             self.data_parents.append(parent)
+        self.bagofworkitems.set_root(False)
 
     def get_children (self, type):
         if type == 'exec':

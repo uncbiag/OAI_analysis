@@ -11,7 +11,7 @@ class FirstCompleteFirstServe:
     def __init__(self, env):
         self.env = env
 
-    def remove_complete_workitem (self, resource, executed_pipelinestage, imanager):
+    def remove_complete_workitem (self, resource, executed_pipelinestage, imanager, rmanager, dmanager):
         #print ('remove_complete_workitem ():', resource.id, len (self.cpuqueue), len (self.gpuqueue))
         workitem = resource.pop_if_complete (executed_pipelinestage.resourcetype)
 
@@ -41,6 +41,7 @@ class FirstCompleteFirstServe:
                             break
                     if all_parents_complete == True:
                         next_workitem = workitem.compose_next_workitem (child_pipelinestage)
+                        self.set_input_transfer_latency (rmanager, imanager, dmanager, next_workitem)
                         child_pipelinestage.bagofworkitems.add_workitem(next_workitem)
                         imanager.set_complete (next_workitem, False)
 
@@ -65,7 +66,7 @@ class FirstCompleteFirstServe:
         #self.sort_complete_workitems_by_priority(resourcetype)
         # self.sort_complete_workitems_by_stage (resourcetype)
         # self.sort_complete_workitems_by_earliest_schedule_time (resourcetype)
-        pipelinestage.bagofworkitems.sort_complete_workitems_by_earliest_finish_time ()
+        #pipelinestage.bagofworkitems.sort_complete_workitems_by_earliest_finish_time ()
         # self.sort_complete_workitems_by_latest_finish_time (resourcetype)
 
         for resource_id in sorted_completion_times.keys():
@@ -73,11 +74,13 @@ class FirstCompleteFirstServe:
             item_added = False
             resource = rmanager.get_resource(resource_id, active=True)
 
+            pipelinestage.bagofworkitems.sort_complete_workitems_by_transfer_latency(resource.domain_id)
+
             workitem = pipelinestage.bagofworkitems.pop_workitem ()
 
             if workitem != None:
                 #print('pending_workitem ()', pending_workitem.id, pending_workitem.version)
-                self.set_io_transfer_stats (rmanager, imanager, dmanager, workitem, pipelinestage, resource_id)
+                self.set_io_transfer_stats (rmanager, dmanager, workitem, resource_id)
                 workitem.set_resource_id(resource_id)
                 resource.add_workitem(workitem, pipelinestage.resourcetype)
                 item_added = True
@@ -88,10 +91,45 @@ class FirstCompleteFirstServe:
 
             print ('add_new_workitems_DFS_pipelinestage', workitem.id, pipelinestage.name, resource_id)
 
-    def set_io_transfer_stats (self, rmanager, imanager, dmanager, workitem, pipelinestage, dest_resource_id):
+    def set_input_transfer_latency (self, rmanager, imanager, dmanager, workitem):
+        domains = dmanager.get_domains ()
+        for domain in domains:
+            max_transfer_latency = 0
+            parent_pipelinestages = workitem.pipelinestage.get_parents('data')
+            for parent_pipelinestage in parent_pipelinestages:
+                src_resource_id = imanager.get_input_owner (workitem.id, parent_pipelinestage.index)
+                src_resource = rmanager.get_resource (src_resource_id, active=True)
+
+                read_latency = src_resource.pfs.get_read_latency(workitem.pipelinestage.output_size)
+                transfer_latency = dmanager.get_interdomain_transfer_latency (src_resource.domain_id,\
+                                                                              domain.id,\
+                                                                              parent_pipelinestage.output_size)
+
+                total_latency = read_latency + transfer_latency
+
+                if total_latency > max_transfer_latency:
+                    max_transfer_latency = total_latency
+
+            workitem.add_input_transfer_latency(domain.id, max_transfer_latency)
+
+    def set_io_transfer_stats (self, rmanager, dmanager, workitem, resource_id):
+        resource = rmanager.get_resource(resource_id, active=True)
+        transfer_latency = workitem.get_input_transfer_latency(str(resource.domain_id))
+        if transfer_latency == None:
+            transfer_latency = dmanager.get_central_repository_latency (workitem.pipelinestage.output_size)
+
+        parent_pipelinestages = workitem.pipelinestage.get_parents('data')
+        for parent_pipelinestage in parent_pipelinestages:
+            resource.pfs.read_file(workitem.id, workitem.pipelinestage.name, parent_pipelinestage.name)
+
+        workitem.input_read_time = transfer_latency
+        workitem.output_write_time = resource.pfs.get_write_latency(workitem.pipelinestage.output_size)
+
+    '''
+    def set_io_transfer_stats (self, rmanager, imanager, dmanager, workitem, dest_resource_id):
         max_transfer_latency = 0
 
-        parent_pipelinestages = pipelinestage.get_parents ('data')
+        parent_pipelinestages = workitem.pipelinestage.get_parents ('data')
         dest_resource = rmanager.get_resource(dest_resource_id, active=True)
 
         for parent_pipelinestage in parent_pipelinestages:
@@ -101,7 +139,7 @@ class FirstCompleteFirstServe:
 
             src_resource = rmanager.get_resource (src_resource_id, active=True)
 
-            read_latency = src_resource.pfs.read_file (workitem.id, pipelinestage.name, parent_pipelinestage.name)
+            read_latency = src_resource.pfs.read_file (workitem.id, workitem.pipelinestage.name, parent_pipelinestage.name)
             transfer_latency = dmanager.get_interdomain_transfer_latency (src_resource.domain_id,\
                                                                           dest_resource.domain_id,\
                                                                           parent_pipelinestage.output_size)
@@ -113,6 +151,7 @@ class FirstCompleteFirstServe:
 
         workitem.input_read_time = max_transfer_latency
         workitem.output_write_time = dest_resource.pfs.get_write_latency(pipelinestage.output_size)
+    '''
 
     def add_new_workitems_DFS (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')

@@ -135,6 +135,9 @@ class DomainManager:
         self.env = env
         self.interdomain_transfer_rate = {}
 
+    def get_central_repository_latency (self, size):
+        return float (size / 1024)
+
     def reset (self):
         for domain in self.domains:
             self.domains[domain].reset()

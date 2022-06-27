@@ -23,6 +23,15 @@ class WorkItem:
         self.starttime = -1
         self.endtime = -1
         self.priority = int (pipelinestage.priority)
+        self.input_transfer_latency_map = {}
+
+    def add_input_transfer_latency (self, domain_id, latency):
+        self.input_transfer_latency_map[str(domain_id)] = latency
+
+    def get_input_transfer_latency (self, domain_id):
+        if len (self.pipelinestage.get_parents('data')) <= 0:
+            return None
+        return self.input_transfer_latency_map[str(domain_id)]
 
     def get_id(self):
         return self.id

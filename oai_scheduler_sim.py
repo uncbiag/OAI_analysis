@@ -240,7 +240,7 @@ class OAI_Scheduler:
                             continue
 
                         pinned_resource.get_status (rmanager, self.worker_threads[pinned_resource.id], self.outputfile)
-                        ret = scheduling_policy.remove_complete_workitem (pinned_resource, pipelinestage, imanager)
+                        ret = scheduling_policy.remove_complete_workitem (pinned_resource, pipelinestage, imanager, rmanager, dmanager)
 
                         if ret == True:
                             if exploration == True and pinned_resource.get_explored () == False:

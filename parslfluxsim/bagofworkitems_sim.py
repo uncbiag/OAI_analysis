@@ -6,6 +6,10 @@ class BagOfWorkItems (object):
         self.pipelinestageindex = pipelinestageindex
         self.bag = []
         self.computetype = computetype
+        self.root = True
+
+    def set_root (self, status):
+        self.root = status
 
     def add_workitem (self, workitem):
         self.bag.append(workitem)
@@ -30,3 +34,8 @@ class BagOfWorkItems (object):
 
     def sort_complete_workitems_by_latest_finish_time (self):
         self.bag = sorted (self.bag, key=lambda x:x.endtime, reverse=True)
+
+    def sort_complete_workitems_by_transfer_latency (self, domain_id):
+        if self.root == True:
+            return
+        self.bag = sorted (self.bag, key=lambda x:x.input_transfer_latency_map[str(domain_id)])
