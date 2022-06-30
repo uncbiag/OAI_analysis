@@ -3,7 +3,7 @@ import sys
 import statistics
 import copy
 import math
-from plots.plot_prediction_sim import plot_prediction_sim_0
+from plots.plot_prediction_sim import plot_resource_allocation
 from parslfluxsim.resources_sim import Resource
 from parslfluxsim.bagofworkitems_sim import BagOfWorkItems
 from parslfluxsim.workitem_sim import WorkItem
@@ -34,7 +34,7 @@ class PipelineStage:
     def add_completion (self, count):
         self.total_complete += count
 
-    def get_pending_workitems (self):
+    def get_pending_workitems_count (self):
         return self.batchsize - self.total_complete
 
     def populate_bagofworkitems (self, imanager):
@@ -174,6 +174,8 @@ class PipelineManager:
                 spot_cost = 0
 
             total_cost = on_demand_cost + spot_cost
+
+            print('performancetocost',resource_name, spot_cost, on_demand_cost)
 
             performance_to_cost_ratio += throughput / total_cost
 
@@ -372,14 +374,8 @@ class PipelineManager:
         #for pipelinestage in self.pipelinestages:
         #    pipelinestage.print_data ()
 
-    def print_stage_queue_data_2 (self, rmanager, pfs):
-        plot_data = {}
-        for pipelinestage in self.pipelinestages:
-            plot_data[pipelinestage.name] = []
-            for phase in pipelinestage.phases:
-                plot_data[pipelinestage.name].append ([phase.queue_snapshots, phase.starttime, phase.endtime, phase.predictions])
-
-        plot_prediction_sim_0 (self, rmanager, plot_data, pfs)
+    def print_stage_queue_data_2 (self, rmanager):
+        plot_resource_allocation(rmanager)
 
 
     def get_all_pipelinestages (self):

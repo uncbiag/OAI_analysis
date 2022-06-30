@@ -5,10 +5,27 @@ import statistics
 import numpy as np
 
 class ExecutionSim:
-    def __init__ (self, env, app):
+    def __init__ (self, env, app, reservation_timeout):
         self.env = env
         self.app = app
+        self.status = 'RUNNING'
         self.exe = self.env.process (self.app.run ())
+        if reservation_timeout != -1:
+            self.reservation = self.env.process (self.reservation_timeout (reservation_timeout, self.exe))
+
+    def reservation_timeout (self, timeout, exec):
+        try:
+            yield self.env.timeout(timeout)
+        except simpy.Interrupt as interrupt:
+            print ('reservation_timeout ()', timeout)
+
+        if exec.is_alive == True:
+            exec.interrupt ('timeout')
+            self.status = 'CANCELLED'
+        else:
+            print ('reservation_timeout ()', 'run already dead')
+        print ('reservation_timeout ()', 'exiting', self.env.now)
+
     def get_exec (self):
         return self.exe
 
@@ -62,7 +79,6 @@ class ExecutionSimThread:
             return gennorm.rvs(shape, location, scale, 1)[0]
 
     def run (self):
-
         try:
             yield self.env.timeout(self.provision_time)
         except simpy.Interrupt as interrupt:
@@ -80,8 +96,11 @@ class ExecutionSimThread:
                 yield self.env.timeout (0.25)
                 continue
             except simpy.Interrupt as interrupt:
-                if interrupt.cause == 'cancel':
-                    print (self.domain_id, self.resource.id, self.resourcetype, 'exiting...')
+                if interrupt.cause == 'timeout':
+                    print (self.domain_id, self.resource.id, self.resourcetype, 'timeout', 'exiting...')
+                    break
+                elif interrupt.cause == 'cancel':
+                    print (self.domain_id, self.resource.id, self.resourcetype, 'cancelled', 'exiting...')
                     break
                 else:
                     self.interrupts += 1
@@ -107,7 +126,10 @@ class ExecutionSimThread:
                         yield self.env.timeout ((timeout + input_read_time + output_write_time)/3600)
                     except simpy.Interrupt as interrupt:
                         if interrupt.cause == 'cancel':
-                            print(self.domain_id, self.resource.id, self.resourcetype, 'exiting...')
+                            print(self.domain_id, self.resource.id, self.resourcetype, 'cancelled', 'exiting...')
+                            break
+                        elif interrupt.cause == 'timeout':
+                            print(self.domain_id, self.resource.id, self.resourcetype, 'timeout', 'exiting...')
                             break
                     endtime = self.env.now
                     #print (resource_id, version, startime, endtime, 'complete', self.interrupts)

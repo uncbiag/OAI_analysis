@@ -12,6 +12,8 @@ class Domain:
         self.resourcedata = resourcedata
         self.id = domain_id
         self.env = env
+        self.reservation_quota = 0
+        self.allocations = {}
 
     def print_data (self):
         print ('resource dict', self.resourcedict)
@@ -35,6 +37,27 @@ class Domain:
     def provision_resource (self, resourcetype, on_demand, bidding_price):
         pass
 
+    def get_allocations (self):
+        return self.allocations
+
+    def add_allocation (self, resourcetype):
+        if resourcetype not in self.allocations:
+            self.allocations[resourcetype] = 0
+        self.allocations[resourcetype] += 1
+
+    def remove_allocation (self, resourcetype):
+        if resourcetype not in self.allocations or self.allocations[resourcetype] <= 0:
+            print ('remove_allocation ()', resourcetype, 'not allocated')
+            return
+
+        self.allocations[resourcetype] -= 1
+
+    def get_reservation_quota (self):
+        return self.reservation_quota
+
+    def get_availability (self, resourcetype):
+        pass
+
     def get_pfs_handle(self):
         return self.pfs
 
@@ -44,6 +67,7 @@ class Domain:
 class HPCDomain (Domain):
     def init_cluster(self):
         self.type = 'HPC'
+        self.reservation_quota = self.resourcedata['reservation_quota']
         for cputype in self.resourcedata['CPU']:
             self.resourcedict[cputype['id']] = {}
             self.resourcedict[cputype['id']]['computetype'] = 'CPU'
@@ -62,8 +86,14 @@ class HPCDomain (Domain):
     def provision_resource (self, resourcetype, on_demand, bidding_price):
         return 0, 0
 
+    def get_availability(self, resourcetype):
+        return True
+
 
 class AWSDomain (Domain):
+
+    def get_availability(self, resourcetype):
+        return True
 
     def provision_on_demand_resource (self, resourcetype):
 
@@ -91,6 +121,7 @@ class AWSDomain (Domain):
 
     def init_cluster (self):
         self.type = 'AWS'
+        self.reservation_quota = self.resourcedata['reservation_quota']
 
         for cputype in self.resourcedata['CPU']:
             self.resourcedict[cputype['id']] = {}

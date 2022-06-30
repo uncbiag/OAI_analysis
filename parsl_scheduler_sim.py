@@ -1,5 +1,4 @@
-import datetime
-import time, os, sys
+import os, sys
 
 from parslfluxsim.resources_sim import ResourceManager
 from parslfluxsim.domain_sim import DomainManager
@@ -7,19 +6,11 @@ from oai_scheduler_sim import OAI_Scheduler
 
 from parslflux.pipeline import PipelineManager
 from parslfluxsim.input_sim import InputManager2
-from plots.plot_prediction_sim import plot_prediction
-from performance_analysis import plot_prediction_performance, store_performance_data
-
-import csv
-from itertools import zip_longest
-
-from execution_sim import ExecutionSim, ExecutionSimThread
-import pandas as pd
+from parslfluxsim.allocator_sim import Allocator
+from parslfluxsim.scaling_sim import Scaler
 
 import simpy
-import matplotlib.pyplot as plt
 
-import numpy as np
 
 class Simulation:
     def __init__(self):
@@ -43,7 +34,11 @@ class Simulation:
         self.scheduler = OAI_Scheduler(self.env)
         self.scheduler.outputfile = output_file
 
-        return self.r, self.i, self.p, self.d
+        self.a = Allocator (self.env)
+
+        self.s = Scaler (self.env, 30)
+
+        return self.r, self.i, self.p, self.d, self.a, self.s
 
     def run (self):
         while self.env.peek() < 2000:
@@ -74,20 +69,22 @@ if __name__ == "__main__":
 
     for i in range(len(max_images)):
         for j in range(no_of_runs):
-            #sys.stdout = open('output.txt', 'w')
+            sys.stdout = open('output.txt', 'w')
             output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
             sim = Simulation ()
-            r,i,p,d = sim.setup (pipelinefile, configfile, multidomain_resourcefile, max_images[i], output_file, batchsize)
-            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, exploration=True))
+            r,i,p,d,a,s = sim.setup (pipelinefile, configfile, multidomain_resourcefile, max_images[i], output_file, batchsize)
+            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, a, s, exploration=True))
             sim.run ()
-            p.reset()
+            r.reset()
             i.reset()
+            p.reset()
             d.reset()
-            print (r.resourcetypeinfo)
-            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, exploration=False))
+            s.reset()
+            print ('actual execution begins')
+            sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, a, s, exploration=False))
             sim.run()
-            #sys.stdout.close ()
-            #sys.stdout = original_stdout
+            sys.stdout.close ()
+            sys.stdout = original_stdout
             #store_performance_data(algo)
 
         #plot_prediction_performance ()

@@ -1,7 +1,4 @@
-import datetime
 from numpy import double
-import simpy
-from execution_sim import ExecutionSim
 
 
 class WorkItem:

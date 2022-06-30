@@ -323,17 +323,28 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
     plt.ylabel("Data Throughput (GB/hr)")
 
 
-    fig1, axes1 = plt.subplots(nrows=1, ncols=1)
+
+    fig.savefig('queue_pattern_overallocation_stable.png', dpi=300)
+    fig0.savefig ('filesystem_space.png', dpi=300)
+    fig2.savefig ('throughput_pattern_overallocation_stable.png', dpi=300)
+    plt.show()
+
+def plot_resource_allocation (rmanager):
+    fig, axes = plt.subplots(nrows=1, ncols=1)
 
     resourcetypeinfo = rmanager.get_resourcetype_info_all()
 
-    #print (resourcetypeinfo)
+    # print (resourcetypeinfo)
 
-    ax = axes1
+    ax = axes
 
-    if 'on_demand' in resourcetypeinfo.keys ():
-        for resource_name in resourcetypeinfo['on_demand'].keys ():
-            x_data_on_demand = [i * 3600 for i in resourcetypeinfo['on_demand'][resource_name]['count']['time']]
+    reset_time = rmanager.reset_time
+
+    if 'on_demand' in resourcetypeinfo.keys():
+        for resource_name in resourcetypeinfo['on_demand'].keys():
+            if 'count' not in resourcetypeinfo['on_demand'][resource_name].keys ():
+                continue
+            x_data_on_demand = [(i-reset_time) * 3600 for i in resourcetypeinfo['on_demand'][resource_name]['count']['time']]
             y_data_on_demand = resourcetypeinfo['on_demand'][resource_name]['count']['count']
 
             x_data_on_demand_new = [x_data_on_demand[0]]
@@ -341,35 +352,34 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
 
             index = 1
 
-            while index < len (x_data_on_demand):
-                x_data_on_demand_new.append (x_data_on_demand[index])
-                y_data_on_demand_new.append (y_data_on_demand[index - 1])
-                x_data_on_demand_new.append (x_data_on_demand[index])
+            while index < len(x_data_on_demand):
+                x_data_on_demand_new.append(x_data_on_demand[index])
+                y_data_on_demand_new.append(y_data_on_demand[index - 1])
+                x_data_on_demand_new.append(x_data_on_demand[index])
                 y_data_on_demand_new.append(y_data_on_demand[index])
                 index += 1
 
-
-            #print(resource_name, x_data, y_data)
-            if resourcetypeinfo['on_demand'][resource_name]['resourcetype'] == 'CPU':
+            #print(resource_name, x_data_on_demand_new, y_data_on_demand_new)
+            if resourcetypeinfo['on_demand'][resource_name]['computetype'] == 'CPU':
                 ax.plot(x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='solid')
             else:
-                ax.plot (x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='dashed')
+                ax.plot(x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='dashed')
 
-
-    if 'spot' in resourcetypeinfo.keys ():
-        for resource_name in resourcetypeinfo['spot'].keys ():
+    '''
+    if 'spot' in resourcetypeinfo.keys():
+        for resource_name in resourcetypeinfo['spot'].keys():
             x_data_spot = [i * 3600 for i in resourcetypeinfo['spot'][resource_name]['count']['time']]
             y_data_spot = resourcetypeinfo['spot'][resource_name]['count']['count']
-            #print(resource_name, x_data, y_data)
-            if resourcetypeinfo['spot'][resource_name]['resourcetype'] == 'CPU':
-                ax.plot (x_data_spot, y_data_spot, label=resource_name, linestyle='dotted')
+            # print(resource_name, x_data, y_data)
+            if resourcetypeinfo['spot'][resource_name]['computetype'] == 'CPU':
+                ax.plot(x_data_spot, y_data_spot, label=resource_name, linestyle='dotted')
             else:
                 ax.plot(x_data_spot, y_data_spot, label=resource_name, linestyle='dashdott')
+    '''
     ax.legend()
-    ax.set_xlabel ('Timeline (seconds)')
-    ax.set_ylabel ('Count')
-    fig.savefig('queue_pattern_overallocation_stable.png', dpi=300)
-    fig0.savefig ('filesystem_space.png', dpi=300)
-    fig1.savefig('resource_pattern_overallocation_stable.png', dpi=300)
-    fig2.savefig ('throughput_pattern_overallocation_stable.png', dpi=300)
+    ax.set_xlabel('Timeline (seconds)')
+    ax.set_ylabel('Count')
+
+    fig.savefig('resource_pattern_overallocation_stable.png', dpi=300)
+
     plt.show()

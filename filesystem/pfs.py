@@ -25,26 +25,26 @@ class PFS:
 
             self.capacity_in_use += filesize
             self.total_entries += 1
-            pipelinestages = []
+
+            self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'] = {}
+
             for child_pipelinestage in children_pipelinestages:
-                pipelinestages.append (str(child_pipelinestage.name))
+                self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'][str(child_pipelinestage.name)] = False
 
-            self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'] = pipelinestages
-
-            print ('pfs store ()', image_id, pipelinestagename, filesize, pipelinestages)
+            #print ('pfs store ()', image_id, pipelinestagename, filesize, self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'])
 
     def read_file (self, image_id, current_pipelinestagename, parent_pipelinestagename):
         if str(parent_pipelinestagename) not in self.storage.keys ():
-            print ('read_file () 1', current_pipelinestagename)
+            print ('read_file () 1', current_pipelinestagename, parent_pipelinestagename)
             return None
 
         if str(image_id) not in self.storage[str(parent_pipelinestagename)].keys ():
             print('read_file () 1', parent_pipelinestagename, str(image_id))
             return None
 
-        print('read_file ()', self.storage[str(parent_pipelinestagename)][str(image_id)])
+        #print('read_file ()', self.storage[str(parent_pipelinestagename)][str(image_id)])
 
-        self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read'].remove (str(current_pipelinestagename))
+        #self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read'].remove (str(current_pipelinestagename))
 
         read_latency = self.storage[str(parent_pipelinestagename)][str(image_id)]['size'] / self.read_bandwidth
         read_time = self.env.now + read_latency
@@ -55,28 +55,37 @@ class PFS:
             if self.storage[str(parent_pipelinestagename)][str(image_id)]['latest_read_time'] < read_time:
                 self.storage[str(parent_pipelinestagename)][str(image_id)]['latest_read_time'] = read_time
 
-        if len (self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read']) <= 0:
-            self.delete_file (image_id, parent_pipelinestagename)
+        #if len (self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read']) <= 0:
+        #    self.delete_file (image_id, parent_pipelinestagename)
 
         return read_latency
 
-    def delete_file (self, image_id, version):
-        if len (self.storage[str(version)][str (image_id)]['pending_children_read']) <= 0:
-            filesize = self.storage[str(version)][str (image_id)]['size']
-            entrytime = self.storage[str(version)][str (image_id)]['entrytime']
-            exittime = self.storage[str(version)][str (image_id)]['latest_read_time']
+    def delete_file (self, image_id, parent_pipelinestagename, current_pipelinestagename):
+        #print('delete_file ()', image_id, parent_pipelinestagename)
+        self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read'][str(current_pipelinestagename)] = True
 
-            if str (version) not in self.deleted_entries:
-                self.deleted_entries[str(version)] = {}
-            self.deleted_entries[str(version)][str(image_id)] = {}
-            self.deleted_entries[str(version)][str(image_id)]['entry'] = entrytime
-            self.deleted_entries[str(version)][str(image_id)]['exit'] = exittime
-            self.deleted_entries[str(version)][str(image_id)]['size'] = filesize
+        pending_children_reads = self.storage[str(parent_pipelinestagename)][str(image_id)]['pending_children_read']
+
+        for pipelinestage in pending_children_reads.keys ():
+            if pending_children_reads[pipelinestage] == False:
+                return
+
+        filesize = self.storage[str(parent_pipelinestagename)][str (image_id)]['size']
+        entrytime = self.storage[str(parent_pipelinestagename)][str (image_id)]['entrytime']
+        exittime = self.storage[str(parent_pipelinestagename)][str (image_id)]['latest_read_time']
+
+        if str (parent_pipelinestagename) not in self.deleted_entries:
+            self.deleted_entries[str(parent_pipelinestagename)] = {}
+        self.deleted_entries[str(parent_pipelinestagename)][str(image_id)] = {}
+        self.deleted_entries[str(parent_pipelinestagename)][str(image_id)]['entry'] = entrytime
+        self.deleted_entries[str(parent_pipelinestagename)][str(image_id)]['exit'] = exittime
+        self.deleted_entries[str(parent_pipelinestagename)][str(image_id)]['size'] = filesize
 
 
-            del self.storage[str(version)][str(image_id)]
-            self.capacity_in_use -= filesize
-            self.total_entries -= 1
+        del self.storage[str(parent_pipelinestagename)][str(image_id)]
+        self.capacity_in_use -= filesize
+        self.total_entries -= 1
+
 
     def get_read_latency (self, size):
         return float (size/self.read_bandwidth)

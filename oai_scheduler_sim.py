@@ -1,85 +1,13 @@
-import time
 from parslfluxsim.FirstCompleteFirstServe_sim import FirstCompleteFirstServe
-from parslfluxsim.resources_sim import ResourceManager
-from parslflux.pipeline import PipelineManager
-from parslfluxsim.input_sim import InputManager2
-from execution_sim import ExecutionSim, ExecutionSimThread
-from aws_cloud_sim.arc_to_aws_mapping import ARCMapping
+from parslfluxsim.allocator_sim import Allocator
+from parslfluxsim.scaling_sim import Scaler
 import simpy
-from performance_analysis import add_performance_data
+
 
 class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
         self.idle_periods = {}
-        self.cpuallocations = {}
-        self.gpuallocations = {}
-        self.worker_threads = {}
-        self.workers = {}
-        self.exploration_threads = {}
-        self.explorers = {}
-
-    def add_worker (self, rmanager, domain, cpuok, gpuok, resource_type, provision_type, bidding_price, pipelinestage):
-        if provision_type == 'on_demand':
-            activepool = True
-        else:
-            activepool = False
-
-        new_resource, provision_time = rmanager.add_resource (domain, cpuok, gpuok, resource_type, provision_type,\
-                                                              activepool, bidding_price, pipelinestage.index)
-
-        #print ('add_worker ()', new_resource.cpu, new_resource.gpu, provision_time)
-
-        performance_dist = domain.get_performance_dist (resource_type)
-
-        if performance_dist == None:
-            print ('add_worker ()', resource_type, 'performance dance not found')
-            return None
-
-        if new_resource.cpu != None:
-            cpu_thread = ExecutionSimThread(self.env, new_resource, 'CPU', performance_dist, provision_type, provision_time, domain.id)
-        else:
-            cpu_thread = None
-
-        if new_resource.gpu != None:
-            gpu_thread = ExecutionSimThread(self.env, new_resource, 'GPU', performance_dist, provision_type, provision_time, domain.id)
-        else:
-            gpu_thread = None
-
-        self.worker_threads[new_resource.id] = [cpu_thread, gpu_thread]
-
-        if cpu_thread != None:
-            cpu_thread_exec = ExecutionSim(self.env, cpu_thread)
-        else:
-            cpu_thread_exec = None
-        if gpu_thread != None:
-            gpu_thread_exec = ExecutionSim(self.env, gpu_thread)
-        else:
-            gpu_thread_exec = None
-
-        self.workers[new_resource.id] = [cpu_thread_exec, gpu_thread_exec]
-
-        pipelinestage.add_pinned_resource (new_resource.id)
-
-        return new_resource
-
-    def delete_worker (self, rmanager, resource_id, pipelinestage):
-        if pipelinestage.resourcetype == 'CPU':
-            worker = self.workers[resource_id][0]
-        else:
-            worker = self.workers[resource_id][1]
-
-        worker_exec = worker.get_exec()
-
-        worker_exec.interrupt ('cancel')
-
-        self.worker_threads.pop (resource_id, None)
-
-        self.workers.pop (resource_id, None)
-
-        rmanager.delete_resource (pipelinestage.resourcetype, resource_id, active=True)
-
-        pipelinestage.remove_pinned_resource (resource_id)
 
     def report_idle_periods (self, rmanager, since_time, current_time, last_phase_closed_index):
         print ('report_idle_periods ()')
@@ -153,30 +81,7 @@ class OAI_Scheduler:
             for i in range (0, count):
                 self.add_worker(rmanager, True, False, resource_type, None, 'on_demand', None, None)
 
-    def explore (self, rmanager, dmanager, pipelinestage):
-        all_domains = dmanager.get_domains ()
-
-        for domain in all_domains:
-            exploration_resource_types = domain.get_resource_types (pipelinestage.resourcetype)
-
-            cpu_ok = False
-            gpu_ok = False
-
-            if pipelinestage.resourcetype == 'CPU':
-                cpu_ok = True
-            else:
-                gpu_ok = True
-
-            for exploration_resource_type in exploration_resource_types:
-
-                new_resource = self.add_worker (rmanager, domain, cpu_ok, gpu_ok, exploration_resource_type, \
-                                                'on_demand', None, pipelinestage.index, exploration=True)
-                pipelinestage.add_exploration_resource (new_resource)
-
-
-        return True
-
-    def perform_initial_allocation (self, rmanager, pmanager, dmanager, exploration):
+    def perform_initial_allocation (self, rmanager, pmanager, dmanager, allocator, exploration):
         for pipelinestage in pmanager.pipelinestages:
 
             compute_type = pipelinestage.resourcetype
@@ -195,8 +100,8 @@ class OAI_Scheduler:
                         gpu_ok = True
 
                     for exploration_resource_type in exploration_resource_types:
-                        new_resource = self.add_worker(rmanager, domain, cpu_ok, gpu_ok, exploration_resource_type, \
-                                                       'on_demand', None, pipelinestage)
+                        new_resource = allocator.add_worker(rmanager, domain, cpu_ok, gpu_ok, exploration_resource_type, \
+                                                            'on_demand', None, pipelinestage, -1)
             else:
                 performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage (rmanager, pipelinestage.index)
                 resource_type = list(performance_to_cost_ratio_ranking.keys())[0]
@@ -209,8 +114,8 @@ class OAI_Scheduler:
 
                 domain = rmanager.get_resourcetype_info (resource_type, 'domain', 'on_demand')
 
-                new_resource = self.add_worker(rmanager, domain, cpu_ok, gpu_ok, resource_type, 'on_demand',\
-                                               None, pipelinestage)
+                new_resource = allocator.add_worker(rmanager, domain, cpu_ok, gpu_ok, resource_type, 'on_demand',\
+                                                    None, pipelinestage, -1)
 
         print ('initial allocation done')
 
@@ -218,14 +123,14 @@ class OAI_Scheduler:
         for pipelinestage in pmanager.pipelinestages:
             pipelinestage.populate_bagofworkitems (imanager)
 
-    def run_no_prediction_pin_core (self, rmanager, imanager, pmanager, dmanager, exploration):
+    def run_no_prediction_pin_core (self, rmanager, imanager, pmanager, dmanager, allocator, scaler, exploration):
         scheduling_policy = FirstCompleteFirstServe(self.env)
 
         self.populate_bagofworkitems (imanager, pmanager)
         print ('workitems created')
 
         try:
-            self.perform_initial_allocation (rmanager, pmanager, dmanager, exploration)
+            self.perform_initial_allocation (rmanager, pmanager, dmanager, allocator, exploration)
 
             pipelinestage_completions = {}
             for pipelinestage in pmanager.pipelinestages:
@@ -233,13 +138,16 @@ class OAI_Scheduler:
 
             while True:
                 for pipelinestage in pmanager.pipelinestages:
+
+                    allocator.get_status(rmanager, dmanager, pipelinestage, scheduling_policy)
+
                     pinned_resource_ids = pipelinestage.get_pinned_resources (rmanager, True)
                     for resource_id in pinned_resource_ids:
                         pinned_resource = rmanager.get_resource (resource_id, True)
                         if pinned_resource.get_active () == False:
                             continue
 
-                        pinned_resource.get_status (rmanager, self.worker_threads[pinned_resource.id], self.outputfile)
+                        pinned_resource.get_status (rmanager, allocator.worker_threads[pinned_resource.id], self.outputfile)
                         ret = scheduling_policy.remove_complete_workitem (pinned_resource, pipelinestage, imanager, rmanager, dmanager)
 
                         if ret == True:
@@ -276,12 +184,14 @@ class OAI_Scheduler:
                     for idle_resource in idle_resources:
                         if pipelinestage.resourcetype == 'CPU':
                             idle_resource.schedule (rmanager, pmanager, pipelinestage.resourcetype,\
-                                                    self.workers[idle_resource.id][0].get_exec(), self.env)
+                                                    allocator.workers[idle_resource.id][0].get_exec(), self.env)
                         else:
                             idle_resource.schedule (rmanager, pmanager, pipelinestage.resourcetype, \
-                                                    self.workers[idle_resource.id][1].get_exec(), self.env)
+                                                    allocator.workers[idle_resource.id][1].get_exec(), self.env)
 
                 # scaling code goes here
+                if exploration == False:
+                    scaler.scale_up_2x (rmanager, pmanager, dmanager, allocator)
                 #pmanager.reconfiguration (rmanager, self.env)
 
                 for pipelinestage in pmanager.pipelinestages:
@@ -306,13 +216,13 @@ class OAI_Scheduler:
 
 
                     if exploration == False:
-                        if pipelinestage.get_pending_workitems () <= 0:
+                        if pipelinestage.get_pending_workitems_count () <= 0:
                             pipelinestage_completions[pipelinestage.name] = True
                             for idle_resource in idle_resources:
                                 if idle_resource.pfs.total_entries <= 0:
-                                    self.delete_worker(rmanager, idle_resource.id, pipelinestage)
+                                    allocator.delete_worker(rmanager, dmanager, idle_resource.id, pipelinestage)
                     else:
-                        print (pipelinestage.name, len (pipelinestage.pinned_resources), len (explored_resources))
+                        #print (pipelinestage.name, len (pipelinestage.pinned_resources), len (explored_resources))
                         if len (pipelinestage.pinned_resources) == len (explored_resources):
                             pipelinestage_completions[pipelinestage.name] = True
 
@@ -329,7 +239,7 @@ class OAI_Scheduler:
                         for pipelinestage in pmanager.pipelinestages:
                             active_pinned_resource_ids = pipelinestage.get_pinned_resources(rmanager, True)
                             for pinned_resource_id in active_pinned_resource_ids:
-                                self.delete_worker(rmanager, pinned_resource_id, pipelinestage)
+                                allocator.delete_worker(rmanager, dmanager, pinned_resource_id, pipelinestage)
                     break
 
                 yield self.env.timeout(5 / 3600)
@@ -341,7 +251,8 @@ class OAI_Scheduler:
 
         cpu_cost, gpu_cost = rmanager.get_total_cost()
         print('total cost', self.env.now, cpu_cost, gpu_cost)
-        # pmanager.print_stage_queue_data_2(rmanager, self.pfs)
+        if exploration == False:
+            pmanager.print_stage_queue_data_2(rmanager)
 
     def run_no_prediction (self, rmanager, imanager, pmanager):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')
