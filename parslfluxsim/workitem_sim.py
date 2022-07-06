@@ -111,8 +111,8 @@ class WorkItem:
             self.starttime = thread.starttime
             self.endtime = thread.endtime
             '''
-            self.starttime = thread.input_read_starttime
-            self.endtime = thread.output_write_endtime
+            self.starttime = thread.exec_starttime
+            self.endtime = thread.exec_endtime
             self.output_write_starttime = thread.output_write_starttime
             self.output_write_endtime = thread.output_write_endtime
             self.input_read_starttime = thread.input_read_starttime

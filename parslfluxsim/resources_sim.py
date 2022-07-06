@@ -611,32 +611,18 @@ class ResourceManager:
         self.resourcetypeinfo = {}
         self.exectimes = {}
         self.max_exectimes = {}
-        self.active_cpunodes_count = 0
-        self.active_gpunodes_count = 0
-        self.backup_cpunodes_count = 0
-        self.backup_gpunodes_count = 0
         self.cpuid_counter = 0
         self.gpuid_counter = 0
         self.env = env
         self.total_cpu_cost = 0
         self.total_gpu_cost = 0
         self.reservation_timeout = 0
-        self.active_pool_nodes = []
-        self.backup_pool_nodes = []
+        self.node_pool = []
         self.exploration_resources = []
-        self.pinned_resources = []
         self.resource_domain_map = {}
 
     def get_startup_time (self, resourcetype, provision_type):
         return float (self.resourcetypeinfo[provision_type][resourcetype]['startuptime'] / 3600)
-
-    def get_availability (self, resourcetype, provision_type):
-        return self.resourcetypeinfo[provision_type][resourcetype]['availability']
-
-    def request_resource (self, resourcename):
-        if rand.random() > 0.5:
-            return True
-        return False
 
     def get_domain (self, resource_id):
         if resource_id in self.resource_domain_map:
@@ -648,19 +634,19 @@ class ResourceManager:
         self.reset_time = self.env.now
         if 'on_demand' in self.resourcetypeinfo.keys ():
             for resourcetype in self.resourcetypeinfo['on_demand'].keys ():
-                print (self.resourcetypeinfo['on_demand'][resourcetype])
+                #print (self.resourcetypeinfo['on_demand'][resourcetype])
                 self.resourcetypeinfo['on_demand'][resourcetype].pop ('count', None)
 
         if 'spot' in self.resourcetypeinfo.keys():
             for resourcetype in self.resourcetypeinfo['spot'].keys ():
-                print(self.resourcetypeinfo['on_demand'][resourcetype])
+                #print(self.resourcetypeinfo['on_demand'][resourcetype])
                 self.resourcetypeinfo['spot'][resourcetype].pop ('count', None)
 
     def add_resource (self, domain, cpuok, gpuok, resource_type, provision_type,\
-                      active_pool, bidding_price, pipelinestageindex, reservation_timeout):
+                      bidding_price, pipelinestageindex, reservation_timeout):
 
         print ('add resource ()', domain.name, cpuok, gpuok, resource_type, provision_type,\
-               active_pool, bidding_price, pipelinestageindex, reservation_timeout)
+               bidding_price, pipelinestageindex, reservation_timeout)
 
         if provision_type == 'on_demand':
             on_demand = True
@@ -683,31 +669,20 @@ class ResourceManager:
             resource.add_cpu (resource_type, cost, self.env.now)
             resource.pfs = domain.get_pfs_handle()
 
-            if active_pool == True:
-                self.active_pool_nodes.append(resource)
-                self.active_cpunodes_count += 1
-            else:
-                self.backup_pool_nodes.append(resource)
-                self.backup_cpunodes_count += 1
-            self.cpuid_counter += 1
 
+            self.node_pool.append(resource)
+            self.cpuid_counter += 1
             self.resourcetypeinfo[provision_type][resource_type]['computetype'] = 'CPU'
         elif gpuok == True:
             resource = Resource('g' + str(self.gpuid_counter), self, provision_type, self.env, pipelinestageindex, domain.id, reservation_timeout)
             resource.add_gpu(resource_type, cost, self.env.now)
             resource.pfs = domain.get_pfs_handle()
 
-            if active_pool == True:
-                self.active_pool_nodes.append(resource)
-                self.active_gpunodes_count += 1
-            else:
-                self.backup_pool_nodes.append(resource)
-                self.backup_gpunodes_count += 1
+            self.node_pool.append(resource)
             self.gpuid_counter += 1
             self.resourcetypeinfo[provision_type][resource_type]['computetype'] = 'GPU'
 
         self.resourcetypeinfo[provision_type][resource_type]['provisiontime'] = provision_time
-        self.resourcetypeinfo[provision_type][resource_type]['availability'] = 1.0
         self.resourcetypeinfo[provision_type][resource_type]['cost'] = cost
         self.resourcetypeinfo[provision_type][resource_type]['domain'] = domain
 
@@ -721,7 +696,6 @@ class ResourceManager:
             self.resourcetypeinfo[provision_type][resource_type]['count']['count'].append(
             self.resourcetypeinfo[provision_type][resource_type]['count']['count'][-1] + 1)
 
-        self.pinned_resources.append(resource)
 
         self.resource_domain_map[str(resource.id)] = str (domain.id)
 
@@ -730,14 +704,11 @@ class ResourceManager:
         return resource, provision_time
 
     def delete_resource (self, domain, resourcetype, resource, active):
-        if active == True:
-            nodes = self.active_pool_nodes
-        else:
-            nodes = self.backup_pool_nodes
+
         resource_id = resource.id
-        print('delete resource ()', resource_id, resourcetype, active, len(nodes))
+        print('delete resource ()', resource_id, resourcetype, active, len(self.node_pool))
         node_index = 0
-        for node in nodes:
+        for node in self.node_pool:
             if node.id == resource_id:
                 if node.active == True:
                     provision_type = node.provision_type
@@ -754,26 +725,8 @@ class ResourceManager:
                 break
             node_index += 1
 
-        if node_index < len (nodes):
-
-            node = nodes.pop (node_index)
-
-            self.pinned_resources.remove(node)
-
-            if resourcetype == 'CPU':
-                if active == True:
-                    self.active_cpunodes_count -= 1
-                else:
-                    self.backup_cpunodes_count -= 1
-            else:
-                if active == True:
-                    self.active_gpunodes_count -= 1
-                else:
-                    self.backup_gpunodes_count -= 1
-
-    def add_pinned_resource (self, node_id):
-        node = self.get_resource (node_id, True)
-        self.pinned_resources.append (node)
+        if node_index < len (self.node_pool):
+            node = self.node_pool.pop (node_index)
 
     def get_total_cost (self):
         return self.total_cpu_cost, self.total_gpu_cost
@@ -788,7 +741,7 @@ class ResourceManager:
 
     def get_max_exectime (self, pipelinestages, resource_id, active):
         #TODO: this function is completely wrong, use resourcename and resourcetype structure to get max exectime
-        resources = self.get_resources ('active', active)
+        resources = self.get_resources (active)
 
         max_exectime = 0
         for resource in resources:
@@ -799,18 +752,6 @@ class ResourceManager:
                 max_exectime = resource.get_max_exectime (pipelinestages)
 
         return max_exectime
-
-    def get_cpu_resources_count (self, active):
-        if active == True:
-            return self.active_cpunodes_count
-        else:
-            return self.backup_cpunodes_count
-
-    def get_gpu_resources_count (self, active):
-        if active == True:
-            return self.active_gpunodes_count
-        else:
-            return self.backup_gpunodes_count
 
     def add_exectime (self, resourcename, pipelinestages, starttime, endtime):
         seconds = endtime - starttime
@@ -837,11 +778,22 @@ class ResourceManager:
 
     def get_exectime (self, resourcename, pipelinestages):
         if resourcename not in self.exectimes:
+            print(resourcename, pipelinestages, self.exectimes)
+            for key in self.exectimes:
+                print (key, self.exectimes[key])
             return 0
         if pipelinestages not in self.exectimes[resourcename]:
+            print(resourcename, pipelinestages, self.exectimes)
+            for key in self.exectimes:
+                print(key, self.exectimes[key])
             return 0
 
         return self.exectimes[resourcename][pipelinestages][0]
+
+    def get_throughput (self, resource_name, pipelinestage):
+        exectime = self.get_exectime(resource_name, pipelinestage)
+
+        return 1 / exectime
 
     def get_pipelinestage_weights (self, resourcetype, no_of_pipelinestages):
         total_execution_times = {}
@@ -876,39 +828,18 @@ class ResourceManager:
 
         return weights
 
-    def get_resource (self, resource_id, active):
-        if active == True:
-            nodes = self.active_pool_nodes
-        else:
-            nodes = self.backup_pool_nodes
-        for node in nodes:
+    def get_resource (self, resource_id):
+        for node in self.node_pool:
             if node.id == resource_id:
                 return node
         return None
 
-    def get_resources (self, pool, active):
+    def get_resources (self, active):
         ret = []
-        if pool == 'active':
-            nodes = self.active_pool_nodes
-        else:
-            nodes = self.backup_pool_nodes
-        for resource in nodes:
+        for resource in self.node_pool:
             if resource.active == active:
                 ret.append(resource)
         return ret
-
-    def get_resources_type (self, resourcetype, active):
-        resources = []
-        if active == True:
-            nodes = self.active_pool_nodes
-        else:
-            nodes = self.backup_pool_nodes
-        for resource in nodes:
-            if resourcetype == 'CPU' and resource.cpu != None:
-                resources.append(resource)
-            elif resourcetype == 'GPU' and resource.gpu != None:
-                resources.append(resource)
-        return resources
 
     def get_resource_names (self, computetype):
         provision_type = 'on_demand'
@@ -916,4 +847,13 @@ class ResourceManager:
         for resource_name in self.resourcetypeinfo[provision_type].keys ():
             if self.resourcetypeinfo[provision_type][resource_name]['computetype'] == computetype:
                 resource_names.append(resource_name)
+        return resource_names
+
+    def get_resource_names_domain (self, computetype, domain):
+        provision_type = 'on_demand'
+        resource_names = []
+        for resource_name in self.resourcetypeinfo[provision_type].keys ():
+            if self.resourcetypeinfo[provision_type][resource_name]['computetype'] == computetype:
+                if self.resourcetypeinfo[provision_type][resource_name]['domain'].id == domain.id:
+                    resource_names.append(resource_name)
         return resource_names

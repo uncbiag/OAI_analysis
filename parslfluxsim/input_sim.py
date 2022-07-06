@@ -3,8 +3,11 @@ from data.OAI_data import OAIData, OAIImage, OAIPatients
 import yaml
 import pickle
 import sys
+import string
+import random
 
 class InputManager2:
+    '''
     def __init__(self, config_file):
         self.index = 0
         self.completion_status = {}
@@ -35,11 +38,36 @@ class InputManager2:
                                                         visit_month = [self.time_point])
 
         print (len (self.analysis_images))
-
+    '''
+    def __init__(self, count):
+        self.index = 0
+        self.analysis_images = []
+        self.completion_status = {}
+        letters = string.ascii_lowercase
+        print('generating test images', count)
+        for index in range(0, count):
+            self.analysis_images.append(''.join(random.choice(letters) for i in range(10)))
 
     def get_total_count (self):
         return len (self.analysis_images)
 
+    def get_images (self, count):
+        return_images = {}
+
+        if count > len(self.analysis_images) - self.index:
+            count = len(self.analysis_images) - self.index
+
+        images = self.analysis_images[self.index:self.index + count]
+
+        for image in images:
+            return_images[str(image)] = str(image)
+        self.index = self.index + count
+
+        # print(return_images)
+
+        return return_images
+
+    '''
     def get_images (self, count):
         return_images = {}
 
@@ -55,6 +83,7 @@ class InputManager2:
         #print(return_images)
 
         return return_images
+    '''
 
     def add_back_images (self, count):
         self.index -= count

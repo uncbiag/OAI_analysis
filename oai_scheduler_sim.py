@@ -1,6 +1,7 @@
 from parslfluxsim.FirstCompleteFirstServe_sim import FirstCompleteFirstServe
 from parslfluxsim.allocator_sim import Allocator
 from parslfluxsim.scaling_sim import Scaler
+from plots.plot_prediction_sim import plot_resource_allocation, plot_filesystem_space, plot_queued_stats, plot_throughput_stats, plot_data_transfer_stats
 import simpy
 
 
@@ -8,6 +9,10 @@ class OAI_Scheduler:
     def __init__(self, env):
         self.env = env
         self.idle_periods = {}
+        self.sim_start = self.env.now
+
+    def reset (self):
+        self.sim_start = self.env.now
 
     def report_idle_periods (self, rmanager, since_time, current_time, last_phase_closed_index):
         print ('report_idle_periods ()')
@@ -103,18 +108,22 @@ class OAI_Scheduler:
                         new_resource = allocator.add_worker(rmanager, domain, cpu_ok, gpu_ok, exploration_resource_type, \
                                                             'on_demand', None, pipelinestage, -1)
             else:
-                performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage (rmanager, pipelinestage.index)
-                resource_type = list(performance_to_cost_ratio_ranking.keys())[0]
-                cpu_ok = False
-                gpu_ok = False
-                if compute_type == 'CPU':
-                    cpu_ok = True
-                else:
-                    gpu_ok = True
+                domains = dmanager.get_domains ()
+                for domain in domains:
+                    performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage_domain (rmanager, domain,
+                                                                                                                   pipelinestage.index)
+                    print (performance_to_cost_ratio_ranking)
+                    resource_type = list(performance_to_cost_ratio_ranking.keys())[0]
+                    cpu_ok = False
+                    gpu_ok = False
+                    if compute_type == 'CPU':
+                        cpu_ok = True
+                    else:
+                        gpu_ok = True
 
-                domain = rmanager.get_resourcetype_info (resource_type, 'domain', 'on_demand')
+                    #domain = rmanager.get_resourcetype_info (resource_type, 'domain', 'on_demand')
 
-                new_resource = allocator.add_worker(rmanager, domain, cpu_ok, gpu_ok, resource_type, 'on_demand',\
+                    new_resource = allocator.add_worker(rmanager, domain, cpu_ok, gpu_ok, resource_type, 'on_demand',\
                                                     None, pipelinestage, -1)
 
         print ('initial allocation done')
@@ -139,11 +148,11 @@ class OAI_Scheduler:
             while True:
                 for pipelinestage in pmanager.pipelinestages:
 
-                    allocator.get_status(rmanager, dmanager, pipelinestage, scheduling_policy)
+                    allocator.check_failed (rmanager, dmanager, pipelinestage, scheduling_policy)
 
                     pinned_resource_ids = pipelinestage.get_pinned_resources (rmanager, True)
                     for resource_id in pinned_resource_ids:
-                        pinned_resource = rmanager.get_resource (resource_id, True)
+                        pinned_resource = rmanager.get_resource (resource_id)
                         if pinned_resource.get_active () == False:
                             continue
 
@@ -160,7 +169,7 @@ class OAI_Scheduler:
                     pinned_resource_ids = pipelinestage.get_pinned_resources(rmanager, True)
 
                     for resource_id in pinned_resource_ids:
-                        pinned_resource = rmanager.get_resource (resource_id, True)
+                        pinned_resource = rmanager.get_resource (resource_id)
                         if pinned_resource.get_active () == False:
                             continue
 
@@ -175,7 +184,7 @@ class OAI_Scheduler:
                     idle_resources = []
 
                     for resource_id in pinned_resource_ids:
-                        pinned_resource = rmanager.get_resource(resource_id, True)
+                        pinned_resource = rmanager.get_resource(resource_id)
                         is_idle = pinned_resource.is_idle(pipelinestage.resourcetype)
 
                         if is_idle == True:
@@ -191,7 +200,8 @@ class OAI_Scheduler:
 
                 # scaling code goes here
                 if exploration == False:
-                    scaler.scale_up_2x (rmanager, pmanager, dmanager, allocator)
+                    #scaler.scale_up_2x (rmanager, pmanager, dmanager, allocator)
+                    scaler.scale_up_deadline(rmanager, pmanager, dmanager, allocator)
                 #pmanager.reconfiguration (rmanager, self.env)
 
                 for pipelinestage in pmanager.pipelinestages:
@@ -200,7 +210,7 @@ class OAI_Scheduler:
                     explored_resources = []
 
                     for resource_id in active_pinned_resource_ids:
-                        active_pinned_resource = rmanager.get_resource(resource_id, True)
+                        active_pinned_resource = rmanager.get_resource(resource_id)
                         if active_pinned_resource.get_explored () == True:
                             explored_resources.append(active_pinned_resource)
 
@@ -211,9 +221,8 @@ class OAI_Scheduler:
 
                     inactive_resources_ids = pipelinestage.get_pinned_resources(rmanager, False)
                     for resource_id in inactive_resources_ids:
-                        inactive_pinned_resource = rmanager.get_resource(resource_id, True)
+                        inactive_pinned_resource = rmanager.get_resource(resource_id)
                         idle_resources.append(inactive_pinned_resource)
-
 
                     if exploration == False:
                         if pipelinestage.get_pending_workitems_count () <= 0:
@@ -252,7 +261,19 @@ class OAI_Scheduler:
         cpu_cost, gpu_cost = rmanager.get_total_cost()
         print('total cost', self.env.now, cpu_cost, gpu_cost)
         if exploration == False:
-            pmanager.print_stage_queue_data_2(rmanager)
+            plot_resource_allocation(rmanager)
+            #plot_filesystem_space(dmanager)
+            #plot_queued_stats(pmanager)
+            #plot_data_transfer_stats(dmanager)
+            #plot_throughput_stats(pmanager)
+
+        return
+
+        '''
+        for key in rmanager.resourcetypeinfo.keys ():
+            for key1 in rmanager.resourcetypeinfo[key].keys ():
+                print (key1, rmanager.resourcetypeinfo[key][key1])
+        '''
 
     def run_no_prediction (self, rmanager, imanager, pmanager):
         print('OAI_scheduler_2 ()', 'waiting for 5 secs')

@@ -1,8 +1,7 @@
 import datetime
 
 from parslfluxsim.resources_sim import ResourceManager, Resource
-from parslflux.input import InputManager2
-from parslflux.pipeline import PipelineManager, PipelineStage
+from parslfluxsim.pipeline_sim import PipelineManager, PipelineStage
 from parslfluxsim.workitem_sim import WorkItem
 from parslfluxsim.bagofworkitems_sim import BagOfWorkItems
 
@@ -30,7 +29,7 @@ class FirstCompleteFirstServe:
                 if len(data_parent_pipelinestages) > 0:
                     for data_parent_pipelinestage in data_parent_pipelinestages:
                         src_resource_id = imanager.get_input_owner(workitem.id, data_parent_pipelinestage.index)
-                        src_resource = rmanager.get_resource (src_resource_id, True)
+                        src_resource = rmanager.get_resource (src_resource_id)
                         src_domain_id = rmanager.get_domain(src_resource_id)
                         if src_resource == None:
                             src_domain = dmanager.get_domain(src_domain_id)
@@ -91,7 +90,7 @@ class FirstCompleteFirstServe:
         for resource_id in sorted_completion_times.keys():
 
             item_added = False
-            resource = rmanager.get_resource(resource_id, active=True)
+            resource = rmanager.get_resource(resource_id)
 
             pipelinestage.bagofworkitems.sort_complete_workitems_by_transfer_latency(resource.domain_id)
 
@@ -115,10 +114,10 @@ class FirstCompleteFirstServe:
             parent_pipelinestages = workitem.pipelinestage.get_parents('data')
             for parent_pipelinestage in parent_pipelinestages:
                 src_resource_id = imanager.get_input_owner (workitem.id, parent_pipelinestage.index)
-                src_resource = rmanager.get_resource (src_resource_id, active=True)
+                src_resource = rmanager.get_resource (src_resource_id)
                 src_domain_id = rmanager.get_domain(src_resource_id)
+                src_domain = dmanager.get_domain(src_domain_id)
                 if src_resource == None:
-                    src_domain = dmanager.get_domain(src_domain_id)
                     pfs = src_domain.pfs
                 else:
                     pfs = src_resource.pfs
@@ -135,7 +134,7 @@ class FirstCompleteFirstServe:
             workitem.add_input_transfer_latency(domain.id, max_transfer_latency)
 
     def set_io_transfer_stats (self, rmanager, imanager, dmanager, workitem, resource_id):
-        resource = rmanager.get_resource(resource_id, active=True)
+        resource = rmanager.get_resource(resource_id)
         transfer_latency = workitem.get_input_transfer_latency(str(resource.domain_id))
         if transfer_latency == None:
             transfer_latency = dmanager.get_central_repository_latency (workitem.pipelinestage.output_size)
@@ -143,17 +142,21 @@ class FirstCompleteFirstServe:
         parent_pipelinestages = workitem.pipelinestage.get_parents('data')
         for parent_pipelinestage in parent_pipelinestages:
             src_resource_id = imanager.get_input_owner(workitem.id, parent_pipelinestage.index)
-            src_resource = rmanager.get_resource (src_resource_id, active=True)
+            src_resource = rmanager.get_resource (src_resource_id)
+            src_domain_id = rmanager.get_domain(src_resource_id)
+            src_domain = dmanager.get_domain(src_domain_id)
             if src_resource == None:
-                domain_id = rmanager.get_domain (src_resource_id)
-                domain = dmanager.get_domain (domain_id)
-                pfs = domain.pfs
+                pfs = src_domain.pfs
             else:
                 pfs = src_resource.pfs
             pfs.read_file(workitem.id, workitem.pipelinestage.name, parent_pipelinestage.name)
 
+            if src_domain_id != resource.domain_id:
+                dmanager.add_data_transfer (src_domain_id, resource.domain_id, parent_pipelinestage.output_size, workitem.pipelinestage)
+
         workitem.input_read_time = transfer_latency
         workitem.output_write_time = resource.pfs.get_write_latency(workitem.pipelinestage.output_size)
+        #print ('set_io_transfer ()', workitem.id, workitem.pipelinestage.output_size, workitem.input_read_time, workitem.output_write_time)
 
     def add_new_workitems_DFS (self, rmanager, imanager, pmanager, empty_resources, resourcetype):
         #print ('add_new_workitems ():')

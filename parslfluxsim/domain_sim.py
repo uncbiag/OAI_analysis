@@ -55,14 +55,14 @@ class Domain:
     def get_reservation_quota (self):
         return self.reservation_quota
 
-    def get_availability (self, resourcetype):
+    def get_availability (self, resourcetype, count):
         pass
 
     def get_pfs_handle(self):
         return self.pfs
 
     def reset (self):
-        self.pfs = PFS(1048576, self.env)
+        self.pfs.reset()
 
 class HPCDomain (Domain):
     def init_cluster(self):
@@ -73,26 +73,43 @@ class HPCDomain (Domain):
             self.resourcedict[cputype['id']]['computetype'] = 'CPU'
             self.resourcedict[cputype['id']]['cost'] = cputype['cost']
             self.resourcedict[cputype['id']]['startuptime'] = cputype['startuptime']
+            self.resourcedict[cputype['id']]['limit'] = cputype['limit']
 
         for gputype in self.resourcedata['GPU']:
             self.resourcedict[gputype['id']] = {}
             self.resourcedict[gputype['id']]['computetype'] = 'GPU'
             self.resourcedict[gputype['id']]['cost'] = gputype['cost']
             self.resourcedict[gputype['id']]['startuptime'] = gputype['startuptime']
+            self.resourcedict[gputype['id']]['limit'] = gputype['limit']
 
         self.performancedata = read_performance_data()
         self.pfs = PFS(1048576, self.env)
 
     def provision_resource (self, resourcetype, on_demand, bidding_price):
-        return 0, 0
+        #print (resourcetype)
+        #print (self.resourcedict.keys())
+        if self.resourcedict[resourcetype]['limit'] != -1 and resourcetype in self.allocations.keys():
+            if self.allocations[resourcetype] < self.resourcedict[resourcetype]['limit']:
+                #print ('ARC provision resource ()', self.allocations[resourcetype], self.resourcedict[resourcetype]['limit'])
+                return 0, 0
+            else:
+                return None, None
+        else:
+            return 0, 0
 
-    def get_availability(self, resourcetype):
-        return True
+    def get_availability(self, resourcetype, count):
+        if self.resourcedict[resourcetype]['limit'] != -1 and resourcetype in self.allocations.keys():
+            if self.allocations[resourcetype] + count < self.resourcedict[resourcetype]['limit']:
+                return True
+            else:
+                return False
+        else:
+            return True
 
 
 class AWSDomain (Domain):
 
-    def get_availability(self, resourcetype):
+    def get_availability(self, resourcetype, count):
         return True
 
     def provision_on_demand_resource (self, resourcetype):
@@ -100,8 +117,6 @@ class AWSDomain (Domain):
         cost = self.reservationcostmodel.get_on_demand_cost (resourcetype)
 
         provision_time = self.reservationcostmodel.get_on_demand_startup_time (resourcetype)
-
-        print (cost, provision_time)
 
         return cost, provision_time
 
@@ -120,7 +135,7 @@ class AWSDomain (Domain):
             return self.provision_spot_resource (resourcetype, bidding_price)
 
     def init_cluster (self):
-        self.type = 'AWS'
+        self.type = 'CLOUD'
         self.reservation_quota = self.resourcedata['reservation_quota']
 
         for cputype in self.resourcedata['CPU']:
@@ -128,12 +143,14 @@ class AWSDomain (Domain):
             self.resourcedict[cputype['id']]['computetype'] = 'CPU'
             self.resourcedict[cputype['id']]['cost'] = cputype['cost']
             self.resourcedict[cputype['id']]['startuptime'] = cputype['startuptime']
+            self.resourcedict[cputype['id']]['limit'] = cputype['limit']
 
         for gputype in self.resourcedata['GPU']:
             self.resourcedict[gputype['id']] = {}
             self.resourcedict[gputype['id']]['computetype'] = 'GPU'
             self.resourcedict[gputype['id']]['cost'] = gputype['cost']
             self.resourcedict[gputype['id']]['startuptime'] = gputype['startuptime']
+            self.resourcedict[gputype['id']]['limit'] = gputype['limit']
 
 
         self.datacostdict['storage'] = {}
@@ -165,15 +182,40 @@ class DomainManager:
         self.domains = {}
         self.env = env
         self.interdomain_transfer_rate = {}
+        self.interdomain_transfer_history = {}
+
+    def get_data_transer_history (self):
+        return self.interdomain_transfer_history
+
+    def add_data_transfer (self, src_domain_id, dest_domain_id, transfer_size, pipelinestage):
+        if str(src_domain_id) not in self.interdomain_transfer_history:
+            self.interdomain_transfer_history[str(src_domain_id)] = {}
+
+        if str(dest_domain_id) not in self.interdomain_transfer_history[str(src_domain_id)]:
+            self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)] = {}
+
+        if pipelinestage.name not in self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)]:
+            self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)][pipelinestage.name] = []
+
+        if len (self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)][pipelinestage.name]) <= 0:
+            self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)][pipelinestage.name].append ([self.env.now, transfer_size])
+        else:
+            till_now = self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)][pipelinestage.name][-1][1]
+            self.interdomain_transfer_history[str(src_domain_id)][str(dest_domain_id)][pipelinestage.name].append ([self.env.now, transfer_size + till_now])
 
     def get_central_repository_latency (self, size):
         return float (size / 1024)
 
     def reset (self):
+        self.reset_time = self.env.now
         for domain in self.domains:
             self.domains[domain].reset()
 
+        self.interdomain_transfer_history = {}
+
     def get_interdomain_transfer_latency (self, src_domain_id, dest_domain_id, filesize):
+        if str(src_domain_id) == str(dest_domain_id):
+            return 0
         return filesize / self.interdomain_transfer_rate[str(src_domain_id)][str(dest_domain_id)]
 
     def get_domains (self):
@@ -184,6 +226,22 @@ class DomainManager:
             return self.domains[str (id)]
         else:
             return None
+
+    def get_hpc_domains (self):
+        results = []
+        for key in self.domains.keys ():
+            domain = self.domains[key]
+            if domain.type == 'HPC':
+                results.append(domain)
+        return results
+
+    def get_cloud_domains (self):
+        results = []
+        for key in self.domains.keys():
+            domain = self.domains[key]
+            if domain.type == 'CLOUD':
+                results.append(domain)
+        return results
 
     def init_resource_model (self):
         yaml_resourcefile = open(self.domainfile)
@@ -204,7 +262,9 @@ class DomainManager:
         for src_domain_id in self.domains.keys():
             self.interdomain_transfer_rate[str(src_domain_id)] = {}
             for dst_domain_id in self.domains.keys ():
-                self.interdomain_transfer_rate[str(src_domain_id)][str(dst_domain_id)] = 1
+                if src_domain_id == dst_domain_id:
+                    continue
+                self.interdomain_transfer_rate[str(src_domain_id)][str(dst_domain_id)] = 1024
 
 if __name__ == '__main__':
     dmanager = DomainManager ('md_resources.yml')

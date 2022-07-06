@@ -2,21 +2,25 @@ from parslfluxsim.workitem_sim import WorkItem
 import copy
 
 class BagOfWorkItems (object):
-    def __init__(self, pipelinestageindex, computetype):
+    def __init__(self, pipelinestageindex, computetype, env):
         self.pipelinestageindex = pipelinestageindex
         self.bag = []
         self.computetype = computetype
         self.root = True
+        self.env = env
+        self.snapshots = {}
 
     def set_root (self, status):
         self.root = status
 
     def add_workitem (self, workitem):
         self.bag.append(workitem)
+        self.snapshots[str (self.env.now)] = len (self.bag)
 
     def pop_workitem (self):
         if len (self.bag) > 0:
             item = self.bag.pop(0)
+            self.snapshots[str(self.env.now)] = len(self.bag)
             return item
         return None
 

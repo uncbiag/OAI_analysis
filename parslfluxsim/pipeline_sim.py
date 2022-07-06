@@ -3,14 +3,14 @@ import sys
 import statistics
 import copy
 import math
-from plots.plot_prediction_sim import plot_resource_allocation
 from parslfluxsim.resources_sim import Resource
 from parslfluxsim.bagofworkitems_sim import BagOfWorkItems
 from parslfluxsim.workitem_sim import WorkItem
 
 class PipelineStage:
-    def __init__ (self, stageindex, name, resourcetype, priority, output_size, rmanager, batchsize):
+    def __init__ (self, stageindex, name, resourcetype, priority, output_size, rmanager, batchsize, env):
         index = 0
+        self.env = env
         self.name = name
         self.index = stageindex
         self.resourcetype = resourcetype
@@ -22,14 +22,15 @@ class PipelineStage:
         self.exec_children = []
         self.data_parents = []
         self.data_children = []
-        self.bagofworkitems = BagOfWorkItems (self.index, self.resourcetype)
+        self.bagofworkitems = BagOfWorkItems (self.index, self.resourcetype, env)
         self.batchsize = batchsize
         self.total_complete = 0
 
     def reset (self):
         self.pinned_resources = []
-        self.bagofworkitems = BagOfWorkItems (self.index, self.resourcetype)
+        self.bagofworkitems = BagOfWorkItems (self.index, self.resourcetype, self.env)
         self.total_complete = 0
+
 
     def add_completion (self, count):
         self.total_complete += count
@@ -45,7 +46,6 @@ class PipelineStage:
         while imanager.get_remaining_count () > 0:
             images = imanager.get_images (1)
             image_key = list (images.keys())[0]
-
             new_workitem = WorkItem (image_key, images[image_key], None, self, None, self.resourcetype, \
                                       self.index, '')
 
@@ -63,7 +63,7 @@ class PipelineStage:
     def get_pinned_resources (self, rmanager, status):
         results = []
         for resource_id in self.pinned_resources:
-            resource = rmanager.get_resource (resource_id, True)
+            resource = rmanager.get_resource (resource_id)
             if resource.active == status:
                 results.append (resource_id)
 
@@ -94,14 +94,14 @@ class PipelineStage:
         else:
             return self.data_parents
 
-    def get_current_throughput (self, phase_index):
+    def get_current_throughput (self):
         #print ('get_current_throughput ()', self.name)
         current_executors = self.pinned_resources
 
         thoughput_list = []
         for resource_id in current_executors:
             #print('get_current_throughput ()', resource_id)
-            resource = self.rmanager.get_resource (resource_id, active=True)
+            resource = self.rmanager.get_resource (resource_id)
             if resource == None:
                 continue
             if self.resourcetype == 'CPU':
@@ -123,7 +123,7 @@ class PipelineStage:
         print (self.name, self.index, self.resourcetype, self.data_parents, self.exec_parents, self.data_children, self.exec_children)
 
 class PipelineManager:
-    def __init__ (self, pipelinefile, batchsize, max_images):
+    def __init__ (self, pipelinefile, batchsize, max_images, env):
         self.pipelinefile = pipelinefile
         self.pipelinestages = []
         self.pipelinestages_dict = {}
@@ -136,9 +136,11 @@ class PipelineManager:
         self.max_images = max_images
         self.effective_throughput_record = {}
         self.data_throughput_record = {}
+        self.env = env
         self.throughput_record = {}
 
     def reset (self):
+        self.reset_time = self.env.now
         for pipelinestage in self.pipelinestages:
             pipelinestage.reset ()
 
@@ -149,7 +151,10 @@ class PipelineManager:
         print (self.data_throughput_record)
         return self.data_throughput_record
 
-    def performance_to_cost_ranking_pipelinestage (self, rmanager, pipelinestageindex):
+    def get_throughput (self, pipelinestage):
+        return self.throughput_record[str(pipelinestage.name)][-1][1]
+
+    def performance_to_cost_ranking_pipelinestage_all (self, rmanager, pipelinestageindex):
 
         weighted_performance_to_cost_ratio = {}
 
@@ -189,23 +194,69 @@ class PipelineManager:
 
         return weighted_performance_to_cost_ratio_ranking
 
+    def performance_to_cost_ranking_pipelinestage_domain (self, rmanager, domain, pipelinestageindex):
+
+        weighted_performance_to_cost_ratio = {}
+
+        pipelinestage = self.pipelinestages[pipelinestageindex]
+
+        resourcetnames = rmanager.get_resource_names_domain (pipelinestage.resourcetype, domain)
+
+        for resource_name in resourcetnames:
+
+            exectime = rmanager.get_exectime(resource_name, pipelinestage.name)
+
+            #print(domain.name, resource_name, pipelinestage.name, exectime)
+
+            throughput = 1 / exectime
+            ret = rmanager.get_resourcetype_info(resource_name, 'cost', 'on_demand')
+            if ret != None:
+                on_demand_cost = ret
+            else:
+                on_demand_cost = 0
+
+            ret = rmanager.get_resourcetype_info(resource_name, 'cost', 'spot')
+            if ret != None:
+                spot_cost = ret
+            else:
+                spot_cost = 0
+
+            total_cost = on_demand_cost + spot_cost
+
+            #print('performancetocost',resource_name, spot_cost, on_demand_cost)
+
+            if total_cost == 0:
+                performance_to_cost_ratio = throughput
+            else:
+                performance_to_cost_ratio = throughput / total_cost
+
+            if performance_to_cost_ratio == 0:
+                weighted_performance_to_cost_ratio[resource_name] = 0
+            else:
+                weighted_performance_to_cost_ratio[resource_name] = performance_to_cost_ratio
+
+        weighted_performance_to_cost_ratio_ranking = dict(
+            sorted(weighted_performance_to_cost_ratio.items(), key=lambda item: item[1], reverse=True))
+
+        return weighted_performance_to_cost_ratio_ranking
+
     def calculate_idleness_cost (self, rmanager, env):
         idleness_cost_dict = {}
 
         for pipelinestage in self.pipelinestages:
 
-            idleness_cost_dict[str(pipelinestage.index)] = {}
+            idleness_cost_dict[str(pipelinestage.name)] = {}
 
-            available_throughput = self.throughput_record[str(pipelinestage.index)][-1][1]
+            available_throughput = self.throughput_record[str(pipelinestage.name)][-1][1]
 
-            effective_throughput = self.effective_throughput_record[str(pipelinestage.index)][-1][1]
+            effective_throughput = self.effective_throughput_record[str(pipelinestage.name)][-1][1]
 
             total_throughput_waste = available_throughput - effective_throughput
 
             pinned_resources = pipelinestage.get_pinned_resources (rmanager, True)
 
             for pinned_resource_id in pinned_resources:
-                pinned_resource = rmanager.get_resource (pinned_resource_id, active=True)
+                pinned_resource = rmanager.get_resource (pinned_resource_id)
 
                 pinned_resource_throughput = pinned_resource.get_throughput (pipelinestage.name, pipelinestage.resourcetype)
 
@@ -215,14 +266,16 @@ class PipelineManager:
 
                 pinned_resource_wastage_cost = (pinned_resource_throughput_waste / pinned_resource_throughput) * pinned_resource_cost
 
-                idleness_cost_dict[str(pipelinestage.index)][pinned_resource_id] = pinned_resource_wastage_cost
+                idleness_cost_dict[str(pipelinestage.name)][pinned_resource_id] = pinned_resource_wastage_cost
 
-                print ('resource_wastage_cost ()', pipelinestage.index, pinned_resource_id, pinned_resource_throughput, pinned_resource_throughput_waste,
-                       pinned_resource_cost, pinned_resource_wastage_cost)
+                #print ('resource_wastage_cost ()', pipelinestage.name, pinned_resource_id, pinned_resource_throughput, pinned_resource_throughput_waste,
+                #       pinned_resource_cost, pinned_resource_wastage_cost)
 
+        '''
         for pipelinestageindex in idleness_cost_dict.keys ():
             for resource_id in idleness_cost_dict[pipelinestageindex].keys ():
                 print ('resource_wastage_cost ()', pipelinestageindex, resource_id, idleness_cost_dict[pipelinestageindex][resource_id])
+        '''
 
     def calculate_pipeline_stats (self, env):
         effective_throughput_dict = {}
@@ -247,33 +300,33 @@ class PipelineManager:
             while len(to_be_traversed) > 0:
                 current_pipelinestage = to_be_traversed.pop(0)
 
-                current_throughput = current_pipelinestage.get_current_throughput (0)
-                if str(current_pipelinestage.index) not in throughput_dict:
-                    throughput_dict[str(current_pipelinestage.index)] = current_throughput
+                current_throughput = current_pipelinestage.get_current_throughput ()
+                if str(current_pipelinestage.name) not in throughput_dict:
+                    throughput_dict[str(current_pipelinestage.name)] = current_throughput
 
 
 
-                if str(current_pipelinestage.index) not in parent_effective_throughputs:
-                    effective_throughput_dict[str(current_pipelinestage.index)] = current_throughput
+                if str(current_pipelinestage.name) not in parent_effective_throughputs:
+                    effective_throughput_dict[str(current_pipelinestage.name)] = current_throughput
                     #print('calculate_pipeline_stats () 1', current_pipelinestage.name, current_throughput, effective_throughput_dict[str(current_pipelinestage.index)])
                 else:
-                    if str(current_pipelinestage.index) in effective_throughput_dict:
-                        if effective_throughput_dict[str(current_pipelinestage.index)] > parent_effective_throughputs[str(current_pipelinestage.index)]:
-                            effective_throughput_dict[str(current_pipelinestage.index)] = parent_effective_throughputs[str(current_pipelinestage.index)]
+                    if str(current_pipelinestage.name) in effective_throughput_dict:
+                        if effective_throughput_dict[str(current_pipelinestage.name)] > parent_effective_throughputs[str(current_pipelinestage.name)]:
+                            effective_throughput_dict[str(current_pipelinestage.name)] = parent_effective_throughputs[str(current_pipelinestage.name)]
                             #print('calculate_pipeline_stats () 2', current_pipelinestage.name, current_throughput,
                             #      effective_throughput_dict[str(current_pipelinestage.index)])
                         else:
-                            if effective_throughput_dict[str(current_pipelinestage.index)] > current_throughput:
-                                effective_throughput_dict[str(current_pipelinestage.index)] = current_throughput
+                            if effective_throughput_dict[str(current_pipelinestage.name)] > current_throughput:
+                                effective_throughput_dict[str(current_pipelinestage.name)] = current_throughput
                                 #print('calculate_pipeline_stats () 3', current_pipelinestage.name, current_throughput,
                                 #      effective_throughput_dict[str(current_pipelinestage.index)])
                     else:
-                        if current_throughput > parent_effective_throughputs[str(current_pipelinestage.index)]:
-                            effective_throughput_dict[str(current_pipelinestage.index)] = parent_effective_throughputs[str(current_pipelinestage.index)]
+                        if current_throughput > parent_effective_throughputs[str(current_pipelinestage.name)]:
+                            effective_throughput_dict[str(current_pipelinestage.name)] = parent_effective_throughputs[str(current_pipelinestage.name)]
                             #print('calculate_pipeline_stats () 4', current_pipelinestage.name, current_throughput,
                             #      effective_throughput_dict[str(current_pipelinestage.index)])
                         else:
-                            effective_throughput_dict[str(current_pipelinestage.index)] = current_throughput
+                            effective_throughput_dict[str(current_pipelinestage.name)] = current_throughput
                             #print('calculate_pipeline_stats () 5', current_pipelinestage.name, current_throughput,
                             #      effective_throughput_dict[str(current_pipelinestage.index)])
 
@@ -282,39 +335,40 @@ class PipelineManager:
                 for children_pipelinestage in children_pipelinestages:
                     #print ('current', current_pipelinestage.name, 'child', children_pipelinestage.name)
                     if str(children_pipelinestage.index) in parent_effective_throughputs:
-                        if parent_effective_throughputs[str(children_pipelinestage.index)] > effective_throughput_dict[str(current_pipelinestage.index)]:
-                            parent_effective_throughputs[str(children_pipelinestage.index)] = effective_throughput_dict[str(current_pipelinestage.index)]
+                        if parent_effective_throughputs[str(children_pipelinestage.name)] > effective_throughput_dict[str(current_pipelinestage.name)]:
+                            parent_effective_throughputs[str(children_pipelinestage.name)] = effective_throughput_dict[str(current_pipelinestage.name)]
 
                     else:
-                        parent_effective_throughputs[str(children_pipelinestage.index)] = effective_throughput_dict[str(current_pipelinestage.index)]
+                        parent_effective_throughputs[str(children_pipelinestage.name)] = effective_throughput_dict[str(current_pipelinestage.name)]
 
                     to_be_traversed.append(children_pipelinestage)
+
 
         pipelinestageindex = 0
 
         while pipelinestageindex < len (self.pipelinestages):
             current_pipelinestage = self.pipelinestages[pipelinestageindex]
 
-            if str(current_pipelinestage.index) not in self.effective_throughput_record.keys():
-                self.effective_throughput_record[str(current_pipelinestage.index)] = []
+            if str(current_pipelinestage.name) not in self.effective_throughput_record.keys():
+                self.effective_throughput_record[str(current_pipelinestage.name)] = []
 
-            self.effective_throughput_record[str(current_pipelinestage.index)].append ([env.now, effective_throughput_dict[str(current_pipelinestage.index)]])
+            self.effective_throughput_record[str(current_pipelinestage.name)].append ([env.now, effective_throughput_dict[str(current_pipelinestage.name)]])
 
-            if str(current_pipelinestage.index) not in self.throughput_record.keys():
-                self.throughput_record[str(current_pipelinestage.index)] = []
+            if str(current_pipelinestage.name) not in self.throughput_record.keys():
+                self.throughput_record[str(current_pipelinestage.name)] = []
 
-            self.throughput_record[str(current_pipelinestage.index)].append ([env.now, throughput_dict[str(current_pipelinestage.index)]])
+            self.throughput_record[str(current_pipelinestage.name)].append ([env.now, throughput_dict[str(current_pipelinestage.name)]])
 
-            print ('calculate_pipeline_stats ()', current_pipelinestage.name,
-                   effective_throughput_dict[str(pipelinestageindex)], throughput_dict[str(pipelinestageindex)])
+            #print ('calculate_pipeline_stats ()', current_pipelinestage.name,
+            #       effective_throughput_dict[str(pipelinestageindex)], throughput_dict[str(pipelinestageindex)])
 
-            pipelinestage_throughput = effective_throughput_dict[str(current_pipelinestage.index)]
+            pipelinestage_throughput = effective_throughput_dict[str(current_pipelinestage.name)]
             children_pipelinestages = current_pipelinestage.get_children('data')
 
             max_data_throughput = 0
 
             for children_pipelinestage in children_pipelinestages:
-                child_throughput = effective_throughput_dict[str(children_pipelinestage.index)]
+                child_throughput = effective_throughput_dict[str(children_pipelinestage.name)]
 
                 if child_throughput < pipelinestage_throughput:
                     data_throughput = float (((pipelinestage_throughput - child_throughput) * pipelinestage.output_size) / 1024)
@@ -322,10 +376,10 @@ class PipelineManager:
                     if data_throughput > max_data_throughput:
                         max_data_throughput = data_throughput
 
-            if str(current_pipelinestage.index) not in self.data_throughput_record.keys():
-                self.data_throughput_record[str(current_pipelinestage.index)] = []
+            if str(current_pipelinestage.name) not in self.data_throughput_record.keys():
+                self.data_throughput_record[str(current_pipelinestage.name)] = []
 
-            self.data_throughput_record[str(current_pipelinestage.index)].append ([env.now, max_data_throughput])
+            self.data_throughput_record[str(current_pipelinestage.name)].append ([env.now, max_data_throughput])
 
             pipelinestageindex += 1
 
@@ -346,7 +400,8 @@ class PipelineManager:
             pipelinestage_priority = int (pipelinestage_node['priority'])
             pipelinestage_output_size = pipelinestage_node['output_size']
 
-            new_pipelinestage = PipelineStage(index, pipelinestage_name, pipelinestage_resourcetype, pipelinestage_priority, pipelinestage_output_size, rmanager, self.batchsize)
+            new_pipelinestage = PipelineStage(index, pipelinestage_name, pipelinestage_resourcetype, pipelinestage_priority,\
+                                              pipelinestage_output_size, rmanager, self.batchsize, self.env)
 
             self.pipelinestages.append(new_pipelinestage)
             self.pipelinestages_dict[pipelinestage_name] = new_pipelinestage
@@ -374,23 +429,11 @@ class PipelineManager:
         #for pipelinestage in self.pipelinestages:
         #    pipelinestage.print_data ()
 
-    def print_stage_queue_data_2 (self, rmanager):
-        plot_resource_allocation(rmanager)
-
-
     def get_all_pipelinestages (self):
         return self.pipelinestages
 
-    def get_first_pipelinestage (self):
-        return self.pipelinestages[0]
-
-    def get_next_pipelinestages (self, current_pipelinestage):
-        children = current_pipelinestage.get_children ('exec')
-
-        return children
-
-    def get_pipelinestage (self, index):
-        return self.pipelinestages[index]
+    def get_pipelinestage (self, key):
+        return self.pipelinestages_dict[key]
 
 
 if __name__ == "__main__":

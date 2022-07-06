@@ -10,6 +10,12 @@ class PFS:
         self.read_bandwidth = 1024
         self.write_bandwidth = 1024
 
+    def reset (self):
+        self.storage = {}
+        self.deleted_entries = {}
+        self.capacity_in_use = 0
+        self.total_entries = 0
+
     def store_file (self, workitem, children_pipelinestages):
         image_id = workitem.id
         pipelinestagename = workitem.pipelinestage.name

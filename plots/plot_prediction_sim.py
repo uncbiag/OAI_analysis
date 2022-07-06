@@ -10,6 +10,9 @@ from operator import add
 matplotlib.rcParams['font.size'] = 15
 matplotlib.rcParams['font.family'] = 'Times New Roman'
 
+from parslfluxsim.domain_sim import DomainManager, Domain
+
+
 #current_time, index, pipelinestage.name.split(':')[0],
 #phase.starttime, phase.pstarttime, phase.pendtime,
 #phase.pending_output,
@@ -329,6 +332,178 @@ def plot_prediction_sim_0 (pmanager, rmanager, plot_data, pfs):
     fig2.savefig ('throughput_pattern_overallocation_stable.png', dpi=300)
     plt.show()
 
+def plot_throughput_stats (pmanager):
+    fig2, axes2 = plt.subplots(5, 1, sharex=True)
+
+    throughput_record, effective_throughput_record = pmanager.get_throughput_record()
+
+    pipelinestage_index = 0
+    for pipelinestagename in throughput_record:
+        throughput_data = throughput_record[pipelinestagename]
+        effective_throughput_data = effective_throughput_record[pipelinestagename]
+
+        # print (throughput_data)
+
+        ax = axes2[int(pipelinestage_index)]
+
+        x_data = []
+        y_data = []
+        x_effective_data = []
+        y_effective_data = []
+
+        for data in throughput_data:
+            time = int(float(data[0] - pmanager.reset_time) * 3600)
+            x_data.append(time)
+            y_data.append(data[1])
+
+        for data in effective_throughput_data:
+            time = int(float(data[0] - pmanager.reset_time) * 3600)
+            x_effective_data.append(time)
+            y_effective_data.append(data[1])
+
+        ax.plot(x_data, y_data, color='blue')
+        ax.plot(x_effective_data, y_effective_data, color='red')
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(pipelinestagename)
+        ax.legend()
+        pipelinestage_index += 1
+
+    fig2.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Throughput (images/hr)")
+
+    fig2.savefig('throughput_pattern.png', dpi=300)
+
+    plt.show()
+
+def plot_data_transfer_stats (dmanager):
+    data_transfer_history = dmanager.get_data_transer_history ()
+
+    no_of_src_domains = len (list (data_transfer_history.keys ()))
+
+    fig, axes = plt.subplots (no_of_src_domains, 1, sharex=True)
+
+    index = 0
+    for src_domain_id in data_transfer_history.keys ():
+        ax = axes[index]
+        for dest_domain_id in data_transfer_history[src_domain_id].keys ():
+            for pipelinestage_name in data_transfer_history[src_domain_id][dest_domain_id].keys ():
+                x_data = []
+                y_data = []
+
+                for data in data_transfer_history[src_domain_id][dest_domain_id][pipelinestage_name]:
+                    x_data.append(float (data[0] - dmanager.reset_time) * 3600)
+                    y_data.append(float (data[1]/1024))
+
+                p = ax.plot(x_data, y_data)
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(src_domain_id + '-->' + dest_domain_id)
+        ax.legend(list (data_transfer_history[src_domain_id][dest_domain_id].keys ()))
+        index += 1
+
+    fig.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Total Transfer Size (GB)")
+    fig.savefig('data_transfer_pattern.png', dpi=300)
+    plt.show()
+
+def plot_queued_stats (pmanager):
+    fig, axes = plt.subplots(5, 1, sharex=True)
+
+    pipelinestage_index = 0
+    for pipelinestage in pmanager.pipelinestages:
+        ax = axes[pipelinestage_index]
+
+        queued_snapshots = pipelinestage.bagofworkitems.snapshots
+        x_data = []
+        y_data = []
+
+        for key in queued_snapshots.keys():
+            time = int((float(key) - pmanager.reset_time) * 3600)
+            value = queued_snapshots[key]
+            x_data.append(time)
+            y_data.append(value)
+            p = ax.plot(x_data, y_data)
+
+        ax.yaxis.set_label_position("right")
+        ax.set_ylabel(pipelinestage.name)
+        ax.legend()
+        pipelinestage_index += 1
+
+    fig.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Timeline (seconds)")
+    plt.ylabel("Queue size")
+    fig.savefig('queue_pattern_allocation.png', dpi=300)
+    plt.show ()
+
+
+def plot_filesystem_space (dmanager):
+    domains = dmanager.get_domains ()
+
+    reset_time = dmanager.reset_time
+
+    for domain in domains:
+        pfs_capacity = domain.pfs.get_capacity()
+        deleted_entries = domain.pfs.get_delete_entries()
+
+        labels = []
+
+        for pipelinestagename in deleted_entries.keys ():
+            labels.append(pipelinestagename)
+
+        pfs_change_events = {}
+
+        for key in deleted_entries:
+            pfs_change_events[key] = []
+
+        for key in deleted_entries:
+            for entry in deleted_entries[key]:
+                add_event = [deleted_entries[key][entry]['entry'], deleted_entries[key][entry]['size'], 0]
+                del_event = [deleted_entries[key][entry]['exit'], deleted_entries[key][entry]['size'], 1]
+                pfs_change_events[key].append(add_event)
+                pfs_change_events[key].append(del_event)
+
+        fig0, axes0 = plt.subplots(4, 1, sharex=True)
+
+        pipelinestage_index = 0
+        for key in deleted_entries:
+            pfs_change_events[key] = sorted(pfs_change_events[key], key=lambda x: x[0])
+
+            x_data = []
+            y_data = []
+            total_size = 0
+            for entry in pfs_change_events[key]:
+                if entry[2] == 0:
+                    total_size += entry[1]
+                else:
+                    total_size -= entry[1]
+                x_data.append((entry[0] - reset_time) * 3600)
+                y_data.append(float(total_size / 1024))
+
+            ax = axes0[int(pipelinestage_index)]
+            ax.plot(x_data, y_data)
+
+            ax.legend ()
+            ax.yaxis.set_label_position("right")
+            ax.set_ylabel(labels[int(pipelinestage_index)])
+            pipelinestage_index += 1
+
+        fig0.add_subplot(111, frame_on=False)
+        plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+        plt.xlabel("Timeline (seconds)")
+        plt.ylabel("Occupied Space (GB)")
+        fig0.savefig ('filesystem_space'+ str(domain.id) +'.png', dpi=300)
+        plt.show()
+
 def plot_resource_allocation (rmanager):
     fig, axes = plt.subplots(nrows=1, ncols=1)
 
@@ -365,21 +540,10 @@ def plot_resource_allocation (rmanager):
             else:
                 ax.plot(x_data_on_demand_new, y_data_on_demand_new, label=resource_name, linestyle='dashed')
 
-    '''
-    if 'spot' in resourcetypeinfo.keys():
-        for resource_name in resourcetypeinfo['spot'].keys():
-            x_data_spot = [i * 3600 for i in resourcetypeinfo['spot'][resource_name]['count']['time']]
-            y_data_spot = resourcetypeinfo['spot'][resource_name]['count']['count']
-            # print(resource_name, x_data, y_data)
-            if resourcetypeinfo['spot'][resource_name]['computetype'] == 'CPU':
-                ax.plot(x_data_spot, y_data_spot, label=resource_name, linestyle='dotted')
-            else:
-                ax.plot(x_data_spot, y_data_spot, label=resource_name, linestyle='dashdott')
-    '''
     ax.legend()
     ax.set_xlabel('Timeline (seconds)')
     ax.set_ylabel('Count')
 
-    fig.savefig('resource_pattern_overallocation_stable.png', dpi=300)
+    fig.savefig('resource_pattern_allocation.png', dpi=300)
 
     plt.show()
