@@ -144,15 +144,24 @@ class PipelineManager:
         for pipelinestage in self.pipelinestages:
             pipelinestage.reset ()
 
+        self.effective_throughput_record = {}
+        self.data_throughput_record = {}
+        self.throughput_record = {}
+
     def get_throughput_record (self):
         return self.throughput_record, self.effective_throughput_record
 
     def get_data_throughput_record (self):
-        print (self.data_throughput_record)
         return self.data_throughput_record
 
     def get_throughput (self, pipelinestage):
         return self.throughput_record[str(pipelinestage.name)][-1][1]
+
+    def record_throughput (self):
+        for pipelinestage in self.pipelinestages:
+            if pipelinestage.name not in self.throughput_record:
+                self.throughput_record[pipelinestage.name] = []
+            self.throughput_record[str(pipelinestage.name)].append([self.env.now, pipelinestage.get_current_throughput()])
 
     def performance_to_cost_ranking_pipelinestage_all (self, rmanager, pipelinestageindex):
 
@@ -359,8 +368,8 @@ class PipelineManager:
 
             self.throughput_record[str(current_pipelinestage.name)].append ([env.now, throughput_dict[str(current_pipelinestage.name)]])
 
-            #print ('calculate_pipeline_stats ()', current_pipelinestage.name,
-            #       effective_throughput_dict[str(pipelinestageindex)], throughput_dict[str(pipelinestageindex)])
+            print ('calculate_pipeline_stats ()', current_pipelinestage.name,
+                   effective_throughput_dict[str(current_pipelinestage.name)], throughput_dict[str(current_pipelinestage.name)])
 
             pipelinestage_throughput = effective_throughput_dict[str(current_pipelinestage.name)]
             children_pipelinestages = current_pipelinestage.get_children('data')
@@ -371,7 +380,7 @@ class PipelineManager:
                 child_throughput = effective_throughput_dict[str(children_pipelinestage.name)]
 
                 if child_throughput < pipelinestage_throughput:
-                    data_throughput = float (((pipelinestage_throughput - child_throughput) * pipelinestage.output_size) / 1024)
+                    data_throughput = float (((pipelinestage_throughput - child_throughput) * current_pipelinestage.output_size) / 1024)
 
                     if data_throughput > max_data_throughput:
                         max_data_throughput = data_throughput

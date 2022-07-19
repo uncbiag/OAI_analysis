@@ -2,12 +2,13 @@ from parslfluxsim.execution_sim import ExecutionSim, ExecutionSimThread
 from parslfluxsim.resources_sim import ResourceManager
 from parslfluxsim.domain_sim import DomainManager
 class Allocator:
-    def __init__(self, env):
+    def __init__(self, env, wait_threshold):
         self.env = env
         self.workers = {}
         self.worker_threads = {}
+        self.wait_threshold = wait_threshold
 
-    def scale_up_resources_domain (self, rmanager, pmanager, pipelinestage, target_throughput, domain):
+    def scale_up_resources_domain_limit (self, rmanager, pmanager, pipelinestage, target_throughput, domain):
 
         performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage_domain(rmanager,
                                                                                                       domain,
@@ -37,6 +38,40 @@ class Allocator:
                 to_be_added[resource_name] += 1
 
                 throughput_achieved += resource_throughput
+
+            if target_throughput > throughput_achieved:
+                continue
+            else:
+                break
+
+        return to_be_added, throughput_achieved
+
+    def scale_up_resources_domain (self, rmanager, pmanager, pipelinestage, target_throughput, domain):
+
+        performance_to_cost_ratio_ranking = pmanager.performance_to_cost_ranking_pipelinestage_domain(rmanager,
+                                                                                                      domain,
+                                                                                                      pipelinestage.index)
+
+        to_be_added = {}
+        throughput_achieved = 0
+
+        for resource_name in performance_to_cost_ratio_ranking.keys():
+            resource_throughput = rmanager.get_throughput (resource_name, pipelinestage.name)
+
+            while True:
+                if resource_throughput + throughput_achieved > target_throughput:
+                    break
+
+                wait_time = domain.get_availability(resource_name) - self.env.now
+                print ('scale_up_resources_domain ()', resource_name, wait_time)
+
+                if wait_time <= self.wait_threshold:
+                    if resource_name not in to_be_added:
+                        to_be_added[resource_name] = 0
+                    to_be_added[resource_name] += 1
+                    throughput_achieved += resource_throughput
+                else:
+                    break
 
             if target_throughput > throughput_achieved:
                 continue

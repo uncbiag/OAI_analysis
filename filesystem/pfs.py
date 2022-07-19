@@ -2,6 +2,7 @@
 class PFS:
     def __init__(self, capacity, env):
         self.capacity = capacity
+        self.snapshot = {}
         self.storage = {}
         self.deleted_entries = {}
         self.capacity_in_use = 0
@@ -23,6 +24,7 @@ class PFS:
 
         if str (pipelinestagename) not in self.storage.keys ():
             self.storage [str(pipelinestagename)] = {}
+            self.snapshot [str(pipelinestagename)] = []
 
         if image_id not in self.storage[str(pipelinestagename)]:
             self.storage[str(pipelinestagename)][str(image_id)] = {}
@@ -37,6 +39,12 @@ class PFS:
             for child_pipelinestage in children_pipelinestages:
                 self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'][str(child_pipelinestage.name)] = False
 
+
+            if len (self.snapshot[str(pipelinestagename)]) <= 0:
+                self.snapshot[str(pipelinestagename)].append ([self.env.now, filesize])
+            else:
+                prev_snapshot = self.snapshot[str(pipelinestagename)][-1][1]
+                self.snapshot[str(pipelinestagename)].append([self.env.now, prev_snapshot + filesize])
             #print ('pfs store ()', image_id, pipelinestagename, filesize, self.storage[str(pipelinestagename)][str(image_id)]['pending_children_read'])
 
     def read_file (self, image_id, current_pipelinestagename, parent_pipelinestagename):
@@ -92,6 +100,8 @@ class PFS:
         self.capacity_in_use -= filesize
         self.total_entries -= 1
 
+        prev_snapshot = self.snapshot[str(parent_pipelinestagename)][-1][1]
+        self.snapshot[str(parent_pipelinestagename)].append([self.env.now, prev_snapshot - filesize])
 
     def get_read_latency (self, size):
         return float (size/self.read_bandwidth)
@@ -101,6 +111,9 @@ class PFS:
 
     def get_delete_entries (self):
         return self.deleted_entries
+
+    def get_snapshot (self):
+        return self.snapshot
 
     def get_capacity(self):
         return self.capacity

@@ -137,6 +137,7 @@ class OAI_Scheduler:
 
         self.populate_bagofworkitems (imanager, pmanager)
         print ('workitems created')
+        last_record_stats_time = None
 
         try:
             self.perform_initial_allocation (rmanager, pmanager, dmanager, allocator, exploration)
@@ -200,9 +201,10 @@ class OAI_Scheduler:
 
                 # scaling code goes here
                 if exploration == False:
-                    #scaler.scale_up_2x (rmanager, pmanager, dmanager, allocator)
                     scaler.scale_up_deadline(rmanager, pmanager, dmanager, allocator)
-                #pmanager.reconfiguration (rmanager, self.env)
+                    if last_record_stats_time == None or (self.env.now - last_record_stats_time) > (5/3600):
+                        last_record_stats_time = self.env.now
+                        pmanager.calculate_pipeline_stats (self.env)
 
                 for pipelinestage in pmanager.pipelinestages:
                     idle_resources = []
@@ -257,14 +259,16 @@ class OAI_Scheduler:
             print('WOW!')
 
         print('all tasks complete', self.env.now)
+        if exploration == False:
+            pmanager.calculate_pipeline_stats(self.env)
 
         cpu_cost, gpu_cost = rmanager.get_total_cost()
         print('total cost', self.env.now, cpu_cost, gpu_cost)
         if exploration == False:
-            plot_resource_allocation(rmanager)
+            #plot_resource_allocation(rmanager, dmanager)
             #plot_filesystem_space(dmanager)
             #plot_queued_stats(pmanager)
-            #plot_data_transfer_stats(dmanager)
+            plot_data_transfer_stats(dmanager)
             #plot_throughput_stats(pmanager)
 
         return

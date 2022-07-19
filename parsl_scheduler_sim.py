@@ -17,7 +17,7 @@ class Simulation:
         self.env = simpy.Environment()
 
     def setup(self, pipelinefile, configfile, multidomain_resourcefile, \
-              max_images, output_file, batchsize, interval):
+              max_images, output_file, batchsize, interval, wait_threshold):
 
         self.d = DomainManager(multidomain_resourcefile, self.env)
 
@@ -35,7 +35,7 @@ class Simulation:
         self.scheduler = OAI_Scheduler(self.env)
         self.scheduler.outputfile = output_file
 
-        self.a = Allocator (self.env)
+        self.a = Allocator (self.env, wait_threshold)
 
         self.s = Scaler (self.env, interval)
 
@@ -62,8 +62,10 @@ if __name__ == "__main__":
 
     output_directory = "plots/DFS_staging"
 
+
     deadline = 3
     interval = 0.5
+    wait_threshold = 0.083
 
     os.makedirs(output_directory, exist_ok=True)
 
@@ -80,7 +82,7 @@ if __name__ == "__main__":
             output_file = open (output_directory+"/"+str(max_images[i])+".txt", "w")
             sim = Simulation ()
             r,i,p,d,a,s = sim.setup (pipelinefile, configfile, multidomain_resourcefile, max_images[i], output_file, batchsize,\
-                                     interval)
+                                     interval, wait_threshold)
             sim.env.process(sim.scheduler.run_no_prediction_pin_core(r, i, p, d, a, s, exploration=True))
             sim.run ()
             print('actual execution begins', sim.env.now)

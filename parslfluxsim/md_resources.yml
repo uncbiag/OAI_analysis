@@ -2,40 +2,44 @@ domains:
     - name: 'ARC'
       type: 'HPC'
       reservation_quota: 4
+      availability:
+        distr: 'gamma'
+        alpha: 0.16914598
+        beta: 15.72855
       CPU:
         - id: 'Epyc Rome'
           startuptime: 60
           cost: 0
-          limit: 9
+          limit: 20
         - id: 'Intel Ivy Bridge'
           startuptime: 60
           cost: 0
-          limit: 10
+          limit: 20
         - id: 'AMD Opteron'
           startuptime: 60
           cost: 0
-          limit: 11
+          limit: 20
         - id: 'Intel Broadwell'
           startuptime: 60
           cost: 0
-          limit: 12
+          limit: 20
         - id: 'Intel Sandy Bridge'
           startuptime: 60
           cost: 0
-          limit: 10
+          limit: 20
       GPU:
         - id: 'Nvidia GTX 1080'
           startuptime: 60
           cost: 0
-          limit: 8
+          limit: 20
         - id: 'Nvidia RTX 2060 Super'
           startuptime: 60
           cost: 0
-          limit: 7
+          limit: 20
         - id: 'Nvidia RTX 2070'
           startuptime: 60
           cost: 0
-          limit: 9
+          limit: 20
 
     - name: 'AWS-zone-01'
       type: 'AWS'

@@ -689,12 +689,18 @@ class ResourceManager:
 
         if 'count' not in self.resourcetypeinfo[provision_type][resource_type]:
             self.resourcetypeinfo[provision_type][resource_type]['count'] = {}
-            self.resourcetypeinfo[provision_type][resource_type]['count']['time'] = [self.env.now]
-            self.resourcetypeinfo[provision_type][resource_type]['count']['count'] = [1]
+            self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]= {}
+            self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['time'] = [self.env.now]
+            self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['count'] = [1]
         else:
-            self.resourcetypeinfo[provision_type][resource_type]['count']['time'].append(self.env.now)
-            self.resourcetypeinfo[provision_type][resource_type]['count']['count'].append(
-            self.resourcetypeinfo[provision_type][resource_type]['count']['count'][-1] + 1)
+            if str(domain.id) not in self.resourcetypeinfo[provision_type][resource_type]['count']:
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)] = {}
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['time'] = [self.env.now]
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['count'] = [1]
+            else:
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['time'].append(self.env.now)
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['count'].append(
+                self.resourcetypeinfo[provision_type][resource_type]['count'][str(domain.id)]['count'][-1] + 1)
 
 
         self.resource_domain_map[str(resource.id)] = str (domain.id)
@@ -713,13 +719,13 @@ class ResourceManager:
                 if node.active == True:
                     provision_type = node.provision_type
                     if resourcetype == 'CPU':
-                        self.resourcetypeinfo[provision_type][node.cpu.name]['count']['time'].append(self.env.now)
-                        self.resourcetypeinfo[provision_type][node.cpu.name]['count']['count'].append (self.resourcetypeinfo[provision_type][node.cpu.name]['count']['count'][-1] - 1)
+                        self.resourcetypeinfo[provision_type][node.cpu.name]['count'][str(domain.id)]['time'].append(self.env.now)
+                        self.resourcetypeinfo[provision_type][node.cpu.name]['count'][str(domain.id)]['count'].append (self.resourcetypeinfo[provision_type][node.cpu.name]['count'][str(domain.id)]['count'][-1] - 1)
                         self.total_cpu_cost += (self.env.now - node.acquisition_time) * node.cpu.cost
                         domain.remove_allocation(node.cpu.name)
                     else:
-                        self.resourcetypeinfo[provision_type][node.gpu.name]['count']['time'].append (self.env.now)
-                        self.resourcetypeinfo[provision_type][node.gpu.name]['count']['count'].append (self.resourcetypeinfo[provision_type][node.gpu.name]['count']['count'][-1] - 1)
+                        self.resourcetypeinfo[provision_type][node.gpu.name]['count'][str(domain.id)]['time'].append (self.env.now)
+                        self.resourcetypeinfo[provision_type][node.gpu.name]['count'][str(domain.id)]['count'].append (self.resourcetypeinfo[provision_type][node.gpu.name]['count'][str(domain.id)]['count'][-1] - 1)
                         self.total_gpu_cost += (self.env.now - node.acquisition_time) * node.gpu.cost
                         domain.remove_allocation(node.gpu.name)
                 break

@@ -3,17 +3,26 @@ from aws_cloud_sim.costmodel import AWSCostModel
 from parslfluxsim.performance_sim import read_performance_data
 from aws_cloud_sim.arc_to_aws_mapping import ARCMapping
 from filesystem.pfs import PFS
+from scipy.stats import *
+import random
+import pandas as pd
 
 class Domain:
     def __init__(self, resourcedata, domain_id, env):
         self.resourcedict = {}
         self.datacostdict = {}
+        self.availabilitydict = {}
         self.name = resourcedata['name']
         self.resourcedata = resourcedata
         self.id = domain_id
         self.env = env
         self.reservation_quota = 0
         self.allocations = {}
+        self.distr = None
+        self.alpha = None
+        self.beta = None
+        df = pd.read_csv('refine_data.csv')
+        self.wait_time_list = df['queue_wait_time'].values.tolist()
 
     def print_data (self):
         print ('resource dict', self.resourcedict)
@@ -55,7 +64,7 @@ class Domain:
     def get_reservation_quota (self):
         return self.reservation_quota
 
-    def get_availability (self, resourcetype, count):
+    def get_availability (self, resourcetype):
         pass
 
     def get_pfs_handle(self):
@@ -64,16 +73,25 @@ class Domain:
     def reset (self):
         self.pfs.reset()
 
+    def get_request_wait_time (self):
+        if self.distr != None:
+            if self.distr == 'gamma':
+                return random.gammavariate (self.alpha, self.beta)
+        else:
+            return 0
+
 class HPCDomain (Domain):
     def init_cluster(self):
         self.type = 'HPC'
         self.reservation_quota = self.resourcedata['reservation_quota']
+
         for cputype in self.resourcedata['CPU']:
             self.resourcedict[cputype['id']] = {}
             self.resourcedict[cputype['id']]['computetype'] = 'CPU'
             self.resourcedict[cputype['id']]['cost'] = cputype['cost']
             self.resourcedict[cputype['id']]['startuptime'] = cputype['startuptime']
             self.resourcedict[cputype['id']]['limit'] = cputype['limit']
+            self.resourcedict[cputype['id']]['next_availability'] = None
 
         for gputype in self.resourcedata['GPU']:
             self.resourcedict[gputype['id']] = {}
@@ -81,35 +99,70 @@ class HPCDomain (Domain):
             self.resourcedict[gputype['id']]['cost'] = gputype['cost']
             self.resourcedict[gputype['id']]['startuptime'] = gputype['startuptime']
             self.resourcedict[gputype['id']]['limit'] = gputype['limit']
+            self.resourcedict[gputype['id']]['next_availability'] = None
 
         self.performancedata = read_performance_data()
         self.pfs = PFS(1048576, self.env)
 
-    def provision_resource (self, resourcetype, on_demand, bidding_price):
-        #print (resourcetype)
-        #print (self.resourcedict.keys())
-        if self.resourcedict[resourcetype]['limit'] != -1 and resourcetype in self.allocations.keys():
-            if self.allocations[resourcetype] < self.resourcedict[resourcetype]['limit']:
-                #print ('ARC provision resource ()', self.allocations[resourcetype], self.resourcedict[resourcetype]['limit'])
-                return 0, 0
-            else:
-                return None, None
-        else:
-            return 0, 0
+        if 'availability' in self.resourcedata.keys ():
+            self.distr = self.resourcedata['availability']['distr']
+            if self.distr == 'gamma':
+                self.alpha = self.resourcedata['availability']['alpha']
+                self.beta = self.resourcedata['availability']['beta']
 
-    def get_availability(self, resourcetype, count):
+    def provision_resource (self, resourcetype, on_demand, bidding_price):
+        return 0, 0
+
+    def get_availability_limit (self, resourcetype, count):
         if self.resourcedict[resourcetype]['limit'] != -1 and resourcetype in self.allocations.keys():
             if self.allocations[resourcetype] + count < self.resourcedict[resourcetype]['limit']:
                 return True
             else:
                 return False
         else:
-            return True
+            return False
+
+    def get_availability_distr (self, resourcetype):
+        if self.resourcedict[resourcetype]['next_availability'] == None or self.resourcedict[resourcetype]['next_availability'] <= self.env.now:
+            if self.distr == 'gamma':
+                wait_time = random.gammavariate(self.alpha, self.beta)
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now + wait_time
+            else:
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now
+        elif self.resourcedict[resourcetype]['next_availability'] != None:
+            wait_time = random.gammavariate(self.alpha, self.beta)
+            if self.env.now + wait_time < self.resourcedict[resourcetype]['next_availability']:
+                self.resourcedict[resourcetype]['next_availability'] = self.resourcedict[resourcetype]['next_availability'] + wait_time
+            else:
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now + wait_time
+
+        print('HPC get_availability ()', resourcetype, self.distr, self.alpha, self.beta, wait_time,
+              self.resourcedict[resourcetype]['next_availability'])
+        return self.resourcedict[resourcetype]['next_availability']
+
+    def get_availability (self, resourcetype):
+        if self.resourcedict[resourcetype]['next_availability'] == None or self.resourcedict[resourcetype]['next_availability'] <= self.env.now:
+            if self.distr == 'gamma':
+                #wait_time = random.gammavariate(self.alpha, self.beta)
+                wait_time = random.choice (self.wait_time_list)
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now + wait_time
+            else:
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now
+        elif self.resourcedict[resourcetype]['next_availability'] != None:
+            wait_time = random.choice(self.wait_time_list)
+            if self.env.now + wait_time < self.resourcedict[resourcetype]['next_availability']:
+                self.resourcedict[resourcetype]['next_availability'] = self.resourcedict[resourcetype]['next_availability'] + wait_time
+            else:
+                self.resourcedict[resourcetype]['next_availability'] = self.env.now + wait_time
+
+        print('HPC get_availability ()', resourcetype, self.distr, self.alpha, self.beta, wait_time,
+              self.resourcedict[resourcetype]['next_availability'])
+        return self.resourcedict[resourcetype]['next_availability']
 
 
 class AWSDomain (Domain):
 
-    def get_availability(self, resourcetype, count):
+    def get_availability(self, resourcetype):
         return True
 
     def provision_on_demand_resource (self, resourcetype):
@@ -144,6 +197,7 @@ class AWSDomain (Domain):
             self.resourcedict[cputype['id']]['cost'] = cputype['cost']
             self.resourcedict[cputype['id']]['startuptime'] = cputype['startuptime']
             self.resourcedict[cputype['id']]['limit'] = cputype['limit']
+            self.resourcedict[cputype['id']]['next_availability'] = None
 
         for gputype in self.resourcedata['GPU']:
             self.resourcedict[gputype['id']] = {}
@@ -151,6 +205,7 @@ class AWSDomain (Domain):
             self.resourcedict[gputype['id']]['cost'] = gputype['cost']
             self.resourcedict[gputype['id']]['startuptime'] = gputype['startuptime']
             self.resourcedict[gputype['id']]['limit'] = gputype['limit']
+            self.resourcedict[gputype['id']]['next_availability'] = None
 
 
         self.datacostdict['storage'] = {}

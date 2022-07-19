@@ -120,8 +120,8 @@ class WorkItem:
 
             self.status = 'SUCCESS'
             thread.iscomplete = False
-            print ('probe_status ()', self.id, self.starttime, self.endtime,
-                   self.input_read_starttime, self.input_read_endtime, self.output_write_starttime, self.output_write_endtime)
+            #print ('probe_status ()', self.id, self.starttime, self.endtime,
+            #       self.input_read_starttime, self.input_read_endtime, self.output_write_starttime, self.output_write_endtime)
             return True, self.starttime, self.endtime, 'SUCCESS', thread.timeout
 
         return False, None, None, 'INCOMPLETE', 0
